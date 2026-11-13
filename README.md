@@ -6,6 +6,8 @@ This is the Skeleton of the Army Farmer Joe Project.
 
 A cooperative, multi-account (**Army**) adaptation of the Skua `FarmerJoeDoAll` progression script. Instead of running accounts independently, this project synchronizes 2 to 7 accounts step-by-step so faster or higher-level accounts actively follow and assist progressing accounts through every quest, reputation grind, and boss fight.
 
+Test Script ArmyFarmerJoeStep1.cs, ArmyFarmerJoeDoAll has everything while step 1 runs only till the changes that that has been made.
+
 Based on @LoneWolf13 core from UltrasLW, Ty Sir.
 
 Write with AI: GPT-6 Luna, Opus 5.5, Gemini 4 Argon.
