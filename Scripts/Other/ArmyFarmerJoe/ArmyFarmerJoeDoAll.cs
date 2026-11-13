@@ -13,6 +13,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Skua.Core.Interfaces;
 using Skua.Core.Models.Items;
+using Skua.Core.Models.Quests;
 using Skua.Core.Options;
 
 public class ArmyFarmerJoeDoAll
@@ -137,20 +138,52 @@ public class ArmyFarmerJoeDoAll
         return Army.StartArmySync(syncFileName, playerCount);
     }
 
-    private bool ApplyArmyRoomSettings()
+    private int GetLocalPlayerNumber()
     {
+        if (Army.ArmyPlayerNumber > 0)
+            return Army.ArmyPlayerNumber;
+
+        for (int playerNumber = 1; playerNumber <= 7; playerNumber++)
+        {
+            if (IsPlayer(playerNumber))
+                return playerNumber;
+        }
+
+        return 1;
+    }
+
+    private int GetSubgroupRoomIndex(int maxPlayersPerRoom)
+    {
+        if (maxPlayersPerRoom <= 0)
+            return 0;
+
+        return (GetLocalPlayerNumber() - 1) / maxPlayersPerRoom;
+    }
+
+    private bool ApplyArmyRoomSettings(int roomOffset = 0)
+    {
+        const int MinRoom = 1001;
+        const int MaxRoom = 99999;
+
         string? rawRoom = Bot.Config?.Get<string>("RoomNumber")?.Trim();
         int roomNumber = int.TryParse(rawRoom, out int parsedRoom) ? parsedRoom : 0;
 
         if (!Army.ValidatePrivateRoomNumber(roomNumber))
             return false;
 
+        int span = MaxRoom - MinRoom + 1;
+        int normalizedOffset = ((roomOffset % span) + span) % span;
+        int effectiveRoom = MinRoom + (((roomNumber - MinRoom) + normalizedOffset) % span);
+
         CoreBots core = CoreBots.Instance;
         core.PrivateRooms = true;
-        core.PrivateRoomNumber = roomNumber;
+        core.PrivateRoomNumber = effectiveRoom;
         core.PublicDifficult = false;
         return true;
     }
+
+    private bool ApplySubgroupRoomSettings(int maxPlayersPerRoom) =>
+        ApplyArmyRoomSettings(GetSubgroupRoomIndex(maxPlayersPerRoom));
 
     public bool RunLevel1To30()
     {
@@ -799,6 +832,10 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
+        // 1b. Approved Bracket 30 Weeklies & Early Daily (Design Notes 1213, Wheel of Doom 3076/3075, Odd's 'n' Ends 6187)
+        if (!RunBracket30ApprovedDailiesAndWeeklies())
+            return false;
+
         // 2. GetBoosts (only if enabled in options)
         bool getBoostsEnabled = Bot.Config?.Get<bool>("GetBoosts") == true;
         bool boostsDone = false;
@@ -1035,54 +1072,101 @@ public class ArmyFarmerJoeDoAll
             return false;
         SetClass();
 
-        // 5d. Imperial Chunin (Yokai Rep 10 in /dragonkoiz — No boss, Pockey Chew only ~1k HP, gives Boss Hit-Chance Debuffer for Player 3)
+        // 5d. Imperial Chunin (Yokai Rep 10 in /dragonkoiz — room limit is 3 players, so split the
+        // Army into <=3-player sub-rooms for farming Pockey Chew and buying from Shop 95, then
+        // restore the shared private room before ranking Imperial Chunin in /icestormarena).
+        const int DragonkoiMaxPlayers = 3;
         bool HasImperialChunin() => HasClassInInventory("Imperial Chunin");
         bool HasImperialChuninRank10() =>
             HasImperialChunin() && HasRank10Class("Imperial Chunin");
+        void LeaveDragonkoizIfPresent()
+        {
+            if (string.Equals(Bot.Map?.Name, "dragonkoiz", StringComparison.OrdinalIgnoreCase))
+                LeaveCombatRoomForEquipmentChange();
+        }
 
-        if (
-            !RunCooperativeObjective(
-                "BRACKET30_CHUNIN_YOKAI_REP",
-                () => HasImperialChunin() || Farm.FactionRank("Yokai") >= 10,
-                () =>
-                {
-                    if (HasImperialChunin() || Farm.FactionRank("Yokai") >= 10)
-                        return;
-
-                    core.Logger("Level 30: Farming Yokai Rep 10 for Imperial Chunin");
-                    SetClass(ClassType.Farm);
-                    Farm.YokaiREP(10);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Pockey Chew", compositionType: ClassType.Farm);
-                }
-            )
-        )
+        LeaveDragonkoizIfPresent();
+        if (!ApplySubgroupRoomSettings(DragonkoiMaxPlayers))
             return false;
 
-        if (
-            !RunCooperativeObjective(
-                "BRACKET30_CHUNIN_BUY",
-                HasImperialChunin,
-                () =>
-                {
-                    if (HasImperialChunin())
-                        return;
+        core.Logger(
+            $"Level 30: /dragonkoiz capped at {DragonkoiMaxPlayers} players; subgroup {GetSubgroupRoomIndex(DragonkoiMaxPlayers) + 1} using private room {core.PrivateRoomNumber}."
+        );
 
-                    core.Logger("Level 30: Buying Imperial Chunin");
-                    LeaveCombatRoomForEquipmentChange();
-                    Adv.BuyItem("dragonkoiz", 95, "Imperial Chunin");
-                    Bot.Wait.ForItemBuy();
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Bot.Sleep(1000);
-                },
-                maxWorkAttempts: 3
+        try
+        {
+            if (
+                !RunCooperativeObjective(
+                    "BRACKET30_CHUNIN_YOKAI_REP",
+                    () => HasImperialChunin() || Farm.FactionRank("Yokai") >= 10,
+                    () =>
+                    {
+                        if (HasImperialChunin() || Farm.FactionRank("Yokai") >= 10)
+                            return;
+
+                        core.Logger("Level 30: Farming Yokai Rep 10 for Imperial Chunin");
+                        SetClass(ClassType.Farm);
+                        Farm.YokaiREP(10);
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                    {
+                        if (
+                            targetPlayerNumber <= 0
+                            || string.IsNullOrWhiteSpace(targetPlayerName)
+                        )
+                        {
+                            LeaveDragonkoizIfPresent();
+                            Bot.Sleep(1000);
+                            return;
+                        }
+
+                        Army.CoordinateFollowAndCombat(
+                            targetPlayerName,
+                            "Pockey Chew",
+                            compositionType: ClassType.Farm
+                        );
+                    },
+                    maxPlayersPerSubgroup: DragonkoiMaxPlayers
+                )
             )
-        )
-            return false;
+                return false;
+
+            if (
+                !RunCooperativeObjective(
+                    "BRACKET30_CHUNIN_BUY",
+                    HasImperialChunin,
+                    () =>
+                    {
+                        if (HasImperialChunin())
+                            return;
+
+                        core.Logger("Level 30: Buying Imperial Chunin");
+                        LeaveCombatRoomForEquipmentChange();
+                        Adv.BuyItem("dragonkoiz", 95, "Imperial Chunin");
+                        Bot.Wait.ForItemBuy();
+                        LeaveDragonkoizIfPresent();
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                    {
+                        LeaveDragonkoizIfPresent();
+                        Bot.Sleep(1000);
+                    },
+                    maxWorkAttempts: 3,
+                    maxPlayersPerSubgroup: DragonkoiMaxPlayers
+                )
+            )
+                return false;
+
+            LeaveDragonkoizIfPresent();
+        }
+        finally
+        {
+            ApplyArmyRoomSettings();
+        }
+
+        core.Logger(
+            $"Level 30: Restored shared private room {core.PrivateRoomNumber} after /dragonkoiz."
+        );
 
         if (
             !RunCooperativeObjective(
@@ -1906,6 +1990,10 @@ public class ArmyFarmerJoeDoAll
                 maxWorkAttempts: 2
             )
         )
+            return false;
+
+        // 8. Approved Bracket 50 Dailies (Unlock "A Loyal Follower" 2084 -> Mine Crafting 2091 -> ShadowScythe General 3828/3827)
+        if (!RunBracket50ApprovedDailies())
             return false;
 
         return Army.SyncArmy("STEP2B_COMPLETE");
@@ -3106,6 +3194,10 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
+        // 5. Approved Bracket 55 Dailies (Seal of Light 3826 & Seal of Darkness 3825)
+        if (!RunBracket55ApprovedDailies())
+            return false;
+
         SetClass(rankUpIfNeeded: true);
         return Army.SyncArmy("STEP2C_55_COMPLETE") && !Bot.ShouldExit;
     }
@@ -3816,6 +3908,10 @@ public class ArmyFarmerJoeDoAll
                 }
             )
         )
+            return false;
+
+        // 3. Approved Bracket 65 Dailies (Embrace Your Chaos 3596 & Lord of Order 7156-7165)
+        if (!RunBracket65ApprovedDailies())
             return false;
 
         SetClass(rankUpIfNeeded: true);
@@ -6202,18 +6298,1662 @@ public class ArmyFarmerJoeDoAll
         return item != null && item.Quantity >= Rank10ClassPoints;
     }
 
+    #region Approved Dailies, Weeklies & Future NSoD Daily
+    private sealed class CoordinatedStoryStep
+    {
+        public CoordinatedStoryStep(
+            int questId,
+            string map,
+            string helpMonster,
+            Action<CoreBots> work,
+            ClassType role = ClassType.Farm,
+            bool isCombat = true,
+            bool skipMapVerify = false
+        )
+        {
+            QuestId = questId;
+            Map = map;
+            HelpMonster = helpMonster;
+            Work = work;
+            Role = role;
+            IsCombat = isCombat;
+            SkipMapVerify = skipMapVerify;
+        }
+
+        public int QuestId { get; }
+        public string Map { get; }
+        public string HelpMonster { get; }
+        public Action<CoreBots> Work { get; }
+        public ClassType Role { get; }
+        public bool IsCombat { get; }
+        public bool SkipMapVerify { get; }
+    }
+
+    private Quest? TryLoadQuest(int questId)
+    {
+        CoreBots core = CoreBots.Instance;
+        return core.InitializeWithRetries(() => core.EnsureLoad(questId));
+    }
+
+    private bool CanRunPeriodicQuest(int questId, bool requireAvailable = false)
+    {
+        if (TryLoadQuest(questId) == null)
+            return false;
+
+        if (Bot.Quests.IsDailyComplete(questId))
+            return false;
+
+        return !requireAvailable || Bot.Quests.IsAvailable(questId);
+    }
+
+    private int GetInventoryAndBankQuantity(int itemId) =>
+        (Bot.Inventory?.Items ?? Enumerable.Empty<InventoryItem>())
+            .Concat(Bot.Bank?.Items ?? Enumerable.Empty<InventoryItem>())
+            .Where(item => item != null && item.ID == itemId)
+            .Sum(item => item.Quantity);
+
+    private void BankIfPresent(params string[] itemNames)
+    {
+        if (itemNames == null || itemNames.Length == 0 || Bot.Inventory?.Items == null)
+            return;
+
+        string[] owned = itemNames
+            .Where(name =>
+                !string.IsNullOrWhiteSpace(name)
+                && Bot.Inventory.Items.Any(item =>
+                    item?.Name != null
+                    && string.Equals(item.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase)
+                )
+            )
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (owned.Length == 0)
+            return;
+
+        LeaveCombatRoomForEquipmentChange();
+        CoreBots.Instance.ToBank(owned);
+    }
+
+    private void BankQuestExtras(int questId, params string[] excludeNames)
+    {
+        string[] rewards = CoreBots.Instance.QuestRewards(questId);
+        if (rewards == null || rewards.Length == 0)
+            return;
+
+        if (excludeNames != null && excludeNames.Length > 0)
+        {
+            rewards = rewards
+                .Where(r => !excludeNames.Any(ex => string.Equals(r, ex, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
+        }
+
+        BankIfPresent(rewards);
+    }
+
+    private void UnbankIfOwned(params string[] itemNames)
+    {
+        if (itemNames == null || itemNames.Length == 0 || Bot.Bank?.Items == null)
+            return;
+
+        string[] inBank = itemNames
+            .Where(name =>
+                !string.IsNullOrWhiteSpace(name)
+                && Bot.Bank.Items.Any(item =>
+                    item?.Name != null
+                    && string.Equals(item.Name.Trim(), name.Trim(), StringComparison.OrdinalIgnoreCase)
+                )
+            )
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+
+        if (inBank.Length > 0)
+            CoreBots.Instance.Unbank(inBank);
+    }
+
+    private bool JoinMapVerified(string map, string? cell = null, string? pad = null)
+    {
+        CoreBots core = CoreBots.Instance;
+        if (!string.IsNullOrEmpty(cell) && !string.IsNullOrEmpty(pad))
+            core.Join(map, cell, pad);
+        else
+            core.Join(map);
+
+        return string.Equals(Bot.Map?.Name, map, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool RunCoordinatedTurnInStep(
+        string objectiveName,
+        Func<bool> initialSkipCheck,
+        Func<bool> liveDoneCheck,
+        Action work
+    )
+    {
+        bool done = initialSkipCheck();
+        return RunCooperativeObjective(
+            objectiveName,
+            () => done || liveDoneCheck(),
+            () =>
+            {
+                if (done || liveDoneCheck())
+                {
+                    done = true;
+                    return;
+                }
+
+                LeaveCombatRoomForEquipmentChange();
+                work();
+                done = true;
+            },
+            (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+            maxWorkAttempts: 2
+        );
+    }
+
+    private bool RunCoordinatedCombatStep(
+        string objectiveName,
+        Func<bool> initialSkipCheck,
+        Func<bool> liveDoneCheck,
+        string helpMonster,
+        ClassType role,
+        Action work,
+        int softRetryLimit = 2
+    )
+    {
+        int attempts = 0;
+        bool done = initialSkipCheck();
+
+        return RunCooperativeObjective(
+            objectiveName,
+            () => done || liveDoneCheck(),
+            () =>
+            {
+                if (done || liveDoneCheck())
+                {
+                    done = true;
+                    return;
+                }
+
+                attempts++;
+                SetClass(role);
+                work();
+
+                if (liveDoneCheck())
+                {
+                    done = true;
+                    return;
+                }
+
+                if (softRetryLimit > 0 && attempts >= softRetryLimit)
+                {
+                    CoreBots.Instance.Logger(
+                        $"Daily objective '{objectiveName}' could not finish after {attempts} attempts; skipping cleanly so the Army can continue."
+                    );
+                    done = true;
+                }
+            },
+            (targetPlayerNumber, targetPlayerName) =>
+                Army.CoordinateFollowAndCombat(targetPlayerName, helpMonster, compositionType: role),
+            maxWorkAttempts: softRetryLimit > 0 ? softRetryLimit + 1 : 0
+        );
+    }
+
+    private bool RunCoordinatedHuntStep(
+        string objectiveName,
+        int questId,
+        string map,
+        string monster,
+        string itemName,
+        int quant = 1,
+        bool isTemp = false,
+        ClassType role = ClassType.Solo,
+        string? cell = null,
+        string? pad = null,
+        bool acceptQuest = true,
+        bool checkBankAlso = true,
+        int softRetryLimit = 2,
+        Action<CoreBots>? beforeHunt = null,
+        Func<bool>? isEnabled = null
+    )
+    {
+        CoreBots core = CoreBots.Instance;
+
+        bool IsStepDisabled() => isEnabled != null && !isEnabled();
+
+        bool HasTargetItem() =>
+            isTemp
+                ? Bot.TempInv.Contains(itemName, quant)
+                : core.CheckInventory(itemName, quant, toInv: !checkBankAlso);
+
+        return RunCoordinatedCombatStep(
+            objectiveName,
+            () => IsStepDisabled() || HasTargetItem(),
+            () => IsStepDisabled() || HasTargetItem(),
+            monster,
+            role,
+            () =>
+            {
+                if (IsStepDisabled())
+                    return;
+
+                beforeHunt?.Invoke(core);
+                if (!isTemp)
+                    core.AddDrop(itemName);
+                if (acceptQuest && questId > 0)
+                    core.EnsureAccept(questId);
+
+                if (!JoinMapVerified(map, cell, pad))
+                {
+                    core.Logger($"Map '/{map}' is currently unavailable for '{objectiveName}'.");
+                    return;
+                }
+
+                if (!string.IsNullOrEmpty(cell) && !string.IsNullOrEmpty(pad))
+                    core.KillMonster(map, cell, pad, monster, itemName, quant, isTemp);
+                else
+                    core.HuntMonster(map, monster, itemName, quant, isTemp);
+            },
+            softRetryLimit: softRetryLimit
+        );
+    }
+
+    private bool RunCoordinatedStoryChain(
+        string objectivePrefix,
+        CoordinatedStoryStep[] steps,
+        Func<bool>? isEnabled = null,
+        params string[] dropsToKeep
+    )
+    {
+        CoreBots core = CoreBots.Instance;
+        bool IsDisabled() => isEnabled != null && !isEnabled();
+
+        if (!IsDisabled() && dropsToKeep != null && dropsToKeep.Length > 0)
+            core.AddDrop(dropsToKeep);
+
+        foreach (CoordinatedStoryStep step in steps)
+        {
+            if (Bot.ShouldExit)
+                return false;
+
+            string objName = $"{objectivePrefix}_{step.QuestId}";
+            if (!step.IsCombat)
+            {
+                if (
+                    !RunCooperativeObjective(
+                        objName,
+                        () => IsDisabled() || core.isCompletedBefore(step.QuestId),
+                        () =>
+                        {
+                            if (IsDisabled() || core.isCompletedBefore(step.QuestId))
+                                return;
+
+                            LeaveCombatRoomForEquipmentChange();
+                            step.Work(core);
+                        },
+                        (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                        maxWorkAttempts: 3
+                    )
+                )
+                    return false;
+
+                continue;
+            }
+
+            if (
+                !RunCooperativeObjective(
+                    objName,
+                    () => IsDisabled() || core.isCompletedBefore(step.QuestId),
+                    () =>
+                    {
+                        if (IsDisabled() || core.isCompletedBefore(step.QuestId))
+                            return;
+
+                        SetClass(step.Role);
+                        if (!step.SkipMapVerify && !string.IsNullOrEmpty(step.Map))
+                            core.Join(step.Map);
+                        step.Work(core);
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                        Army.CoordinateFollowAndCombat(
+                            targetPlayerName,
+                            step.HelpMonster,
+                            compositionType: step.Role
+                        )
+                )
+            )
+                return false;
+        }
+
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunBracket30ApprovedDailiesAndWeeklies()
+    {
+        CoreBots core = CoreBots.Instance;
+
+        // 1b-1. Weekly: Read the Design Notes! [1213] (+150 Loremaster Rep)
+        bool skipDesignNotes =
+            Farm.FactionRank("Loremaster") >= 10
+            || !CanRunPeriodicQuest(1213);
+        if (
+            !RunCoordinatedTurnInStep(
+                "BRACKET30_DESIGN_NOTES_WEEKLY",
+                () => skipDesignNotes,
+                () => Bot.Quests.IsDailyComplete(1213) || Farm.FactionRank("Loremaster") >= 10,
+                () =>
+                {
+                    core.Logger("Weekly: Read the Design Notes! [1213]");
+                    core.ChainComplete(1213);
+                }
+            )
+        )
+            return false;
+
+        // 1b-2. Weekly: Wheel of Doom [3076 F2P / 3075 Mem]
+        bool HasGearForSpin() => core.CheckInventory("Gear of Doom", 3, toInv: false);
+        bool f2pWheelReady = HasGearForSpin() && CanRunPeriodicQuest(3076);
+        bool memWheelReady = core.IsMember && CanRunPeriodicQuest(3075);
+        bool skipWheel = !f2pWheelReady && !memWheelReady;
+        if (
+            !RunCoordinatedTurnInStep(
+                "BRACKET30_WHEEL_OF_DOOM",
+                () => skipWheel,
+                () =>
+                    (!HasGearForSpin() || Bot.Quests.IsDailyComplete(3076))
+                    && (!core.IsMember || Bot.Quests.IsDailyComplete(3075)),
+                () =>
+                {
+                    core.Logger("Weekly: Wheel of Doom [3076/3075]");
+                    if (HasGearForSpin())
+                        core.Unbank("Gear of Doom");
+                    core.AddDrop("Treasure Potion");
+                    Daily.WheelofDoom(log: true);
+                    BankIfPresent("Gear of Doom", "Treasure Potion");
+                }
+            )
+        )
+            return false;
+
+        // 1b-3. Daily: Odd's 'n' Ends [6187] (Crypto Token, cap 300)
+        bool cryptoCapped = core.CheckInventory("Crypto Token", 300, toInv: false);
+        bool oddsAvailable = !cryptoCapped && CanRunPeriodicQuest(6187);
+        if (
+            !RunCoordinatedCombatStep(
+                "BRACKET30_ODDS_N_ENDS_DAILY",
+                () => !oddsAvailable,
+                () => Bot.Quests.IsDailyComplete(6187) || core.CheckInventory("Crypto Token", 300, toInv: false),
+                "Sneevil",
+                ClassType.Farm,
+                () =>
+                {
+                    core.Logger("Daily: Odd's 'n' Ends [6187] (/boxes Sneevil -> Crypto Token)");
+                    UnbankIfOwned("Crypto Token");
+                    core.AddDrop("Crypto Token");
+                    core.EnsureAccept(6187);
+                    core.KillMonster("boxes", "Closet", "Center", "Sneevil", "Metal Ore", 1, isTemp: true);
+                    LeaveCombatRoomForEquipmentChange();
+                    core.EnsureComplete(6187);
+                    Bot.Wait.ForPickup("Crypto Token");
+                    BankIfPresent("Crypto Token");
+                }
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+
+    private bool EnsureLoyalFollowerUnlocked(string objectivePrefix)
+    {
+        CoreBots core = CoreBots.Instance;
+        TryLoadQuest(2084);
+
+        bool IsUnlocked() => core.isCompletedBefore(2084);
+        if (IsUnlocked())
+        {
+            return RunCooperativeObjective(
+                $"{objectivePrefix}_LOYAL_FOLLOWER_SYNC",
+                IsUnlocked,
+                () => { },
+                (n, name) => Bot.Sleep(500),
+                maxWorkAttempts: 1
+            );
+        }
+
+        // Step 1: 2066 (Handle) & 2067 (Bonegrinder Medal, 15,000 Gold) in /doomwood Shop 276
+        if (
+            !RunCooperativeObjective(
+                $"{objectivePrefix}_LOYAL_FOLLOWER_SETUP",
+                () => IsUnlocked() || (core.isCompletedBefore(2066) && core.isCompletedBefore(2067)),
+                () =>
+                {
+                    if (IsUnlocked() || (core.isCompletedBefore(2066) && core.isCompletedBefore(2067)))
+                        return;
+
+                    if (!core.isCompletedBefore(2067) && !core.CheckInventory("Bonegrinder Medal") && Bot.Player.Gold < 16000)
+                        Farm.Gold(20000);
+
+                    LeaveCombatRoomForEquipmentChange();
+                    Story.BuyQuest(2066, "doomwood", 276, "Blinding Light of Destiny Handle");
+                    Story.BuyQuest(2067, "doomwood", 276, "Bonegrinder Medal");
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // Step 2: 2082, 2083 & 100 Spirit Orbs in /battleunderb (Skeleton Warrior)
+        bool AreSpiritOrbsReady() =>
+            IsUnlocked()
+            || (
+                core.isCompletedBefore(2082)
+                && core.isCompletedBefore(2083)
+                && core.CheckInventory("Spirit Orb", 100, toInv: false)
+            );
+
+        if (
+            !RunCooperativeObjective(
+                $"{objectivePrefix}_LOYAL_FOLLOWER_SPIRIT_ORBS",
+                AreSpiritOrbsReady,
+                () =>
+                {
+                    if (AreSpiritOrbsReady())
+                        return;
+
+                    core.Logger("Unlocking Mine Crafting: 2082, 2083 & 100 Spirit Orbs in /battleunderb");
+                    UnbankIfOwned("Spirit Orb", "Undead Essence", "Bone Dust");
+                    core.AddDrop("Spirit Orb", "Undead Energy", "Undead Essence", "Bone Dust");
+                    SetClass(ClassType.Farm);
+
+                    if (!core.isCompletedBefore(2082))
+                    {
+                        core.EnsureAccept(2082);
+                        core.HuntMonster("battleunderb", "Skeleton Warrior", "Undead Essence", 25, isTemp: false);
+                        core.EnsureComplete(2082);
+                    }
+
+                    if (!core.isCompletedBefore(2083))
+                    {
+                        core.EnsureAccept(2083);
+                        core.HuntMonster("battleunderb", "Skeleton Warrior", "Bone Dust", 40, isTemp: false);
+                        core.EnsureComplete(2083);
+                    }
+
+                    if (!core.CheckInventory("Spirit Orb", 100))
+                    {
+                        try
+                        {
+                            core.RegisterQuests(2082, 2083);
+                            while (!Bot.ShouldExit && !core.CheckInventory("Spirit Orb", 100))
+                                core.KillMonster("battleunderb", "Enter", "Spawn", "Skeleton Warrior", log: false);
+                        }
+                        finally
+                        {
+                            core.CancelRegisteredQuests();
+                        }
+                    }
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        "Skeleton Warrior",
+                        compositionType: ClassType.Farm
+                    )
+            )
+        )
+            return false;
+
+        // Step 3: 2084 ("A Loyal Follower" — Ephemerite in /timevoid)
+        return RunCooperativeObjective(
+            $"{objectivePrefix}_LOYAL_FOLLOWER_COMPLETE",
+            IsUnlocked,
+            () =>
+            {
+                if (IsUnlocked())
+                    return;
+
+                SetClass(ClassType.Solo);
+                core.EnsureAccept(2084);
+                core.HuntMonster("timevoid", "Ephemerite", "Celestial Compass");
+                LeaveCombatRoomForEquipmentChange();
+                core.EnsureComplete(2084);
+                BankIfPresent("Spirit Orb", "Loyal Spirit Orb", "Undead Energy", "Bone Dust", "Undead Essence");
+            },
+            (targetPlayerNumber, targetPlayerName) =>
+                Army.CoordinateFollowAndCombat(targetPlayerName, "Ephemerite")
+        );
+    }
+
+    private (string Name, int ItemId) PickMineCraftingMetal(CoreBots core)
+    {
+        (string Name, int ItemId, int TargetQuant)[] priority =
+        {
+            ("Barium", (int)MineCraftingMetalsEnum.Barium, 1),
+            ("Copper", (int)MineCraftingMetalsEnum.Copper, 1),
+            ("Silver", (int)MineCraftingMetalsEnum.Silver, 1),
+            ("Barium", (int)MineCraftingMetalsEnum.Barium, 4),
+            ("Aluminum", (int)MineCraftingMetalsEnum.Aluminum, 1),
+            ("Gold", (int)MineCraftingMetalsEnum.Gold, 1),
+            ("Iron", (int)MineCraftingMetalsEnum.Iron, 1),
+            ("Platinum", (int)MineCraftingMetalsEnum.Platinum, 1),
+        };
+
+        foreach ((string name, int itemId, int targetQuant) in priority)
+        {
+            if (!core.CheckInventory(itemId, targetQuant, toInv: false))
+                return (name, itemId);
+        }
+
+        if (Farm.FactionRank("DoomWood") < 10)
+        {
+            return priority
+                .DistinctBy(m => m.ItemId)
+                .Select(m => (m.Name, m.ItemId, Owned: GetInventoryAndBankQuantity(m.ItemId)))
+                .Where(m => m.Owned < 999)
+                .OrderBy(m => m.Owned)
+                .Select(m => (m.Name, m.ItemId))
+                .FirstOrDefault();
+        }
+
+        return (string.Empty, 0);
+    }
+
+    private bool RunBracket50ApprovedDailies()
+    {
+        CoreBots core = CoreBots.Instance;
+
+        // 8a. Unlock "A Loyal Follower" [2084] (prereq for Mine Crafting, Bright Knight Seals & Embrace Your Chaos)
+        if (!EnsureLoyalFollowerUnlocked("BRACKET50"))
+            return false;
+
+        // 8b. Daily: Mine Crafting [2091] (Metals for BLoD/NSoD + 2,000 DoomWood Rep)
+        (string targetMetalName, int targetMetalId) = PickMineCraftingMetal(core);
+        bool mineCraftingAvailable =
+            core.isCompletedBefore(2084)
+            && targetMetalId > 0
+            && CanRunPeriodicQuest(2091);
+
+        if (
+            !RunCoordinatedCombatStep(
+                "BRACKET50_MINE_CRAFTING_DAILY",
+                () => !mineCraftingAvailable,
+                () => Bot.Quests.IsDailyComplete(2091),
+                "Balboa",
+                ClassType.Farm,
+                () =>
+                {
+                    core.Logger($"Daily: Mine Crafting [2091] -> Target Metal: {targetMetalName} (+2,000 DoomWood Rep)");
+                    UnbankIfOwned("Axe of the Prospector");
+                    core.AddDrop("Axe of the Prospector", targetMetalName);
+                    core.EnsureAccept(2091);
+                    if (!core.CheckInventory("Axe of the Prospector"))
+                        core.HuntMonster("stalagbite", "Balboa", "Axe of the Prospector", 1, isTemp: false);
+                    core.HuntMonster("stalagbite", "Balboa", "Raw Ore", 30, isTemp: true);
+                    LeaveCombatRoomForEquipmentChange();
+                    core.EnsureComplete(2091, targetMetalId);
+                    Bot.Wait.ForPickup(targetMetalName);
+                    BankIfPresent(targetMetalName, "Axe of the Prospector");
+                }
+            )
+        )
+            return false;
+
+        // 8c. Daily: ShadowScythe General [3828 F2P / 3827 Mem] (Lvl 50+, fixed F2P handling)
+        bool HasSSG() => HasClassInInventory("ShadowScythe General");
+        bool ssgF2PReady = Bot.Player.Level >= 50 && !HasSSG() && CanRunPeriodicQuest(3828);
+        bool ssgMemReady = Bot.Player.Level >= 50 && !HasSSG() && core.IsMember && CanRunPeriodicQuest(3827);
+        bool canBuySSGNow = !HasSSG() && core.CheckInventory("Shadow Shield", 100, toInv: false);
+
+        if (
+            !RunCoordinatedCombatStep(
+                "BRACKET50_SHADOWSCYTHE_DAILY",
+                () => HasSSG() || (!ssgF2PReady && !ssgMemReady && !canBuySSGNow),
+                () =>
+                    HasSSG()
+                    || (
+                        Bot.Quests.IsDailyComplete(3828)
+                        && (!core.IsMember || Bot.Quests.IsDailyComplete(3827))
+                        && !core.CheckInventory("Shadow Shield", 100, toInv: false)
+                    ),
+                "Citadel Crusader",
+                ClassType.Farm,
+                () =>
+                {
+                    core.Logger("Daily: ShadowScythe General [3828/3827]");
+                    UnbankIfOwned("Shadow Shield");
+                    core.AddDrop("Shadow Shield");
+
+                    if (ssgF2PReady && !Bot.Quests.IsDailyComplete(3828))
+                    {
+                        core.EnsureAccept(3828);
+                        core.HuntMonster("lightguardwar", "Citadel Crusader", "Broken Blade", 1, isTemp: true);
+                        LeaveCombatRoomForEquipmentChange();
+                        core.EnsureComplete(3828);
+                        Bot.Wait.ForPickup("Shadow Shield");
+                    }
+
+                    if (ssgMemReady && !Bot.Quests.IsDailyComplete(3827))
+                    {
+                        core.EnsureAccept(3827);
+                        core.HuntMonster("lightguardwar", "Citadel Crusader", "Broken Blade", 1, isTemp: true);
+                        LeaveCombatRoomForEquipmentChange();
+                        core.EnsureComplete(3827);
+                        Bot.Wait.ForPickup("Shadow Shield");
+                    }
+
+                    if (!HasSSG() && core.CheckInventory("Shadow Shield", 100))
+                    {
+                        LeaveCombatRoomForEquipmentChange();
+                        core.BuyItem("shadowfall", 1644, "ShadowScythe General");
+                        Bot.Wait.ForItemBuy();
+                    }
+
+                    BankIfPresent("Shadow Shield");
+                }
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunBracket55ApprovedDailies()
+    {
+        CoreBots core = CoreBots.Instance;
+
+        if (!EnsureLoyalFollowerUnlocked("BRACKET55"))
+            return false;
+
+        bool HasBrightKnight() => core.CheckInventory("Bright Knight", toInv: false);
+        bool unlocked = core.isCompletedBefore(2084);
+
+        // 5a. Daily: Seal of Light [3826] (ULTRA Alteon)
+        bool sealLightReady =
+            unlocked
+            && !HasBrightKnight()
+            && !core.CheckInventory("Seal of Light", 50, toInv: false)
+            && CanRunPeriodicQuest(3826);
+
+        if (
+            !RunCoordinatedCombatStep(
+                "BRACKET55_SEAL_OF_LIGHT_DAILY",
+                () => !sealLightReady,
+                () => Bot.Quests.IsDailyComplete(3826) || HasBrightKnight(),
+                "ULTRA Alteon",
+                ClassType.Solo,
+                () =>
+                {
+                    core.Logger("Daily: Seal of Light [3826] (/alteonbattle ULTRA Alteon)");
+                    UnbankIfOwned("Seal of Light");
+                    core.AddDrop("Seal of Light");
+                    core.EnsureAccept(3826);
+                    core.HuntMonster("alteonbattle", "ULTRA Alteon", "Alteon Defeated", 1, isTemp: true);
+                    LeaveCombatRoomForEquipmentChange();
+                    core.EnsureComplete(3826);
+                    Bot.Wait.ForPickup("Seal of Light");
+                }
+            )
+        )
+            return false;
+
+        // 5b. Daily: Seal of Darkness [3825] (ULTRA Sepulchure)
+        bool sealDarknessReady =
+            unlocked
+            && !HasBrightKnight()
+            && !core.CheckInventory("Seal of Darkness", 50, toInv: false)
+            && CanRunPeriodicQuest(3825);
+
+        if (
+            !RunCoordinatedCombatStep(
+                "BRACKET55_SEAL_OF_DARKNESS_DAILY",
+                () => !sealDarknessReady,
+                () => Bot.Quests.IsDailyComplete(3825) || HasBrightKnight(),
+                "ULTRA Sepulchure",
+                ClassType.Solo,
+                () =>
+                {
+                    core.Logger("Daily: Seal of Darkness [3825] (/sepulchurebattle ULTRA Sepulchure)");
+                    UnbankIfOwned("Seal of Darkness");
+                    core.AddDrop("Seal of Darkness");
+                    core.EnsureAccept(3825);
+                    core.HuntMonster("sepulchurebattle", "ULTRA Sepulchure", "Sepulchure Defeated", 1, isTemp: true);
+                    LeaveCombatRoomForEquipmentChange();
+                    core.EnsureComplete(3825);
+                    Bot.Wait.ForPickup("Seal of Darkness");
+                }
+            )
+        )
+            return false;
+
+        // 5c. Turn in Seals for Bright Knight if 50+50 seals & 1,000,000 Gold are available, else bank Seals
+        bool CanBuyBrightKnightNow() =>
+            !HasBrightKnight()
+            && core.CheckInventory("Seal of Light", 50, toInv: false)
+            && core.CheckInventory("Seal of Darkness", 50, toInv: false)
+            && Bot.Player.Gold >= 1000000;
+
+        bool hasLooseSealsInInv =
+            Bot.Inventory?.Items.Any(i =>
+                i?.Name != null
+                && (
+                    string.Equals(i.Name.Trim(), "Seal of Light", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(i.Name.Trim(), "Seal of Darkness", StringComparison.OrdinalIgnoreCase)
+                )
+            ) == true;
+
+        bool buyHandled = !CanBuyBrightKnightNow() && !hasLooseSealsInInv;
+        if (
+            !RunCoordinatedTurnInStep(
+                "BRACKET55_BRIGHT_KNIGHT_CLEANUP",
+                () => buyHandled,
+                () => buyHandled,
+                () =>
+                {
+                    if (CanBuyBrightKnightNow())
+                    {
+                        UnbankIfOwned("Seal of Light", "Seal of Darkness");
+                        core.BuyItem("alteonbattle", 574, "Bright Knight");
+                        Bot.Wait.ForItemBuy();
+                    }
+
+                    BankIfPresent("Bright Knight", "Seal of Light", "Seal of Darkness");
+                    buyHandled = true;
+                }
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunBracket65ApprovedDailies()
+    {
+        CoreBots core = CoreBots.Instance;
+
+        if (!EnsureLoyalFollowerUnlocked("BRACKET65"))
+            return false;
+
+        // 3a. Daily: Embrace Your Chaos [3596] (/mountdoomskull b1 -> +5,000 Chaos Rep + Dage's Scroll Fragment)
+        bool embraceReady =
+            core.isCompletedBefore(2084)
+            && !core.CheckInventory("Dage's Scroll Fragment", 13, toInv: false)
+            && CanRunPeriodicQuest(3596, requireAvailable: true);
+
+        if (
+            !RunCoordinatedCombatStep(
+                "BRACKET65_EMBRACE_YOUR_CHAOS_DAILY",
+                () => !embraceReady,
+                () =>
+                    Bot.Quests.IsDailyComplete(3596)
+                    || core.CheckInventory("Dage's Scroll Fragment", 13, toInv: false),
+                "*",
+                ClassType.Farm,
+                () =>
+                {
+                    core.Logger("Daily: Embrace Your Chaos [3596] (/mountdoomskull)");
+                    if (!JoinMapVerified("mountdoomskull", "b1", "Left"))
+                    {
+                        core.Logger("Map '/mountdoomskull' is not unlocked yet; skipping Embrace Your Chaos safely.");
+                        return;
+                    }
+
+                    UnbankIfOwned("Dage's Scroll Fragment");
+                    core.AddDrop("Dage's Scroll Fragment");
+                    core.EnsureAccept(3596);
+                    core.KillMonster("mountdoomskull", "b1", "Left", "*", "Chaos Power Increased", 6, isTemp: true);
+                    LeaveCombatRoomForEquipmentChange();
+                    core.EnsureComplete(3596);
+                    Bot.Wait.ForPickup("Dage's Scroll Fragment");
+                    BankIfPresent("Dage's Scroll Fragment");
+                }
+            )
+        )
+            return false;
+
+        // 3b. Daily: Lord of Order Progression Chain [7156-7165] (Level 50+, Player 4 Endgame Support Class)
+        return RunLordOfOrderProgression();
+    }
+
+    private int GetNextAvailableLoOQuest(CoreBots core)
+    {
+        for (int questId = 7156; questId <= 7165; questId++)
+        {
+            TryLoadQuest(questId);
+            if (core.isCompletedBefore(questId))
+                continue;
+
+            if (Bot.Quests.IsAvailable(questId) && !Bot.Quests.IsDailyComplete(questId))
+                return questId;
+
+            // Chain is sequential: stop at the first uncompleted day.
+            return 0;
+        }
+
+        return 0;
+    }
+
+    private bool RunLoODay1Stories(CoreBots core, Func<bool> activeCondition)
+    {
+        // Murry's Quests (/citadel 144-182)
+        if (
+            !RunCoordinatedStoryChain(
+                "BRACKET65_LOO_MURRY",
+                new[]
+                {
+                    new CoordinatedStoryStep(144, "citadel", "Inquisitor Guard", c => Story.KillQuest(144, "Citadel", "Inquisitor Guard")),
+                    new CoordinatedStoryStep(145, "citadel", "Crusader", c => Story.KillQuest(145, "Citadel", "Crusader")),
+                    new CoordinatedStoryStep(146, "citadel", "Inquisitor Captain", c => Story.KillQuest(146, "Citadel", "Inquisitor Captain")),
+                    new CoordinatedStoryStep(147, "citadel", "Burning Witch", c => Story.KillQuest(147, "Citadel", "Burning Witch")),
+                    new CoordinatedStoryStep(148, "citadel", "Inquisitor Guard", c => Story.KillQuest(148, "Citadel", "Inquisitor Guard")),
+                    new CoordinatedStoryStep(149, "citadel", "Inquisitor Guard", c => Story.KillQuest(149, "Citadel", "Inquisitor Guard", false)),
+                    new CoordinatedStoryStep(181, "citadel", "Belrot The Fiend", c => Story.KillQuest(181, "Citadel", "Belrot The Fiend"), ClassType.Solo),
+                    new CoordinatedStoryStep(
+                        182,
+                        "citadel",
+                        "Grand Inquisitor",
+                        c =>
+                        {
+                            c.EnsureAccept(182);
+                            c.HuntMonster("Citadel", "Grand Inquisitor", "Ring of Evil Intent");
+                            c.EnsureComplete(182);
+                        },
+                        ClassType.Solo
+                    ),
+                },
+                activeCondition
+            )
+        )
+            return false;
+
+        // Polish's Quests (/citadelruins 6172-6182)
+        if (
+            !RunCoordinatedStoryChain(
+                "BRACKET65_LOO_CITADELRUINS",
+                new[]
+                {
+                    new CoordinatedStoryStep(
+                        6172,
+                        "citadelruins",
+                        "Mana Sprites",
+                        c =>
+                        {
+                            c.EnsureAccept(6172);
+                            c.GetMapItem(5592, 1, "citadelruins");
+                            c.HuntMonster("citadelruins", "Mana Sprites", "Siphoned Mana", 8);
+                            c.EnsureComplete(6172);
+                        }
+                    ),
+                    new CoordinatedStoryStep(6173, "citadelruins", "*", c => Story.MapItemQuest(6173, "citadelruins", 5602), isCombat: false),
+                    new CoordinatedStoryStep(
+                        6174,
+                        "citadelruins",
+                        "Inquisitor Hobo",
+                        c =>
+                        {
+                            c.EnsureAccept(6174);
+                            c.HuntMonster("citadelruins", "Inquisitor Hobo", "Inquisitor Hobos Defeated", 8);
+                            c.HuntMonster("citadelruins", "Inquisitor Hobo", "Inquisitors' Manifesto", 5);
+                            c.EnsureComplete(6174);
+                        }
+                    ),
+                    new CoordinatedStoryStep(
+                        6175,
+                        "citadelruins",
+                        "Inquisitor Hobo",
+                        c =>
+                        {
+                            c.EnsureAccept(6175);
+                            c.GetMapItem(5593, 5, "citadelruins");
+                            c.HuntMonster("citadelruins", "Inquisitor Hobo", "Clue Found", 1);
+                            c.EnsureComplete(6175);
+                            c.Sleep(2500);
+                        }
+                    ),
+                    new CoordinatedStoryStep(
+                        6176,
+                        "citadelruins",
+                        "Inquisitor Heavy",
+                        c =>
+                        {
+                            c.EnsureAccept(6176);
+                            c.HuntMonster("citadelruins", "Inquisitor Heavy", "Heavies Beat Down", 2);
+                            c.HuntMonster("citadelruins", "Inquisitor Heavy", "Citadel Key");
+                            Story.MapItemQuest(6176, "citadelruins", 5603);
+                        }
+                    ),
+                    new CoordinatedStoryStep(
+                        6177,
+                        "citadelruins",
+                        "Inquisitor Hobo",
+                        c =>
+                        {
+                            c.EnsureAccept(6177);
+                            c.GetMapItems(new[] { (5594, 1), (5595, 1), (5596, 1) }, "citadelruins");
+                            c.HuntMonster("citadelruins", "Inquisitor Hobo", "Inquisitors Defeated", 6);
+                            c.EnsureComplete(6177);
+                        }
+                    ),
+                    new CoordinatedStoryStep(
+                        6178,
+                        "citadelruins",
+                        "Mana Sprites",
+                        c =>
+                        {
+                            c.EnsureAccept(6178);
+                            c.GetMapItem(5597, 1, "citadelruins");
+                            c.HuntMonster("citadelruins", "Mana Sprites", "Siphoned Mana", 8);
+                            c.EnsureComplete(6178);
+                        }
+                    ),
+                    new CoordinatedStoryStep(6179, "citadelruins", "*", c => Story.MapItemQuest(6179, "citadelruins", 5598), isCombat: false),
+                    new CoordinatedStoryStep(
+                        6180,
+                        "citadelruins",
+                        "Inquisitor Hobo",
+                        c =>
+                        {
+                            c.EnsureAccept(6180);
+                            c.GetMapItems(new[] { (5599, 1), (5600, 1), (5601, 1) }, "citadelruins");
+                            c.HuntMonster("citadelruins", "Inquisitor Hobo", "Missing Parts", 6);
+                            c.EnsureComplete(6180);
+                        }
+                    ),
+                    new CoordinatedStoryStep(6181, "citadelruins", "Grand Inquisitor Murry", c => Story.KillQuest(6181, "citadelruins", "Grand Inquisitor Murry"), ClassType.Solo),
+                    new CoordinatedStoryStep(6182, "citadelruins", "Enn'tröpy", c => Story.KillQuest(6182, "citadelruins", "Enn'tröpy"), ClassType.Solo),
+                },
+                activeCondition,
+                "Mage's Gratitude"
+            )
+        )
+            return false;
+
+        // Ravenscar Storyline (/ravenscar 2901-2907)
+        return RunCoordinatedStoryChain(
+            "BRACKET65_LOO_RAVENSCAR",
+            new[]
+            {
+                new CoordinatedStoryStep(2901, "ravenscar", "*", c => Story.MapItemQuest(2901, "ravenscar", 1767), isCombat: false),
+                new CoordinatedStoryStep(
+                    2902,
+                    "ravenscar",
+                    "Restless Undead",
+                    c =>
+                    {
+                        c.EnsureAccept(2902);
+                        c.HuntMonster("ravenscar", "Restless Undead", "Crumpled Book Page", 1);
+                        c.HuntMonster("ravenscar", "Restless Undead", "Undead Slain", 6);
+                        c.EnsureComplete(2902);
+                    }
+                ),
+                new CoordinatedStoryStep(2903, "ravenscar", "*", c => Story.MapItemQuest(2903, "ravenscar", 1768), isCombat: false),
+                new CoordinatedStoryStep(2904, "ravenscar", "Restless Undead", c => Story.KillQuest(2904, "ravenscar", "Restless Undead")),
+                new CoordinatedStoryStep(2905, "ravenscar", "Undead Soldier", c => Story.KillQuest(2905, "ravenscar", "Undead Soldier")),
+                new CoordinatedStoryStep(2906, "ravenscar", "Shadowman", c => Story.KillQuest(2906, "ravenscar", "Shadowman"), ClassType.Solo),
+                new CoordinatedStoryStep(2907, "ravenscar", "*", c => Story.MapItemQuest(2907, "ravenscar", 1769), isCombat: false),
+            },
+            activeCondition
+        );
+    }
+
+    private bool RunLoODay5DFOStories(Func<bool> activeCondition)
+    {
+        return RunCoordinatedStoryChain(
+            "BRACKET65_LOO_DFO",
+            new[]
+            {
+                new CoordinatedStoryStep(6294, "firewar", "Fire Dragon", c => Story.KillQuest(6294, "firewar", "Fire Dragon")),
+                new CoordinatedStoryStep(6295, "firewar", "Fire Dragon", c => Story.KillQuest(6295, "firewar", "Fire Dragon")),
+                new CoordinatedStoryStep(
+                    6296,
+                    "firewar",
+                    "Inferno Dragon",
+                    c =>
+                    {
+                        c.EnsureAccept(6296);
+                        c.KillMonster("firewar", "r8", "Right", "Inferno Dragon", "Pyritium Shards", 5);
+                        c.EnsureComplete(6296);
+                    }
+                ),
+                new CoordinatedStoryStep(
+                    6297,
+                    "firewar",
+                    "Inferno Dragon",
+                    c =>
+                    {
+                        c.EnsureAccept(6297);
+                        c.KillMonster("firewar", "r8", "Right", "Inferno Dragon", "Perfect Pyritium");
+                        c.EnsureComplete(6297);
+                    }
+                ),
+                new CoordinatedStoryStep(6298, "firewar", "Uriax", c => Story.KillQuest(6298, "firewar", "Uriax"), ClassType.Solo),
+                new CoordinatedStoryStep(
+                    6299,
+                    "firewar",
+                    "*",
+                    c =>
+                    {
+                        c.EnsureAccept(6299);
+                        c.Join("firewar", "r10", "Left");
+                        if (Bot.Player.Cell != "r10")
+                            c.Jump("r10", "Left");
+                        while (!Bot.ShouldExit && !Bot.TempInv.Contains(43572))
+                        {
+                            Bot.Combat.Attack("*");
+                            Bot.Sleep(500);
+                        }
+                        c.EnsureComplete(6299);
+                        c.JumpWait();
+                    },
+                    ClassType.Solo
+                ),
+                new CoordinatedStoryStep(
+                    6301,
+                    "northmountain",
+                    "Ice Elemental",
+                    c =>
+                    {
+                        c.EnsureAccept(6301);
+                        c.HuntMonster("northmountain", "Ice Elemental", "Monsters Defeated", 8);
+                        c.GetMapItem(5812, 1, "northmountain");
+                        c.EnsureComplete(6301);
+                    }
+                ),
+                new CoordinatedStoryStep(6302, "northmountain", "Ice Elemental", c => Story.KillQuest(6302, "northmountain", "Ice Elemental")),
+                new CoordinatedStoryStep(6303, "northmountain", "Ursice Savage", c => Story.KillQuest(6303, "northmountain", "Ursice Savage")),
+                new CoordinatedStoryStep(6304, "northmountain", "Ice Spitter", c => Story.KillQuest(6304, "northmountain", "Ice Spitter")),
+                new CoordinatedStoryStep(6305, "northmountain", "Ice Elemental", c => Story.KillQuest(6305, "northmountain", "Ice Elemental")),
+                new CoordinatedStoryStep(
+                    6306,
+                    "northmountain",
+                    "*",
+                    c =>
+                    {
+                        Story.MapItemQuest(6306, "northmountain", 5813, 4);
+                        Story.MapItemQuest(6306, "northmountain", 5814);
+                    },
+                    isCombat: false
+                ),
+                new CoordinatedStoryStep(6307, "northmountain", "Izotz", c => Story.KillQuest(6307, "northmountain", "Izotz"), ClassType.Solo),
+                new CoordinatedStoryStep(6308, "charredplains", "Fire Dragon", c => Story.KillQuest(6308, "charredplains", "Fire Dragon")),
+                new CoordinatedStoryStep(6309, "charredplains", "*", c => Story.MapItemQuest(6309, "charredplains", 5815), isCombat: false),
+                new CoordinatedStoryStep(6310, "charredplains", "Akriloth", c => Story.KillQuest(6310, "charredplains", "Akriloth"), ClassType.Solo),
+                new CoordinatedStoryStep(6311, "northmountain", "Izotz", c => Story.KillQuest(6311, "northmountain", "Izotz"), ClassType.Solo),
+                new CoordinatedStoryStep(6312, "drakonnan", "*", c => Story.MapItemQuest(6312, "drakonnan", 5827, 5), isCombat: false),
+                new CoordinatedStoryStep(6313, "drakonnan", "Fire Dragon", c => Story.KillQuest(6313, "drakonnan", "Fire Dragon")),
+                new CoordinatedStoryStep(6314, "drakonnan", "Living Lava", c => Story.KillQuest(6314, "drakonnan", "Living Lava")),
+                new CoordinatedStoryStep(6315, "drakonnan", "Fire Dragon", c => Story.KillQuest(6315, "drakonnan", "Fire Dragon")),
+                new CoordinatedStoryStep(6316, "northmountain", "Ice Elemental", c => Story.KillQuest(6316, "northmountain", "Ice Elemental")),
+                new CoordinatedStoryStep(6317, "northmountain", "*", c => Story.MapItemQuest(6317, "northmountain", 5826, 6), isCombat: false),
+                new CoordinatedStoryStep(6318, "drakonnan", "Fire Elemental", c => Story.KillQuest(6318, "drakonnan", "Fire Elemental")),
+                new CoordinatedStoryStep(6319, "drakonnan", "Living Fire", c => Story.KillQuest(6319, "drakonnan", "Living Fire")),
+            },
+            activeCondition,
+            "Ice Katana"
+        );
+    }
+
+    private bool CompleteLoODayIfReady(CoreBots core, int questId, int nextLoOQuest, string[] requiredItems, int chooseItemId = -1)
+    {
+        bool completeAttempted = false;
+        return RunCoordinatedTurnInStep(
+            $"BRACKET65_LOO_{questId}_COMPLETE",
+            () => completeAttempted || nextLoOQuest != questId || core.isCompletedBefore(questId) || !Bot.Quests.IsAvailable(questId),
+            () => completeAttempted || nextLoOQuest != questId || core.isCompletedBefore(questId),
+            () =>
+            {
+                completeAttempted = true;
+                UnbankIfOwned(requiredItems);
+                if (!requiredItems.All(item => core.CheckInventory(item)))
+                {
+                    core.Logger($"LoO [{questId}] missing one or more required items; will retry on a future daily run.");
+                    return;
+                }
+
+                core.EnsureAccept(questId);
+                core.AddDrop(core.QuestRewards(questId));
+                if (chooseItemId > 0)
+                {
+                    Bot.Drops.Add(chooseItemId);
+                    core.EnsureComplete(questId, chooseItemId);
+                    Bot.Wait.ForPickup(chooseItemId);
+                    core.EnsureCompleteChoose(questId);
+                    BankQuestExtras(questId, "Lord of Order");
+                }
+                else
+                {
+                    core.EnsureComplete(questId);
+                    BankQuestExtras(questId);
+                }
+            }
+        );
+    }
+
+    private bool RunLoOQuestMultiHunt(
+        CoreBots core,
+        int questId,
+        int nextLoOQuest,
+        (string Map, string Monster, string Item, int Quant, ClassType Role, string? Cell, string? Pad, Action<CoreBots>? BeforeHunt)[] targets,
+        int softRetryLimit = 2
+    )
+    {
+        bool IsActiveOnThisQuest() => nextLoOQuest == questId && !core.isCompletedBefore(questId);
+
+        for (int i = 0; i < targets.Length; i++)
+        {
+            var t = targets[i];
+            if (
+                !RunCoordinatedHuntStep(
+                    $"BRACKET65_LOO_{questId}_STEP_{i + 1}",
+                    questId,
+                    t.Map,
+                    t.Monster,
+                    t.Item,
+                    t.Quant,
+                    isTemp: false,
+                    role: t.Role,
+                    cell: t.Cell,
+                    pad: t.Pad,
+                    acceptQuest: true,
+                    checkBankAlso: true,
+                    softRetryLimit: softRetryLimit,
+                    beforeHunt: t.BeforeHunt,
+                    isEnabled: IsActiveOnThisQuest
+                )
+            )
+            {
+                return false;
+            }
+        }
+
+        return CompleteLoODayIfReady(core, questId, nextLoOQuest, targets.Select(t => t.Item).ToArray());
+    }
+
+    private bool RunLordOfOrderProgression()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasLoOClass() => HasClassInInventory(50741) || HasClassInInventory("Lord of Order");
+
+        if (Bot.Player.Level < 50)
+            return true;
+
+        int nextQuestId = HasLoOClass() ? 0 : GetNextAvailableLoOQuest(core);
+        if (nextQuestId > 0)
+            core.Logger($"Daily: Lord of Order [{nextQuestId}/7165] active for this account.");
+
+        // Always keep barriers aligned across all accounts, skipping work instantly when nextQuestId != day.
+        // Day 1 [7156]: Heart of Servitude
+        if (nextQuestId == 7156)
+            core.AddDrop(core.QuestRewards(7156));
+
+        if (
+            !RunCoordinatedTurnInStep(
+                "BRACKET65_LOO_7156_SHOPS",
+                () => nextQuestId != 7156 || core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false),
+                () => nextQuestId != 7156 || core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false),
+                () =>
+                {
+                    if (!core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false))
+                    {
+                        Farm.Gold(1000000);
+                        LeaveCombatRoomForEquipmentChange();
+                        core.BuyItem("dreadrock", 1221, "Dreadrock Donation Receipt");
+                    }
+                }
+            )
+            || !RunLoODay1Stories(core, () => nextQuestId == 7156)
+            || !RunCoordinatedCombatStep(
+                "BRACKET65_LOO_7156_MAGES_GRATITUDE",
+                () => nextQuestId != 7156 || core.CheckInventory("Mage's Gratitude", 1, toInv: false),
+                () => nextQuestId != 7156 || core.CheckInventory("Mage's Gratitude", 1, toInv: false),
+                "Enn'tröpy",
+                ClassType.Solo,
+                () =>
+                {
+                    UnbankIfOwned("Mage's Gratitude");
+                    if (!core.CheckInventory("Mage's Gratitude"))
+                    {
+                        core.AddDrop("Mage's Gratitude");
+                        core.EnsureAccept(6182);
+                        core.HuntMonster("citadelruins", "Enn'tröpy", "Enn'tröpy Defeated", isTemp: true);
+                        LeaveCombatRoomForEquipmentChange();
+                        core.EnsureComplete(6182);
+                        Bot.Wait.ForPickup("Mage's Gratitude");
+                    }
+                }
+            )
+            || !RunCoordinatedTurnInStep(
+                "BRACKET65_LOO_7156_RAVENSCAR_TRUTH",
+                () => nextQuestId != 7156 || core.CheckInventory("Ravenscar's Truth", 1, toInv: false),
+                () => nextQuestId != 7156 || core.CheckInventory("Ravenscar's Truth", 1, toInv: false),
+                () =>
+                {
+                    UnbankIfOwned("Ravenscar's Truth");
+                    if (!core.CheckInventory("Ravenscar's Truth"))
+                        core.BuyItem("ravenscar", 614, "Ravenscar's Truth");
+                }
+            )
+            || !RunCoordinatedHuntStep(
+                "BRACKET65_LOO_7156_WATCHTOWER",
+                7156,
+                "watchtower",
+                "Chaorrupted Knight",
+                "Pristine Blades of Order",
+                1,
+                role: ClassType.Solo,
+                acceptQuest: true,
+                isEnabled: () => nextQuestId == 7156
+            )
+            || !RunCoordinatedHuntStep(
+                "BRACKET65_LOO_7156_DEADMOOR",
+                7156,
+                "deadmoor",
+                "Banshee Mallora",
+                "Deadmoor Spirits Helped",
+                1,
+                role: ClassType.Solo,
+                acceptQuest: true,
+                isEnabled: () => nextQuestId == 7156
+            )
+            || !CompleteLoODayIfReady(
+                core,
+                7156,
+                nextQuestId,
+                new[]
+                {
+                    "Pristine Blades of Order",
+                    "Dreadrock Donation Receipt",
+                    "Deadmoor Spirits Helped",
+                    "Mage's Gratitude",
+                    "Ravenscar's Truth",
+                }
+            )
+        )
+            return false;
+
+        // Day 2 [7157]: Spirit of Justice
+        if (
+            !RunLoOQuestMultiHunt(
+                core,
+                7157,
+                nextQuestId,
+                new (string, string, string, int, ClassType, string?, string?, Action<CoreBots>?)[]
+                {
+                    ("dwarfprison", "Warden Elfis", "Warden Elfis Detained", 1, ClassType.Solo, null, null, null),
+                    ("prison", "Piggy Drake", "Piggy Drake Punished", 1, ClassType.Solo, null, null, null),
+                    ("mysteriousdungeon", "Mysterious Stranger", "Mysterious Stranger Foiled", 1, ClassType.Solo, null, null, null),
+                    ("dreammaster", "Calico Cobby", "Calico Cobby Crushed", 1, ClassType.Solo, null, null, null),
+                }
+            )
+        )
+            return false;
+
+        // Day 3 [7158]: Purification of Chaos
+        if (
+            !RunCoordinatedCombatStep(
+                "BRACKET65_LOO_7158_CHAOROOT",
+                () => nextQuestId != 7158 || core.CheckInventory("Chaoroot", 15, toInv: false),
+                () => nextQuestId != 7158 || core.CheckInventory("Chaoroot", 15, toInv: false),
+                "*",
+                ClassType.Solo,
+                () =>
+                {
+                    UnbankIfOwned("Chaoroot");
+                    if (!core.CheckInventory("Chaoroot", 15))
+                    {
+                        Farm.Gold(500000);
+                        Adv.BuyItem("tercessuinotlim", 1951, "Chaoroot", 15);
+                    }
+                }
+            )
+            || !RunLoOQuestMultiHunt(
+                core,
+                7158,
+                nextQuestId,
+                new (string, string, string, int, ClassType, string?, string?, Action<CoreBots>?)[]
+                {
+                    ("chaosboss", "Ultra Chaos Warlord", "Chaotic War Essence", 15, ClassType.Solo, null, null, null),
+                    ("shadowgates", "Chaorruption", "Chaorrupting Particles", 15, ClassType.Solo, null, null, null),
+                    ("stormtemple", "Chaos Lord Lionfang", "Purified Raindrop", 45, ClassType.Solo, null, null, _ => Bot.Quests.UpdateQuest(2814)),
+                }
+            )
+        )
+            return false;
+
+        // Day 4 [7159]: Steadfast Will
+        if (
+            !RunLoOQuestMultiHunt(
+                core,
+                7159,
+                nextQuestId,
+                new (string, string, string, int, ClassType, string?, string?, Action<CoreBots>?)[]
+                {
+                    ("gaiazor", "Gaiazor", "Gaiazor's Cornerstone", 1, ClassType.Solo, null, null, null),
+                    ("treetitanbattle", "Dakka the Dire Dragon", "Dakka's Crystal", 1, ClassType.Solo, null, null, _ => { Bot.Quests.UpdateQuest(4361); Bot.Sleep(1500); }),
+                    ("andre", "Giant Necklace", "Andre's Necklace Fragment", 1, ClassType.Solo, null, null, null),
+                    ("desolich", "Desolich", "Desolich's Skull", 1, ClassType.Solo, null, null, _ => LeaveCombatRoomForEquipmentChange()),
+                }
+            )
+        )
+            return false;
+
+        // Day 5 [7160]: Strike of Order
+        if (
+            !RunCoordinatedCombatStep(
+                "BRACKET65_LOO_7160_KITSUNE",
+                () => nextQuestId != 7160 || core.CheckInventory("Hanzamune Dragon Koi Blade", 1, toInv: false),
+                () => nextQuestId != 7160 || core.CheckInventory("Hanzamune Dragon Koi Blade", 1, toInv: false),
+                "*",
+                ClassType.Solo,
+                () =>
+                {
+                    core.AddDrop("Hanzamune Dragon Koi Blade");
+                    core.EnsureAccept(7160);
+                    core.KillKitsune("Hanzamune Dragon Koi Blade");
+                }
+            )
+            || !RunCoordinatedHuntStep("BRACKET65_LOO_7160_LEDGERMAYNE", 7160, "ledgermayne", "Ledgermayne", "The Supreme Arcane Staff", 1, role: ClassType.Solo, isEnabled: () => nextQuestId == 7160)
+            || !RunCoordinatedHuntStep("BRACKET65_LOO_7160_DRAGONOID", 7160, "mqlesson", "Dragonoid", "Dragonoid of Hours", 1, role: ClassType.Solo, isEnabled: () => nextQuestId == 7160)
+            || !RunCoordinatedTurnInStep(
+                "BRACKET65_LOO_7160_SAFIRIA",
+                () => nextQuestId != 7160 || core.CheckInventory("Safiria's Spirit Orb", 1, toInv: false),
+                () => nextQuestId != 7160 || core.CheckInventory("Safiria's Spirit Orb", 1, toInv: false),
+                () =>
+                {
+                    UnbankIfOwned("Safiria's Spirit Orb");
+                    if (!core.CheckInventory("Safiria's Spirit Orb"))
+                    {
+                        core.AddDrop("Safiria's Spirit Orb");
+                        core.EnsureAccept(7160);
+                        core.GetMapItem(5470, 1, "maxius");
+                        Bot.Wait.ForPickup("Safiria's Spirit Orb");
+                    }
+                }
+            )
+            || !RunLoODay5DFOStories(() => nextQuestId == 7160)
+            || !RunCoordinatedCombatStep(
+                "BRACKET65_LOO_7160_ICE_KATANA",
+                () => nextQuestId != 7160 || core.CheckInventory("Ice Katana", 1, toInv: false),
+                () => nextQuestId != 7160 || core.CheckInventory("Ice Katana", 1, toInv: false),
+                "Living Fire",
+                ClassType.Farm,
+                () =>
+                {
+                    UnbankIfOwned("Ice Katana");
+                    if (!core.CheckInventory("Ice Katana"))
+                    {
+                        core.AddDrop("Ice Katana");
+                        core.EnsureAccept(6319);
+                        core.HuntMonster("drakonnan", "Living Fire", "Inferno Heart");
+                        LeaveCombatRoomForEquipmentChange();
+                        core.EnsureComplete(6319);
+                        Bot.Wait.ForPickup("Ice Katana");
+                    }
+                }
+            )
+            || !CompleteLoODayIfReady(
+                core,
+                7160,
+                nextQuestId,
+                new[]
+                {
+                    "Hanzamune Dragon Koi Blade",
+                    "The Supreme Arcane Staff",
+                    "Dragonoid of Hours",
+                    "Safiria's Spirit Orb",
+                    "Ice Katana",
+                }
+            )
+        )
+            return false;
+
+        // Day 6 [7161]: Harmony
+        if (
+            !RunLoOQuestMultiHunt(
+                core,
+                7161,
+                nextQuestId,
+                new (string, string, string, int, ClassType, string?, string?, Action<CoreBots>?)[]
+                {
+                    ("elemental", "Tree of Destiny", "Unity of Life", 1, ClassType.Solo, null, null, null),
+                    ("orchestra", "Faust", "Harmony of Solace", 1, ClassType.Solo, null, null, null),
+                    ("cathedral", "Pactagonal Knight", "Teamwork Observed", 100, ClassType.Farm, null, null, null),
+                    ("goose", "Queen's ArchSage", "Scroll of Enchantment", 1, ClassType.Solo, null, null, null),
+                }
+            )
+        )
+            return false;
+
+        // Day 7 [7162]: Ordinance
+        if (
+            !RunLoOQuestMultiHunt(
+                core,
+                7162,
+                nextQuestId,
+                new (string, string, string, int, ClassType, string?, string?, Action<CoreBots>?)[]
+                {
+                    ("newfinale", "Alliance Healer", "Acolyte's Braille", 1, ClassType.Farm, null, null, null),
+                    ("wardwarf", "Drow Assassin", "Suppressed Drows", 50, ClassType.Farm, null, null, null),
+                    ("warundead", "Skeletal Fire Mage", "Suppressed Undead", 50, ClassType.Farm, null, null, null),
+                    ("warhorc", "Horc Warrior", "Suppressed Horcs", 50, ClassType.Farm, null, null, null),
+                    ("weaverwar", "Weaver Queen's Hound", "Suppressed Weavers", 50, ClassType.Farm, null, null, null),
+                    ("extriki", "Extriki", "Strength of Resilience", 1, ClassType.Solo, null, null, null),
+                }
+            )
+        )
+            return false;
+
+        // Day 8 [7163]: Axiom
+        if (
+            !RunLoOQuestMultiHunt(
+                core,
+                7163,
+                nextQuestId,
+                new (string, string, string, int, ClassType, string?, string?, Action<CoreBots>?)[]
+                {
+                    ("elfhame", "Guardian Spirit", "Law of Nature", 1, ClassType.Solo, null, null, null),
+                    ("deepchaos", "Kathool", "Law of Time", 1, ClassType.Solo, null, null, null),
+                    ("necrocavern", "ShadowStone Support", "Law of Gravity", 1, ClassType.Solo, null, null, null),
+                    ("blackholesun", "Reflecteract", "Law of Relativity", 1, ClassType.Solo, null, null, null),
+                    ("thunderfang", "Tonitru", "Law of Conservation of Energy", 1, ClassType.Solo, null, null, null),
+                    ("lair", "Red Dragon", "Law of Low Drop Rates", 100, ClassType.Solo, null, null, null),
+                }
+            )
+        )
+            return false;
+
+        // Day 9 [7164]: Blessing of Order
+        if (
+            !RunCoordinatedHuntStep(
+                "BRACKET65_LOO_7164_RAXGORE",
+                7164,
+                "doomvaultb",
+                "Undead Raxgore",
+                "Weapon Imprint",
+                15,
+                role: ClassType.Solo,
+                cell: "r26",
+                pad: "Left",
+                isEnabled: () => nextQuestId == 7164
+            )
+            || !RunCoordinatedTurnInStep(
+                "BRACKET65_LOO_7164_LURE",
+                () => nextQuestId != 7164 || core.CheckInventory("Lure of Order", 1, toInv: false),
+                () => nextQuestId != 7164 || core.CheckInventory("Lure of Order", 1, toInv: false),
+                () =>
+                {
+                    UnbankIfOwned("Lure of Order");
+                    if (!core.CheckInventory("Lure of Order"))
+                    {
+                        Farm.FishingREP(7);
+                        LeaveCombatRoomForEquipmentChange();
+                        core.BuyItem("greenguardwest", 363, "Lure of Order");
+                    }
+                }
+            )
+            || !RunCoordinatedCombatStep(
+                "BRACKET65_LOO_7164_XIANG",
+                () => nextQuestId != 7164 || core.CheckInventory("Quixotic Mana Essence", 10, toInv: false),
+                () => nextQuestId != 7164 || core.CheckInventory("Quixotic Mana Essence", 10, toInv: false),
+                "*",
+                ClassType.Solo,
+                () =>
+                {
+                    UnbankIfOwned("Quixotic Mana Essence");
+                    core.AddDrop("Quixotic Mana Essence");
+                    core.EnsureAccept(7164);
+                    Adv.GearStore(EnhAfter: true);
+                    core.KillXiang("Quixotic Mana Essence", 10, true);
+                    Adv.GearStore(true, EnhAfter: true);
+                }
+            )
+            || !RunCoordinatedHuntStep("BRACKET65_LOO_7164_SEREPTHYS", 7164, "yasaris", "Serepthys", "Inversion Infusion", 5, role: ClassType.Solo, isEnabled: () => nextQuestId == 7164)
+            || !CompleteLoODayIfReady(
+                core,
+                7164,
+                nextQuestId,
+                new[] { "Weapon Imprint", "Lure of Order", "Quixotic Mana Essence", "Inversion Infusion" }
+            )
+        )
+            return false;
+
+        // Day 10 [7165]: The Final Challenge -> Unlock Lord of Order + Rank 10 for Player 4
+        if (
+            !RunCoordinatedHuntStep(
+                "BRACKET65_LOO_7165_DRAKATH",
+                7165,
+                "ultradrakath",
+                "Champion of Chaos",
+                "Champion of Chaos Confronted",
+                1,
+                role: ClassType.Solo,
+                isEnabled: () => nextQuestId == 7165
+            )
+            || !CompleteLoODayIfReady(
+                core,
+                7165,
+                nextQuestId,
+                new[] { "Champion of Chaos Confronted" },
+                chooseItemId: 50741
+            )
+        )
+            return false;
+
+        return RunCooperativeObjective(
+            "BRACKET65_LOO_RANK_10",
+            () => !HasLoOClass() || HasRank10Class("Lord of Order"),
+            () =>
+            {
+                if (!HasLoOClass())
+                    return;
+
+                if (!HasRank10Class("Lord of Order"))
+                    RankUpClassForArmy("Lord of Order");
+
+                SetClass();
+            },
+            (targetPlayerNumber, targetPlayerName) =>
+                Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+        );
+    }
+
+    /// <summary>
+    /// Future Bracket (Level 75+): Daily "The Encroaching Shadows" [8653] (Void Aura x50 + (Necro) Scroll of Dark Arts).
+    /// Intentionally NOT invoked during Level 1-65 brackets; ready for future Level 75+ integration.
+    /// </summary>
+    public bool RunTheEncroachingShadowsDaily()
+    {
+        if (Bot.Player.Level < 75)
+            return true;
+
+        CoreBots core = CoreBots.Instance;
+        bool voidAuraCapped = core.CheckInventory("Void Aura", 7500, toInv: false);
+        bool dailyAvailable = !voidAuraCapped && CanRunPeriodicQuest(8653);
+
+        if (
+            !RunCoordinatedHuntStep(
+                "FUTURE75_ENCROACHING_SHADOWS_ICEWING",
+                8653,
+                "icewing",
+                "Warlord Icewing",
+                "Glacial Pinion",
+                1,
+                role: ClassType.Solo,
+                acceptQuest: true,
+                checkBankAlso: true,
+                beforeHunt: c =>
+                {
+                    if (!dailyAvailable)
+                        return;
+                    c.AddDrop("Void Aura", "(Necro) Scroll of Dark Arts", "Glacial Pinion", "Hydra Eyeball", "Flibbitigiblets");
+                },
+                isEnabled: () => dailyAvailable
+            )
+            || !RunCoordinatedHuntStep(
+                "FUTURE75_ENCROACHING_SHADOWS_HYDRA90",
+                8653,
+                "hydrachallenge",
+                "Hydra Head 90",
+                "Hydra Eyeball",
+                3,
+                role: ClassType.Solo,
+                cell: "h90",
+                pad: "Left",
+                isEnabled: () => dailyAvailable
+            )
+            || !RunCoordinatedHuntStep(
+                "FUTURE75_ENCROACHING_SHADOWS_FLIBBI",
+                8653,
+                "voidflibbi",
+                "Flibbitiestgibbet",
+                "Flibbitigiblets",
+                1,
+                role: ClassType.Solo,
+                isEnabled: () => dailyAvailable
+            )
+        )
+            return false;
+
+        bool turnInDone = false;
+        return RunCoordinatedTurnInStep(
+            "FUTURE75_ENCROACHING_SHADOWS_COMPLETE",
+            () => !dailyAvailable || turnInDone,
+            () => !dailyAvailable || Bot.Quests.IsDailyComplete(8653) || turnInDone,
+            () =>
+            {
+                turnInDone = true;
+                UnbankIfOwned("Glacial Pinion", "Hydra Eyeball", "Flibbitigiblets");
+                if (
+                    !core.CheckInventory("Glacial Pinion", 1)
+                    || !core.CheckInventory("Hydra Eyeball", 3)
+                    || !core.CheckInventory("Flibbitigiblets", 1)
+                )
+                    return;
+
+                core.AddDrop("Void Aura", "(Necro) Scroll of Dark Arts");
+                core.EnsureAccept(8653);
+                core.EnsureComplete(8653);
+                Bot.Wait.ForPickup("Void Aura");
+                BankIfPresent("Void Aura", "(Necro) Scroll of Dark Arts");
+            }
+        );
+    }
+    #endregion Approved Dailies, Weeklies & Future NSoD Daily
+
     public bool RunCooperativeObjective(
         string objectiveName,
         Func<bool> isComplete,
         Action doWork,
         Action help,
-        int maxWorkAttempts = 0
+        int maxWorkAttempts = 0,
+        int maxPlayersPerSubgroup = 0
     ) => Army.RunCooperativeObjective(
         objectiveName,
         isComplete,
         doWork,
         (targetPlayerNumber, targetPlayerName) => help(),
-        maxWorkAttempts
+        maxWorkAttempts,
+        maxPlayersPerSubgroup
     );
 
     public bool RunCooperativeObjective(
@@ -6221,8 +7961,16 @@ public class ArmyFarmerJoeDoAll
         Func<bool> isComplete,
         Action doWork,
         Action<int, string> help,
-        int maxWorkAttempts = 0
-    ) => Army.RunCooperativeObjective(objectiveName, isComplete, doWork, help, maxWorkAttempts);
+        int maxWorkAttempts = 0,
+        int maxPlayersPerSubgroup = 0
+    ) => Army.RunCooperativeObjective(
+        objectiveName,
+        isComplete,
+        doWork,
+        help,
+        maxWorkAttempts,
+        maxPlayersPerSubgroup
+    );
 
     public bool IsPlayer(int playerNumber) => Army.IsArmyPlayer(playerNumber);
 

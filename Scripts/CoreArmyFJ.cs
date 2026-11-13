@@ -5985,14 +5985,16 @@ public class CoreArmyFJ
         Func<bool> isComplete,
         Action doWork,
         Action help,
-        int maxWorkAttempts = 0
+        int maxWorkAttempts = 0,
+        int maxPlayersPerSubgroup = 0
     ) =>
         RunCooperativeObjective(
             objectiveName,
             isComplete,
             doWork,
             (targetPlayerNumber, targetPlayerName) => help(),
-            maxWorkAttempts
+            maxWorkAttempts,
+            maxPlayersPerSubgroup
         );
 
     public bool RunCooperativeObjective(
@@ -6000,7 +6002,8 @@ public class CoreArmyFJ
         Func<bool> isComplete,
         Action doWork,
         Action<int, string> help,
-        int maxWorkAttempts = 0
+        int maxWorkAttempts = 0,
+        int maxPlayersPerSubgroup = 0
     )
     {
         if (!RequireArmySession())
@@ -6070,24 +6073,52 @@ public class CoreArmyFJ
 
             if (localComplete)
             {
-                // Spread helpers across pending players (helper #k helps pending #k mod count).
+                // Spread helpers across pending players (optionally scoped to fixed-size room subgroups).
                 int localPlayerNumber = armyPlayerIndex + 1;
-                int helperIndex = Math.Max(0, helperPlayers.IndexOf(localPlayerNumber));
-                int targetPlayerNumber = pendingPlayers[helperIndex % pendingPlayers.Count];
-                string targetPlayerName = armyPlayers[targetPlayerNumber - 1];
+                bool useSubgroups = maxPlayersPerSubgroup > 0;
+                int localSubgroup = useSubgroups
+                    ? (localPlayerNumber - 1) / maxPlayersPerSubgroup
+                    : 0;
 
-                // Option 1 (First-Helper-To-Support):
-                // While all accounts are working on an objective (e.g., ranking a class to 10),
-                // everyone equips the required class. As soon as the 1st account finishes and enters
-                // Helper mode (helperIndex == 0), it equips a Support class (Oracle / StoneCrusher /
-                // ArchPaladin / Lord of Order) to heal the remaining accounts. Once Player 2 (the
-                // dedicated Support) finishes, Player 2 takes over the Support role and the temporary
-                // support helper returns to its own SoloClass!
-                actAsSupportHelper =
-                    localPlayerNumber == 2
-                    || (!helperPlayers.Contains(2) && helperIndex == 0);
+                List<int> scopedPending = useSubgroups
+                    ? pendingPlayers
+                        .Where(p => (p - 1) / maxPlayersPerSubgroup == localSubgroup)
+                        .ToList()
+                    : pendingPlayers;
 
-                help(targetPlayerNumber, targetPlayerName);
+                if (scopedPending.Count == 0)
+                {
+                    actAsSupportHelper = false;
+                    help(0, string.Empty);
+                }
+                else
+                {
+                    List<int> scopedHelpers = useSubgroups
+                        ? helperPlayers
+                            .Where(p => (p - 1) / maxPlayersPerSubgroup == localSubgroup)
+                            .ToList()
+                        : helperPlayers;
+
+                    int helperIndex = Math.Max(0, scopedHelpers.IndexOf(localPlayerNumber));
+                    int targetPlayerNumber = scopedPending[helperIndex % scopedPending.Count];
+                    string targetPlayerName = armyPlayers[targetPlayerNumber - 1];
+
+                    // Option 1 (First-Helper-To-Support):
+                    // While all accounts are working on an objective (e.g., ranking a class to 10),
+                    // everyone equips the required class. As soon as the 1st account finishes and enters
+                    // Helper mode (helperIndex == 0), it equips a Support class (Oracle / StoneCrusher /
+                    // ArchPaladin / Lord of Order) to heal the remaining accounts. Once Player 2 (or the
+                    // subgroup's dedicated Support when split) finishes, that account takes over the
+                    // Support role and the temporary support helper returns to its own SoloClass!
+                    int supportPlayerNumber = useSubgroups
+                        ? localSubgroup * maxPlayersPerSubgroup + 2
+                        : 2;
+                    actAsSupportHelper =
+                        localPlayerNumber == supportPlayerNumber
+                        || (!scopedHelpers.Contains(supportPlayerNumber) && helperIndex == 0);
+
+                    help(targetPlayerNumber, targetPlayerName);
+                }
             }
             else
             {
@@ -6667,6 +6698,9 @@ public class CoreArmyFJ
 
         return 0;
     }
+
+    public int ArmyPlayerNumber =>
+        armyInitialized && armyPlayerIndex >= 0 ? armyPlayerIndex + 1 : 0;
 
     public bool IsArmyPlayer(int playerNumber) =>
         armyInitialized
