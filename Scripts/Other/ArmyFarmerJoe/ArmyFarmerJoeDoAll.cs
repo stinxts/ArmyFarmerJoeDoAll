@@ -1581,6 +1581,17 @@ public class ArmyFarmerJoeDoAll
         "Healer",
     };
 
+    // Secondary Support pool for Player 5 during Farm mode in larger armies (5-7 players)
+    private static readonly string[] Player5FarmSupportClasses =
+    {
+        "StoneCrusher",
+        "ArchPaladin",
+        "Lord of Order",
+        "Evolved Shaman",
+        "Oracle",
+        "Healer",
+    };
+
     private static readonly string[] FarmClasses =
     {
         "ArchMage",
@@ -1596,17 +1607,7 @@ public class ArmyFarmerJoeDoAll
         "Mage",
     };
 
-    private static readonly string[] DodgeClasses =
-    {
-        "Yami No Ronin",
-        "Horc Evader",
-        "Imperial Chunin",
-        "Ninja",
-        "Oracle",
-        "Rogue",
-    };
-
-    private string[] GetRoleSoloPool()
+    private string[] GetRoleBossPool()
     {
         if (IsPlayer(2))
             return Player2SupportClasses;
@@ -1626,10 +1627,13 @@ public class ArmyFarmerJoeDoAll
 
     private string[] GetRoleFarmPool()
     {
-        // Keep Player 2 on Healer/Support even during Farm mode so progressing accounts
-        // (e.g., ranking Ninja/Rogue in /icestormarena or /icestormunder) always have active heals & shields!
+        // Farm Composition: AoE Farm classes combined with Support/Healer classes
+        // - Player 2 stays on Primary Healer/Support (2-7 player armies)
+        // - Player 5 stays on Secondary Buffer/Support (5-7 player armies)
         if (IsPlayer(2))
             return Player2SupportClasses;
+        if (IsPlayer(5))
+            return Player5FarmSupportClasses;
 
         return FarmClasses;
     }
@@ -1653,7 +1657,6 @@ public class ArmyFarmerJoeDoAll
 
     private string? _lastSolo;
     private string? _lastFarm;
-    private string? _lastDodge;
     private int _setClassBusy;
 
     public void SetClass(bool rankUpIfNeeded = false)
@@ -1686,13 +1689,16 @@ public class ArmyFarmerJoeDoAll
         core.DodgeUseMode = ClassUseMode.Base;
         core.BossUseMode = ClassUseMode.Base;
 
-        string[] soloPool = GetRoleSoloPool();
+        string[] bossPool = GetRoleBossPool();
         string[] farmPool = GetRoleFarmPool();
 
-        // Always enforce the Army's ideal role composition (ignoring any leftover class in CBO)
-        core.SoloClass = ResolveClass(soloPool);
+        // Two unified compositions:
+        // 1. Boss Composition (used for SoloClass, DodgeClass, and BossClass)
+        // 2. Farm Composition (AoE farmers + dedicated Supports on P2 and P5)
+        core.SoloClass = ResolveClass(bossPool);
+        core.DodgeClass = core.SoloClass;
+        core.BossClass = core.SoloClass;
         core.FarmClass = ResolveClass(farmPool);
-        core.DodgeClass = ResolveClass(DodgeClasses);
 
         static bool Settled(string? className) =>
             CoreBots.IsGenericClass(className)
@@ -1707,10 +1713,8 @@ public class ArmyFarmerJoeDoAll
             || (
                 string.Equals(_lastSolo, core.SoloClass, StringComparison.OrdinalIgnoreCase)
                 && string.Equals(_lastFarm, core.FarmClass, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(_lastDodge, core.DodgeClass, StringComparison.OrdinalIgnoreCase)
                 && Settled(core.SoloClass)
                 && Settled(core.FarmClass)
-                && Settled(core.DodgeClass)
             )
         )
         {
@@ -1729,9 +1733,8 @@ public class ArmyFarmerJoeDoAll
             return;
         }
 
-        RankIfNeeded(core.SoloClass, "SoloClass");
-        RankIfNeeded(core.FarmClass, "FarmClass");
-        RankIfNeeded(core.DodgeClass, "DodgeClass");
+        RankIfNeeded(core.SoloClass, "BossComposition");
+        RankIfNeeded(core.FarmClass, "FarmComposition");
 
         Bot.Sleep(500);
         if (
@@ -1745,7 +1748,6 @@ public class ArmyFarmerJoeDoAll
 
         _lastSolo = core.SoloClass;
         _lastFarm = core.FarmClass;
-        _lastDodge = core.DodgeClass;
     }
 
     private void RankUpClassForArmy(string className)
