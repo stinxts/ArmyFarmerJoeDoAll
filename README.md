@@ -22,14 +22,29 @@ GPT-6 LUNA, Claude Opus 5.5, Antigravity Gemini 4 Argon.
 
 What has been implemented:
 
-Cooperative Helper System: Accounts that finish a task early (or already meet the requirements) automatically follow and assist pending accounts instead of skipping ahead.
+Shared Private Room Enforcement: Room number Setup granting all players stay in the same room.
 
-First-Hit Rule & Boss Mechanics: Helpers use proper class skill rotations, wait for the assisted player to land the first hit before attacking, and respect boss shield phases (Escherion's Staff / Vath's Stalagbite).
+Cooperative Helper System: Army users now have a helper function, everyone can help who is stuck behind progress, now making everyone on the same stage ALWAYS
 
-Helper Load Balancing & Fail-Safes: Helpers split evenly across multiple pending players, and shop/turn-in steps have retry limits to prevent infinite loops.
+First-Hit Rule & Boss Mechanics: Helpers only attack after the helped users attack, ensuring participation.
 
-Auto Class Setup (SetClass): Automatically resolves, ranks up to 10, and equips the best Solo, Farm, and Dodge classes after every major acquisition (removed obsolete class banking).
+Helper Load Balancing & Fail-Safes: Helpers splits evenly between all players, shop/turn-in steps have retry limits to prevent infinite loop
 
-Step 1 (Levels 1–25 / Beginner Setup): Synchronized Tutorial, starter gear, Level 10, Rogue (Rank 10), Level 25, Mazumi questline (coordinated monster-by-monster and boss-by-boss), Ninja (Rank 10), and Mage (Rank 10).
+Role-Based Party Composition: Automatically assigns unique party role based on player slot.
+Party Class Progression by Player Slot
 
-Step 2A (Level 30 Bracket): Synchronized Elders' Blood daily, Level 30 + SmartEnhance, Master Ranger (Sandsea Rep 10 + Rank 10), Dragonslayer (Galanoth quests 165–168 one-by-one + Rank 10), Blade of Awe unlock quests (2933–2937 one-by-one + Rep 10 + Awethur's Accoutrements), and Forge Helm Enhancement (Blacksmithing Rep 4 + Quest 8828 coordinated boss-by-boss).
+All accounts unlock every class together, while SetClass() automatically assigns a unique Solo/Boss role to each player slot:
+
+| Player Slot | Party Role | Step 1 (Lv 1–25) | Step 2A (Lv 30 Bracket) | Mid-Game (Lv 50–65) | Late / Endgame (Lv 70–100) |
+| :---: | --- | --- | --- | --- | --- |
+| Player 1 | Main Solo DPS | `Rogue` -> `Ninja` | `Dragonslayer` | `Dragonslayer General` -> `Glacial Berserker` -> `Cryomancer` | `Dragon of Time` -> `Void Highlord` -> `Chaos Avenger` -> `King's Echo` |
+| Player 2 | Main Healer / Support | `Oracle` | `Oracle` | `StoneCrusher` | `ArchPaladin` -> `Lord of Order` |
+| Player 3 | Boss Hit-Chance Debuffer | `Rogue` | `Imperial Chunin` | `Imperial Chunin` -> `StoneCrusher` | `ArchPaladin` |
+| Player 4 | Magic Amp / Anti-Evade | `Mage` | `Shaman` | `Shaman` -> `Arachnomancer` -> `StoneCrusher` | `Archfiend` |
+| Player 5 | Sub-Healer / Crit Debuff | `Oracle` | `Evolved Shaman` | `Evolved Shaman` -> `Glacial Berserker` | `Dragon of Time` |
+| Player 6 | Ranged DPS / Support | `Oracle` | `Master Ranger` | `Master Ranger` -> `StoneCrusher` | `ArchPaladin` -> `Void Highlord` |
+| Player 7 | Dodge DPS / Support | `Ninja` | `Ninja` | `DragonSoul Shinobi` | `Yami No Ronin` |
+
+What it does effectivly RN:
+
+It does the same as original Farmer Joe does with additions till level 30 bracket.
