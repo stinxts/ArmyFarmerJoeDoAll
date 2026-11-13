@@ -946,13 +946,13 @@ public class ArmyFarmerJoeDoAll
                     () =>
                         HasDragonslayer()
                         || core.isCompletedBefore(169)
-                        || Story.QuestProgression(gQuest.QuestId),
+                        || core.isCompletedBefore(gQuest.QuestId),
                     () =>
                     {
                         if (
                             HasDragonslayer()
                             || core.isCompletedBefore(169)
-                            || Story.QuestProgression(gQuest.QuestId)
+                            || core.isCompletedBefore(gQuest.QuestId)
                         )
                             return;
 
@@ -1497,6 +1497,1220 @@ public class ArmyFarmerJoeDoAll
         return Army.SyncArmy("STEP2A_COMPLETE");
     }
     #endregion Step 2A: Bracket 30
+
+    #region Step 2B: Bracket 50
+    public bool RunBracket50()
+    {
+        if (!Army.SyncArmy("STEP2B_START"))
+            return false;
+
+        ApplyArmyRoomSettings();
+        CoreBots core = CoreBots.Instance;
+        core.Logger("Army FarmerJoe: starting Step 2B (Bracket 50) on all accounts.");
+
+        // 1. Level 50 + SmartEnhance
+        bool enhancedBracket50 = Bot.Player.Level > 75;
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_LEVEL_50",
+                () => Bot.Player.Level >= 50 && enhancedBracket50,
+                () =>
+                {
+                    if (
+                        !enhancedBracket50
+                        || Bot.Inventory.Items.Any(x =>
+                            x != null && x.EnhancementLevel < Bot.Player.Level
+                        )
+                    )
+                    {
+                        LeaveCombatRoomForEquipmentChange();
+                        Adv.SmartEnhance(Bot.Player.CurrentClass?.Name ?? string.Empty);
+                        enhancedBracket50 = true;
+                    }
+
+                    SetClass();
+                    Farm.Experience(50);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // 2. Scarlet Sorceress (ShatterGlassMaze -> TowerOfMirrors -> Blood Sorceress drop -> 1 CP + unequip -> Quest 6236 -> Rank 10)
+        bool HasScarletSorceress() => core.CheckInventory("Scarlet Sorceress", toInv: false);
+        bool HasScarletSorceressRank10() =>
+            HasScarletSorceress() && HasRank10Class("Scarlet Sorceress");
+
+        // 2a. Coordinated ShatterGlassMaze (/hedgemaze, Quests 5298-5313)
+        if (!RunCoordinatedShatterGlassMaze(HasScarletSorceress))
+            return false;
+
+        // 2b. Coordinated TowerOfMirrors (/towerofmirrors, Quests 5314-5332)
+        if (!RunCoordinatedTowerOfMirrors(HasScarletSorceress))
+            return false;
+
+        // 2c. Drop Blood Sorceress (ItemID 36298) from Scarletta in /towerofmirrors
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_SS_BLOOD_DROP",
+                () => HasScarletSorceress() || core.CheckInventory(36298, toInv: true),
+                () =>
+                {
+                    if (HasScarletSorceress() || core.CheckInventory(36298, toInv: true))
+                        return;
+
+                    core.Logger("Level 50: Farming Blood Sorceress drop from Scarletta");
+                    core.AddDrop(36298, 42992);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.KillMonster(
+                        "towerofmirrors",
+                        "r16",
+                        "Top",
+                        "Scarletta",
+                        "Blood Sorceress",
+                        isTemp: false
+                    );
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Scarletta");
+                }
+            )
+        )
+            return false;
+
+        // 2d. Upgrade Blood Sorceress (36298) -> Scarlet Sorceress (42992) via Quest 6236
+        // Wiki requirements:
+        // 1) Blood Sorceress must have >= 1 Class Point (iQty >= 1) in inventory.
+        // 2) Blood Sorceress MUST be unequipped when turning in Quest 6236 (the quest consumes it).
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_SS_UPGRADE_6236",
+                HasScarletSorceress,
+                () =>
+                {
+                    if (HasScarletSorceress())
+                        return;
+
+                    if (!core.CheckInventory(36298, toInv: true))
+                        return;
+
+                    core.AddDrop(42992);
+
+                    InventoryItem? bloodSorc = Bot.Inventory.Items.FirstOrDefault(x =>
+                        x != null && x.ID == 36298
+                    );
+                    if (bloodSorc != null && bloodSorc.Quantity < 1)
+                    {
+                        core.Logger(
+                            "Level 50: Getting 1 Class Point on Blood Sorceress for Quest 6236"
+                        );
+                        LeaveCombatRoomForEquipmentChange();
+                        Adv.SmartEnhance("Blood Sorceress");
+                        core.Equip("Blood Sorceress");
+                        Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped("Blood Sorceress"), 20);
+                        Bot.Skills.StartAdvanced("Blood Sorceress", false, ClassUseMode.Base);
+                        core.KillMonster("towerofmirrors", "r2", "Left", "*", log: false);
+                    }
+
+                    // Ensure Blood Sorceress is UNEQUIPPED before turning in Quest 6236
+                    if (
+                        Bot.Inventory.IsEquipped("Blood Sorceress")
+                        || string.Equals(
+                            Bot.Player.CurrentClass?.Name,
+                            "Blood Sorceress",
+                            StringComparison.OrdinalIgnoreCase
+                        )
+                    )
+                    {
+                        LeaveCombatRoomForEquipmentChange();
+                        SetClass();
+                        if (
+                            string.Equals(
+                                Bot.Player.CurrentClass?.Name,
+                                "Blood Sorceress",
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                        )
+                        {
+                            string fallbackClass =
+                                new[] { "Oracle", "Mage", "Rogue", "Healer", "Warrior" }
+                                    .FirstOrDefault(c => core.CheckInventory(c, toInv: true))
+                                ?? string.Empty;
+                            if (!string.IsNullOrEmpty(fallbackClass))
+                                core.Equip(fallbackClass);
+                        }
+                    }
+
+                    core.Logger("Level 50: Turning in Quest 6236 for Scarlet Sorceress");
+                    core.EnsureAccept(6236);
+                    core.EnsureComplete(6236);
+                    Bot.Wait.ForPickup(42992);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                },
+                maxWorkAttempts: 4
+            )
+        )
+            return false;
+
+        // 2e. Rank Scarlet Sorceress to 10 & SetClass
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_SS_RANK_10",
+                HasScarletSorceressRank10,
+                () =>
+                {
+                    if (HasScarletSorceressRank10())
+                        return;
+
+                    RankUpClassForArmy("Scarlet Sorceress");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+        SetClass();
+
+        // 3. Dragonslayer General (30k Gold + 75 Enchanted Scale via Quest 5294 + 100 Dragon Claw in /dragontown -> Buy -> Rank 10)
+        bool HasDSG() => core.CheckInventory(35996, toInv: false);
+        bool HasDSGRank10() => HasDSG() && HasRank10Class("Dragonslayer General");
+
+        // 3a. 30,000 Gold for Dragonslayer General
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_DSG_GOLD",
+                () => HasDSG() || Bot.Player.Gold >= 30000,
+                () =>
+                {
+                    if (HasDSG() || Bot.Player.Gold >= 30000)
+                        return;
+
+                    SetClass();
+                    Farm.Gold(30000);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // 3b. Farm 75 Enchanted Scale (Quest 5294) & 100 Dragon Claw from Tempest Dracolich in /dragontown
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_DSG_MATS",
+                () =>
+                    HasDSG()
+                    || (
+                        core.CheckInventory("Enchanted Scale", 75)
+                        && core.CheckInventory("Dragon Claw", 100)
+                    ),
+                () =>
+                {
+                    if (
+                        HasDSG()
+                        || (
+                            core.CheckInventory("Enchanted Scale", 75)
+                            && core.CheckInventory("Dragon Claw", 100)
+                        )
+                    )
+                        return;
+
+                    // Quest 5294 requires Dragonslayer Rank 10 in inventory (unbanked)
+                    core.CheckInventory("Dragonslayer", toInv: true);
+                    core.Logger(
+                        "Level 50: Farming Enchanted Scale (75) & Dragon Claw (100) for Dragonslayer General"
+                    );
+                    core.AddDrop("Enchanted Scale", "Dragon Claw");
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.RegisterQuests(5294);
+                    while (
+                        !Bot.ShouldExit
+                        && (
+                            !core.CheckInventory("Enchanted Scale", 75)
+                            || !core.CheckInventory("Dragon Claw", 100)
+                        )
+                    )
+                    {
+                        core.KillMonster(
+                            "dragontown",
+                            "r4",
+                            "Right",
+                            "Tempest Dracolich",
+                            log: false
+                        );
+                    }
+                    core.CancelRegisteredQuests();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tempest Dracolich");
+                }
+            )
+        )
+            return false;
+
+        // 3c. Buy Dragonslayer General
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_DSG_BUY",
+                HasDSG,
+                () =>
+                {
+                    if (HasDSG())
+                        return;
+
+                    core.Logger("Level 50: Buying Dragonslayer General");
+                    core.BuyItem("dragontown", 1286, 35996, shopItemID: 3937);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3d. Rank Dragonslayer General to 10 & SetClass
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_DSG_RANK_10",
+                HasDSGRank10,
+                () =>
+                {
+                    if (HasDSGRank10())
+                        return;
+
+                    RankUpClassForArmy("Dragonslayer General");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+        SetClass();
+
+        // 4. Burning Blade (+15% All Damage weapon from Diabolical Warlord in /lostruinswar)
+        bool HasBurningBlade() =>
+            core.CheckInventory("Burning Blade", toInv: false)
+            || core.CheckInventory("Burning Blade of Abezeth", toInv: false);
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_BURNING_BLADE",
+                HasBurningBlade,
+                () =>
+                {
+                    if (HasBurningBlade())
+                        return;
+
+                    core.Logger("Level 50: Farming Burning Blade (+15% All Damage) from Diabolical Warlord");
+                    core.AddDrop("Burning Blade");
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.KillMonster(
+                        "lostruinswar",
+                        "r7",
+                        "Left",
+                        "Diabolical Warlord",
+                        "Burning Blade",
+                        isTemp: false
+                    );
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Diabolical Warlord");
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_BURNING_BLADE_EQUIP",
+                () =>
+                    core.CheckInventory("Burning Blade of Abezeth", toInv: false)
+                    || !core.CheckInventory("Burning Blade", toInv: true)
+                    || Bot.Inventory.IsEquipped("Burning Blade"),
+                () =>
+                {
+                    if (
+                        core.CheckInventory("Burning Blade of Abezeth", toInv: false)
+                        || !core.CheckInventory("Burning Blade", toInv: true)
+                        || Bot.Inventory.IsEquipped("Burning Blade")
+                    )
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    core.Equip("Burning Blade");
+                    Adv.SmartEnhance(Bot.Player.CurrentClass?.Name ?? string.Empty);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 2
+            )
+        )
+            return false;
+
+        return Army.SyncArmy("STEP2B_COMPLETE");
+    }
+
+    private bool RunCoordinatedShatterGlassMaze(Func<bool> skipCondition)
+    {
+        CoreBots core = CoreBots.Instance;
+        core.EnsureLoad(Enumerable.Range(5298, 16).ToArray());
+
+        bool IsHedgeQuestDone(int questId) =>
+            skipCondition()
+            || core.isCompletedBefore(5332)
+            || core.isCompletedBefore(5313)
+            || core.isCompletedBefore(questId);
+
+        // Quest 5298: Find the Hedge Maze
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5298",
+                () => IsHedgeQuestDone(5298),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5298))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5298);
+                    core.GetMapItem(4678, 1, "hedgemaze");
+                    core.HuntMonster(
+                        "hedgemaze",
+                        "Knight's Reflection",
+                        "Knight's Reflection Dispersed",
+                        1
+                    );
+                    core.EnsureComplete(5298);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Knight's Reflection");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5299: Clear the Hedges
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5299",
+                () => IsHedgeQuestDone(5299),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5299))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5299);
+                    core.HuntMonster("hedgemaze", "Mirrored Shard", "Mirror Shard Slain", 4);
+                    core.HuntMonsterMapID("hedgemaze", 48, "Hedge Goblin Slain", 4);
+                    core.HuntMonsterMapID("hedgemaze", 20, "Minotaur Slain", 3);
+                    Story.MapItemQuest(5299, "hedgemaze", 4679);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // Quest 5300: Un-Mirror the Knights
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5300",
+                () => IsHedgeQuestDone(5300),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5300))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(5300, "hedgemaze", "Knight's Reflection");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Knight's Reflection");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5301: Find the Goblin Camp
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5301",
+                () => IsHedgeQuestDone(5301),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5301))
+                        return;
+
+                    Story.MapItemQuest(5301, "hedgemaze", 4680);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // Quest 5302:Wait, Those Aren't Redcaps!
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5302",
+                () => IsHedgeQuestDone(5302),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5302))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(5302, "hedgemaze", "Hedge Goblin");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Hedge Goblin");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5303: Pick the Glass Flowers
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5303",
+                () => IsHedgeQuestDone(5303),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5303))
+                        return;
+
+                    Story.MapItemQuest(5303, "hedgemaze", 4681, 12);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // Quest 5304: Polish the Mirror Shards
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5304",
+                () => IsHedgeQuestDone(5304),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5304))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(5304, "hedgemaze", "Mirrored Shard");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Mirrored Shard");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5305: Hone the Guerilla Tactic
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5305",
+                () => IsHedgeQuestDone(5305),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5305))
+                        return;
+
+                    Story.MapItemQuest(5305, "hedgemaze", 4682);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // Quest 5306: Slay the Minotaur Prime (Boss)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5306_MINOTAUR_PRIME",
+                () => IsHedgeQuestDone(5306),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5306))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(5306, "hedgemaze", "Minotaur Prime");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Minotaur Prime");
+                }
+            )
+        )
+            return false;
+
+        // Quests 5307, 5308, 5309: MapItems 4683, 4684, 4685 x5
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5307_5309",
+                () => IsHedgeQuestDone(5309),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5309))
+                        return;
+
+                    if (!IsHedgeQuestDone(5307))
+                        Story.MapItemQuest(5307, "hedgemaze", 4683);
+                    if (!IsHedgeQuestDone(5308))
+                        Story.MapItemQuest(5308, "hedgemaze", 4684);
+                    if (!IsHedgeQuestDone(5309))
+                        Story.MapItemQuest(5309, "hedgemaze", 4685, 5);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // Quest 5310: Defend the Maze
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5310",
+                () => IsHedgeQuestDone(5310),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5310))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5310);
+                    core.KillMonster("hedgemaze", "r21", "Right", "*", "Maze Monster Killed", 8);
+                    core.EnsureComplete(5310);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // Quest 5311: Find the Center
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5311",
+                () => IsHedgeQuestDone(5311),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5311))
+                        return;
+
+                    Story.MapItemQuest(5311, "hedgemaze", 4686);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // Quest 5312: Shattered Knight (54.3k HP Boss)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5312_SHATTERED_KNIGHT",
+                () => IsHedgeQuestDone(5312),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5312))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(5312, "hedgemaze", "Shattered Knight");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shattered Knight");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5313: Resurrected Minotaur (79.1k HP Boss)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_HEDGEMAZE_5313_RESURRECTED_MINOTAUR",
+                () => IsHedgeQuestDone(5313),
+                () =>
+                {
+                    if (IsHedgeQuestDone(5313))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(5313, "hedgemaze", "Resurrected Minotaur");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Resurrected Minotaur");
+                }
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunCoordinatedTowerOfMirrors(Func<bool> skipCondition)
+    {
+        CoreBots core = CoreBots.Instance;
+        core.EnsureLoad(Enumerable.Range(5314, 19).ToArray());
+
+        bool IsTowerQuestDone(int questId) =>
+            skipCondition()
+            || core.isCompletedBefore(5332)
+            || core.isCompletedBefore(questId);
+
+        // Quest 5314: Drink Me
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5314_DRINK_ME",
+                () => IsTowerQuestDone(5314),
+                () =>
+                {
+                    if (IsTowerQuestDone(5314))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5314);
+                    core.HuntMonster("towerofmirrors", "Glassgoyle", "Glass Powder", 8);
+                    core.HuntMonster("towerofmirrors", "Glass Serpent", "Reflective Venom", 4);
+                    core.EnsureComplete(5314);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // Quest 5315: The Key To Success
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5315_KEY_SUCCESS",
+                () => IsTowerQuestDone(5315),
+                () =>
+                {
+                    if (IsTowerQuestDone(5315))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5315);
+                    core.GetMapItems(new[] { (4691, 1), (4692, 1) }, "towerofmirrors");
+                    core.HuntMonster("towerofmirrors", "Silver Elemental", "Mirror Key", 1);
+                    core.EnsureComplete(5315);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5316: Phanatics
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5316_PHANATICS",
+                () => IsTowerQuestDone(5316),
+                () =>
+                {
+                    if (IsTowerQuestDone(5316))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5316);
+                    core.HuntMonster("towerofmirrors", "Phans", "Mosh Past the Phans", 8);
+                    core.HuntMonster("towerofmirrors", "Phans", "Backstage Pass", 1);
+                    core.EnsureComplete(5316);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Phans");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5317: But I Have A Backstage Pass! (Boss: Lathannos the Reversed, MapID 36)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5317_LATHANNOS",
+                () => IsTowerQuestDone(5317),
+                () =>
+                {
+                    if (IsTowerQuestDone(5317))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(5317);
+                    core.HuntMonsterMapID(
+                        "towerofmirrors",
+                        36,
+                        "Lathannos the Reversed Defeated"
+                    );
+                    core.EnsureComplete(5317);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "36");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5318: True Love
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5318_TRUE_LOVE",
+                () => IsTowerQuestDone(5318),
+                () =>
+                {
+                    if (IsTowerQuestDone(5318))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5318);
+                    core.GetMapItems(new[] { (4687, 1), (4693, 1) }, "towerofmirrors");
+                    core.HuntMonster("towerofmirrors", "Silver Elemental", "Andres' Mirror Key", 1);
+                    core.EnsureComplete(5318);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5319: Turn to the Left
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5319_TURN_LEFT",
+                () => IsTowerQuestDone(5319),
+                () =>
+                {
+                    if (IsTowerQuestDone(5319))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5319);
+                    core.HuntMonster("towerofmirrors", "Runway Wraith", "Runway Wraith Defeated", 6);
+                    core.HuntMonster("towerofmirrors", "Runway Wraith", "Avant-Garde Footwear", 1);
+                    core.HuntMonster("towerofmirrors", "Runway Wraith", "Retro Wig", 1);
+                    core.HuntMonster(
+                        "towerofmirrors",
+                        "Runway Wraith",
+                        "Someone's Wearable Art Project",
+                        1
+                    );
+                    core.EnsureComplete(5319);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Runway Wraith");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5320: Now Turn to the Right (Boss: Lukrisio the Buffed, MapID 40)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5320_LUKRISIO",
+                () => IsTowerQuestDone(5320),
+                () =>
+                {
+                    if (IsTowerQuestDone(5320))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(5320);
+                    core.HuntMonsterMapID("towerofmirrors", 40, "Lukrisio the Buffed Defeated");
+                    core.EnsureComplete(5320);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "40");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5321: Or Maybe THIS Is True Love
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5321_MAYBE_TRUE_LOVE",
+                () => IsTowerQuestDone(5321),
+                () =>
+                {
+                    if (IsTowerQuestDone(5321))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5321);
+                    core.GetMapItems(new[] { (4688, 1), (4694, 1) }, "towerofmirrors");
+                    core.HuntMonster(
+                        "towerofmirrors",
+                        "Silver Elemental",
+                        "Gisele's Mirror Key",
+                        1
+                    );
+                    core.EnsureComplete(5321);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5322: Those Harpies!
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5322_HARPIES",
+                () => IsTowerQuestDone(5322),
+                () =>
+                {
+                    if (IsTowerQuestDone(5322))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5322);
+                    core.HuntMonster("towerofmirrors", "Pageant Mom", "Pageant Mom Defeated", 8);
+                    core.HuntMonster("towerofmirrors", "Pageant Mom", "Pageant Sash", 1);
+                    core.EnsureComplete(5322);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Pageant Mom");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5323: Drink your Go-Go Juice (Boss: Mendeskar the Smudged, MapID 45)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5323_MENDESKAR",
+                () => IsTowerQuestDone(5323),
+                () =>
+                {
+                    if (IsTowerQuestDone(5323))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(5323);
+                    core.HuntMonsterMapID("towerofmirrors", 45, "Mendeskar the Smudged Defeated");
+                    core.EnsureComplete(5323);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "45");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5324: Oh Sure, Why Not
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5324_SURE_WHY_NOT",
+                () => IsTowerQuestDone(5324),
+                () =>
+                {
+                    if (IsTowerQuestDone(5324))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5324);
+                    core.GetMapItems(new[] { (4689, 1), (4695, 1) }, "towerofmirrors");
+                    core.HuntMonster(
+                        "towerofmirrors",
+                        "Silver Elemental",
+                        "Emilia's Mirror Key",
+                        1
+                    );
+                    core.EnsureComplete(5324);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5325: Behind the Scenes
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5325_BEHIND_SCENES",
+                () => IsTowerQuestDone(5325),
+                () =>
+                {
+                    if (IsTowerQuestDone(5325))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5325);
+                    core.HuntMonster("towerofmirrors", "Stage Tech", "Stage Tech Defeated", 9);
+                    core.HuntMonster("towerofmirrors", "Stage Tech", "Rope Ladder");
+                    core.EnsureComplete(5325);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Stage Tech");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5326: In the Spotlight (Boss: Atticus the Warped, MapID 49)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5326_ATTICUS",
+                () => IsTowerQuestDone(5326),
+                () =>
+                {
+                    if (IsTowerQuestDone(5326))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(5326);
+                    core.HuntMonsterMapID("towerofmirrors", 49, "Atticus the Warped Defeated");
+                    core.EnsureComplete(5326);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "49");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5327: Oh, I Give Up
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5327_I_GIVE_UP",
+                () => IsTowerQuestDone(5327),
+                () =>
+                {
+                    if (IsTowerQuestDone(5327))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5327);
+                    core.GetMapItems(new[] { (4690, 1), (4696, 1) }, "towerofmirrors");
+                    core.HuntMonster("towerofmirrors", "Silver Elemental", "Dora's Mirror Key", 1);
+                    core.EnsureComplete(5327);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5328: We Gotta Wendi-GO
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5328_WENDIGO",
+                () => IsTowerQuestDone(5328),
+                () =>
+                {
+                    if (IsTowerQuestDone(5328))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5328);
+                    core.HuntMonster("towerofmirrors", "Sasquatch", "Sasquatches Defeated", 10);
+                    core.HuntMonster("towerofmirrors", "Sasquatch", "Tracking Tag", 5);
+                    core.EnsureComplete(5328);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Sasquatch");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5329: Kick His- Wait, Did We Already Use That Pun? (Boss: Leofire the Shattered, MapID 52)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5329_LEOFIRE",
+                () => IsTowerQuestDone(5329),
+                () =>
+                {
+                    if (IsTowerQuestDone(5329))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(5329);
+                    core.HuntMonsterMapID("towerofmirrors", 52, "Leofire the Shattered Defeated");
+                    core.EnsureComplete(5329);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "52");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5330: Fiend Zoned
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5330_FIEND_ZONED",
+                () => IsTowerQuestDone(5330),
+                () =>
+                {
+                    if (IsTowerQuestDone(5330))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(5330, "towerofmirrors", "Fervent Suitor");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Fervent Suitor");
+                }
+            )
+        )
+            return false;
+
+        // Quest 5331: Find Scarletta (Cutscene Cut4 -> Jump back to Enter)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5331_FIND_SCARLETTA",
+                () => IsTowerQuestDone(5331),
+                () =>
+                {
+                    if (IsTowerQuestDone(5331))
+                        return;
+
+                    Story.MapItemQuest(5331, "towerofmirrors", 4697);
+                    Bot.Wait.ForCellChange("Cut4");
+                    while (!Bot.ShouldExit && Bot.Player.Cell != "Enter")
+                    {
+                        core.Jump();
+                        core.Sleep();
+                    }
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // Quest 5332: Defeat ... Wait. What? (Final Boss: Scarletta / Groglurk, MapID 32)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_TOWER_5332_GROGLURK",
+                () => IsTowerQuestDone(5332),
+                () =>
+                {
+                    if (IsTowerQuestDone(5332))
+                        return;
+
+                    core.AddDrop("Blood Sorceress");
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(5332);
+                    core.HuntMonsterMapID("towerofmirrors", 32, "Defeat the Groglurk");
+                    core.EnsureComplete(5332);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "32");
+                }
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+    #endregion Step 2B: Bracket 50
 
     #region SetClass (Party Role Composition & CBO Resolution — 100% Free-to-Play Classes Only)
     // Player 1: Main Solo DPS (never overlaps with Players 2-7 at the same milestone)
