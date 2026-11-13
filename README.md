@@ -25,6 +25,9 @@ A multi-account cooperative progression automation framework designed for synchr
   * Helpers distribute evenly across remaining accounts (`pendingPlayers[helperIndex % pendingPlayers.Count]`).
   * Helpers wait for the progressing account to land the first hit (`HP < MaxHP`) before engaging, ensuring kill credit and drops are never stolen from the account that needs them.
   * Built-in shield-state awareness automatically redirects helper attacks to active shield entities before targeting invulnerable bosses.
+* **Two Unified Party Compositions (Boss & Farm):**
+  * **Boss Composition (`Solo` / `Boss` / `Dodge`):** Unifies `SoloClass`, `BossClass`, and `DodgeClass` into one complete, synergistic party composition (Main DPS, Primary Healer/Support, Hit-Chance Debuffer, Magic Amp, and Flex slots) so the group never breaks formation on hard bosses.
+  * **Farm Composition (`Farm`):** Pairs multi-target AoE classes (`Players 1, 3, 4, 6, 7`) with dedicated Support/Buffer classes (`Player 2` in 2–4p groups, and `Player 2` + `Player 5` in 5–7p groups) to keep active heals, haste, and crit buffs up during multi-target farming.
 * **Dynamic Support Hand-Off (Option 1 — First-Helper-To-Support):**
   * During class rank-up steps, all progressing accounts equip the target class simultaneously.
   * The **first account to finish** Rank 10 and enter Helper Mode automatically equips its highest-tier Support class (`LoO` → `AP` → `SC` → `ORA` → `HLR`) to heal and shield the remaining accounts.
@@ -61,11 +64,13 @@ A multi-account cooperative progression automation framework designed for synchr
 
 ## Party Role & Class Progression Table (100% Free-to-Play)
 
-> **Note:** All paid, promotional, membership-locked, and rare classes are excluded. Every account follows a strictly Free-to-Play (F2P) progression path with zero duplicate Solo/Support/Debuff classes across 4-player groups (and unique flex assignments up to 7 players).
+> **Note:** All paid, promotional, membership-locked, and rare classes are excluded. The system operates on **two unified compositions** (ignoring any manual per-account client class overrides):
+> 1. **Boss Composition (`Solo` / `Boss` / `Dodge`):** Full synergistic party setup used for all boss encounters and single-target progression.
+> 2. **Farm Composition (`Farm`):** Multi-target AoE farmers paired with dedicated Support/Buffer accounts (`Player 2` in 2–4p, and `Player 2` + `Player 5` in 5–7p) to maintain active heals, haste, and crit buffs during high-density farming.
 
-### 1. Milestone Class Progression (Per Player)
+### 1. Boss Composition Progression (Per Milestone)
 
-| Stage / Milestone | Player 1 (`Main DPS`) | Player 2 (`Healer / Support`) | Player 3 (`Debuffer / Def Shred`) | Player 4 (`Magic Amp / Evasion Suppress`) | Player 5 (`Sub-Healer / Ranged`) | Player 6 (`Ranged DPS / Backup Supp`) | Player 7 (`Dodge DPS / Backup Supp`) |
+| Stage / Milestone | Player 1 (`Main DPS`) | Player 2 (`Healer / Support`) | Player 3 (`Debuffer / Def Shred`) | Player 4 (`Magic Amp / Evasion Suppress`) | Player 5 (`Sub-Healer / Ranged`) | Player 6 (`Ranged DPS / Backup Supp`) | Player 7 (`Flex DPS / Backup Supp`) |
 | :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
 | **Stage 1 (Lv 1–30)** | `NIN` | `ORA` | `ROG` | `MAG` | `ORA` | `ROG` / `ORA` | `NIN` / `ORA` |
 | **Stage 2A (Bracket 30)** | `DS` | `ORA` | `IC` | `SHM` | `ES` | `MR` | `NIN` |
@@ -76,19 +81,20 @@ A multi-account cooperative progression automation framework designed for synchr
 
 ---
 
-### 2. Automatic Slot Resolution Priority (`SetClass`)
+### 2. Automatic Composition Priority (`SetClass`)
 
 Each slot is resolved from **left to right** (highest priority first), selecting the best Rank 10 class owned by that account:
 
-| Player / Mode | Priority Order (Highest $\rightarrow$ Lowest) |
+| Composition / Slot | Priority Order (Highest $\rightarrow$ Lowest) |
 | :--- | :--- |
-| **Player 1 (`SoloClass`)** | `KE` $\rightarrow$ `AI` $\rightarrow$ `CAV` $\rightarrow$ `VHL` $\rightarrow$ `VDK` $\rightarrow$ `DOT` $\rightarrow$ `CRYO` $\rightarrow$ `DSG` $\rightarrow$ `GB` $\rightarrow$ `DS` $\rightarrow$ `DSS` $\rightarrow$ `NIN` $\rightarrow$ `ROG` |
-| **Player 2 (`SoloClass` & `FarmClass`)** | `LoO` $\rightarrow$ `AP` $\rightarrow$ `SC` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
-| **Player 3 (`SoloClass`)** | `VDK` $\rightarrow$ `AP` $\rightarrow$ `SC` $\rightarrow$ `IC` $\rightarrow$ `ROG` $\rightarrow$ `NIN` |
-| **Player 4 (`SoloClass`)** | `AF` $\rightarrow$ `SC` $\rightarrow$ `ARA` $\rightarrow$ `SHM` $\rightarrow$ `MAG` $\rightarrow$ `ORA` |
-| **Player 5 (`SoloClass`)** | `DOT` $\rightarrow$ `GB` $\rightarrow$ `ES` $\rightarrow$ `MR` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
-| **Player 6 (`SoloClass`)** | `VHL` $\rightarrow$ `AP` $\rightarrow$ `SC` $\rightarrow$ `MR` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
-| **Player 7 (`SoloClass`)** | `YNR` $\rightarrow$ `DSS` $\rightarrow$ `NIN` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
-| **Players 1, 3–7 (`FarmClass`)** | `AM` $\rightarrow$ `AI` $\rightarrow$ `DOT` $\rightarrow$ `AF` $\rightarrow$ `BB` $\rightarrow$ `SS` $\rightarrow$ `PYRO` $\rightarrow$ `SHM` $\rightarrow$ `IC` $\rightarrow$ `MR` $\rightarrow$ `MAG` |
-| **All Players (`DodgeClass`)** | `YNR` $\rightarrow$ `HE` $\rightarrow$ `IC` $\rightarrow$ `NIN` $\rightarrow$ `ORA` $\rightarrow$ `ROG` |
+| **Boss Comp — Player 1 (`Main DPS`)** | `KE` $\rightarrow$ `AI` $\rightarrow$ `CAV` $\rightarrow$ `VHL` $\rightarrow$ `VDK` $\rightarrow$ `DOT` $\rightarrow$ `CRYO` $\rightarrow$ `DSG` $\rightarrow$ `GB` $\rightarrow$ `DS` $\rightarrow$ `DSS` $\rightarrow$ `NIN` $\rightarrow$ `ROG` |
+| **Boss Comp — Player 2 (`Primary Support`)** | `LoO` $\rightarrow$ `AP` $\rightarrow$ `SC` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
+| **Boss Comp — Player 3 (`Debuffer`)** | `VDK` $\rightarrow$ `AP` $\rightarrow$ `SC` $\rightarrow$ `IC` $\rightarrow$ `ROG` $\rightarrow$ `NIN` |
+| **Boss Comp — Player 4 (`Magic Amp`)** | `AF` $\rightarrow$ `SC` $\rightarrow$ `ARA` $\rightarrow$ `SHM` $\rightarrow$ `MAG` $\rightarrow$ `ORA` |
+| **Boss Comp — Player 5 (`Sub-Support / Flex`)** | `DOT` $\rightarrow$ `GB` $\rightarrow$ `ES` $\rightarrow$ `MR` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
+| **Boss Comp — Player 6 (`Ranged / Backup Supp`)** | `VHL` $\rightarrow$ `AP` $\rightarrow$ `SC` $\rightarrow$ `MR` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
+| **Boss Comp — Player 7 (`Flex DPS / Backup Supp`)** | `YNR` $\rightarrow$ `DSS` $\rightarrow$ `NIN` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
+| **Farm Comp — Player 2 (`Primary Farm Support`)** | `LoO` $\rightarrow$ `AP` $\rightarrow$ `SC` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
+| **Farm Comp — Player 5 (`Secondary Farm Support`)** | `SC` $\rightarrow$ `AP` $\rightarrow$ `LoO` $\rightarrow$ `ES` $\rightarrow$ `ORA` $\rightarrow$ `HLR` |
+| **Farm Comp — Players 1, 3, 4, 6, 7 (`AoE Farmers`)** | `AM` $\rightarrow$ `AI` $\rightarrow$ `DOT` $\rightarrow$ `AF` $\rightarrow$ `BB` $\rightarrow$ `SS` $\rightarrow$ `PYRO` $\rightarrow$ `SHM` $\rightarrow$ `IC` $\rightarrow$ `MR` $\rightarrow$ `MAG` |
 ````
