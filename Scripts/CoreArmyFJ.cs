@@ -233,21 +233,21 @@ public class CoreArmyFJ
     public Option<string> player2 = new(
         "player2",
         "Player 2",
-        "Required. At least 2 players; 4 players are recommended.",
+        "Required. Players 1-4 are required; players 5-7 are optional.",
         string.Empty
     );
 
     public Option<string> player3 = new(
         "player3",
         "Player 3",
-        "Optional. Players 3-4 are recommended.",
+        "Required. Players 1-4 are required; players 5-7 are optional.",
         string.Empty
     );
 
     public Option<string> player4 = new(
         "player4",
         "Player 4",
-        "Optional. Players 3-4 are recommended.",
+        "Required. Players 1-4 are required; players 5-7 are optional.",
         string.Empty
     );
 
@@ -1007,7 +1007,7 @@ public class CoreArmyFJ
         if (className == null)
         {
             Core.Logger(
-                $"{string.Join(" or ", new[] { preset.ClassName }.Concat(preset.AlternateClassNames))} is not in inventory or bank.",
+                $"{string.Join(" or ", new[] { preset.ClassName }.Concat(preset.AlternateClassNames))} is not in inventory.",
                 "EquipClass",
                 messageBox: true,
                 stopBot: true
@@ -1027,49 +1027,15 @@ public class CoreArmyFJ
             return;
         }
 
-        if (!Bot.Inventory.Contains(className))
+        if (!HasClassInInventory(className))
         {
-            if (Bot.Flash.GetGameObject("ui.mcPopup.currentLabel") != "\"Bank\"")
-                Bot.Bank.Open();
-
-            Bot.Bank.Load(waitForLoad: false);
-            Bot.Wait.ForTrue(() => Bot.Bank.Contains(className), 20);
-
-            if (!Bot.Bank.Contains(className))
-            {
-                Core.Logger(
-                    $"{className} is not in inventory or bank.",
-                    "EquipClass",
-                    messageBox: true,
-                    stopBot: true
-                );
-                return;
-            }
-
-            if (!Core.HasSpaceFor(Bot.Bank.GetItem(className)))
-            {
-                Core.Logger(
-                    $"{className} could not be moved from bank because no inventory slot is available.",
-                    "EquipClass",
-                    messageBox: true,
-                    stopBot: true
-                );
-                return;
-            }
-
-            Bot.Bank.EnsureToInventory(className);
-            Bot.Wait.ForTrue(() => Bot.Inventory.Contains(className), 14);
-
-            if (!Bot.Inventory.Contains(className))
-            {
-                Core.Logger(
-                    ExplainFailure($"{className} could not be moved from bank."),
-                    "EquipClass",
-                    messageBox: true,
-                    stopBot: true
-                );
-                return;
-            }
+            Core.Logger(
+                $"{className} is not in inventory.",
+                "EquipClass",
+                messageBox: true,
+                stopBot: true
+            );
+            return;
         }
 
         Core.Equip(className);
@@ -1108,31 +1074,14 @@ public class CoreArmyFJ
         string primaryClassName = preset.ClassName;
         string[] alternateClassNames = preset.AlternateClassNames;
 
-        if (alternateClassNames.Length == 0)
-            return primaryClassName;
-
         if (
             string.Equals(
                 Bot.Player.CurrentClass?.Name,
                 primaryClassName,
                 StringComparison.OrdinalIgnoreCase
             )
-            || Bot.Inventory.Contains(primaryClassName)
+            || HasClassInInventory(primaryClassName)
         )
-            return primaryClassName;
-
-        if (Bot.Flash.GetGameObject("ui.mcPopup.currentLabel") != "\"Bank\"")
-            Bot.Bank.Open();
-
-        Bot.Bank.Load(waitForLoad: false);
-        Bot.Wait.ForTrue(
-            () =>
-                Bot.Bank.Contains(primaryClassName)
-                || alternateClassNames.Any(name => Bot.Bank.Contains(name)),
-            20
-        );
-
-        if (Bot.Bank.Contains(primaryClassName))
             return primaryClassName;
 
         foreach (string alternateClassName in alternateClassNames)
@@ -1143,8 +1092,7 @@ public class CoreArmyFJ
                     alternateClassName,
                     StringComparison.OrdinalIgnoreCase
                 )
-                || Bot.Inventory.Contains(alternateClassName)
-                || Bot.Bank.Contains(alternateClassName)
+                || HasClassInInventory(alternateClassName)
             )
                 return alternateClassName;
         }
@@ -5792,8 +5740,8 @@ public class CoreArmyFJ
         )
             return ArmyInitializationFailure("Sync file must be a filename ending in .sync.");
 
-        if (playerCount < 2 || playerCount > 7)
-            return ArmyInitializationFailure("Army player count must be from 2 through 7.");
+        if (playerCount < 4 || playerCount > 7)
+            return ArmyInitializationFailure("Army player count must be from 4 through 7.");
 
         if (Bot.Config == null)
             return ArmyInitializationFailure("Army player configuration is unavailable.");
@@ -6170,8 +6118,18 @@ public class CoreArmyFJ
         "ArchPaladin",
         "StoneCrusher",
         "Oracle",
+        "Evolved Shaman",
+        "Healer (Rare)",
         "Healer",
     };
+
+    private bool HasClassInInventory(string? className) =>
+        !string.IsNullOrWhiteSpace(className)
+        && Bot.Inventory.Items.Any(item =>
+            item != null
+            && item.Category == ItemCategory.Class
+            && string.Equals(item.Name?.Trim(), className.Trim(), StringComparison.OrdinalIgnoreCase)
+        );
 
     private bool actAsSupportHelper;
     private string lastSkillRotationClass = string.Empty;
@@ -6282,11 +6240,16 @@ public class CoreArmyFJ
     {
         string currentClass = Bot.Player.CurrentClass?.Name ?? string.Empty;
 
-        if (actAsSupportHelper)
+        // If this account's designated boss role IS already a support class
+        // (e.g., P2=StoneCrusher, P3=ArchPaladin, P4=Lord of Order), keep it equipped.
+        bool soloIsSupport =
+            !CoreBots.IsGenericClass(Core.SoloClass)
+            && IsSupportClassName(Core.SoloClass)
+            && HasClassInInventory(Core.SoloClass);
+
+        if (actAsSupportHelper && !soloIsSupport)
         {
-            string? bestSupport = SupportHelperPriority.FirstOrDefault(className =>
-                Core.CheckInventory(className, toInv: true)
-            );
+            string? bestSupport = SupportHelperPriority.FirstOrDefault(HasClassInInventory);
 
             if (
                 !string.IsNullOrEmpty(bestSupport)
@@ -6298,12 +6261,12 @@ public class CoreArmyFJ
             return;
         }
 
-        // Not the active support helper: if we were temporarily wearing a support class (or a rank-up class)
-        // and our configured SoloClass is ready, restore SoloClass.
+        // Not acting as temporary fallback support (or already owns a support SoloClass):
+        // restore configured SoloClass from inventory when ready.
         if (
             !CoreBots.IsGenericClass(Core.SoloClass)
             && !string.Equals(currentClass, Core.SoloClass, StringComparison.OrdinalIgnoreCase)
-            && Core.CheckInventory(Core.SoloClass, toInv: true)
+            && HasClassInInventory(Core.SoloClass)
         )
         {
             SwitchClassOutsideCombatRoom(Core.SoloClass);

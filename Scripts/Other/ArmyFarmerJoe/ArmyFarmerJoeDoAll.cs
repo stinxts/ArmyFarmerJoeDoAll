@@ -49,11 +49,11 @@ public class ArmyFarmerJoeDoAll
         Army.player5,
         Army.player6,
         Army.player7,
-        new Option<int>(
+        new Option<string>(
             "RoomNumber",
             "Army Private Room Number",
-            "Shared private room number (1001-99999) so all Army accounts join the exact same map instance.",
-            91827
+            "Required. Shared private room number (1001-99999) so all Army accounts join the exact same map instance. Do not leave as 00000.",
+            "00000"
         ),
         new Option<bool>(
             "OutFit",
@@ -122,10 +122,10 @@ public class ArmyFarmerJoeDoAll
             playerCount++;
         }
 
-        if (playerCount < 2)
+        if (playerCount < 4)
         {
             CoreBots.Instance.Logger(
-                "Army FarmerJoe requires at least 2 players. 4 players are recommended; players 5-7 are optional.",
+                "Army FarmerJoe requires at least 4 players. Players 5-7 are optional.",
                 "ArmyFarmerJoeDoAll"
             );
             return false;
@@ -139,9 +139,8 @@ public class ArmyFarmerJoeDoAll
 
     private bool ApplyArmyRoomSettings()
     {
-        int roomNumber = Bot.Config?.Get<int>("RoomNumber") ?? 91827;
-        if (roomNumber <= 0)
-            roomNumber = 91827;
+        string? rawRoom = Bot.Config?.Get<string>("RoomNumber")?.Trim();
+        int roomNumber = int.TryParse(rawRoom, out int parsedRoom) ? parsedRoom : 0;
 
         if (!Army.ValidatePrivateRoomNumber(roomNumber))
             return false;
@@ -212,6 +211,7 @@ public class ArmyFarmerJoeDoAll
         bool basicEquipmentComplete = false;
         Action equipBasicItems = () =>
         {
+            LeaveCombatRoomForEquipmentChange();
             foreach (ItemCategory category in Enum.GetValues(typeof(ItemCategory)))
             {
                 InventoryItem? equippedItem = Bot.Inventory.Items.Find(item =>
@@ -224,6 +224,7 @@ public class ArmyFarmerJoeDoAll
                         if (equippedItem == null)
                         {
                             CoreBots.Instance.BuyItem("classhalla", 299, "Battle Oracle Hood");
+                            Bot.Wait.ForItemBuy();
                             CoreBots.Instance.Equip("Battle Oracle Hood");
                         }
                         break;
@@ -232,6 +233,7 @@ public class ArmyFarmerJoeDoAll
                         if (equippedItem == null)
                         {
                             CoreBots.Instance.BuyItem("classhalla", 299, "Battle Oracle Wings");
+                            Bot.Wait.ForItemBuy();
                             CoreBots.Instance.Equip("Battle Oracle Wings");
                         }
                         break;
@@ -262,6 +264,7 @@ public class ArmyFarmerJoeDoAll
                                 299,
                                 "Battle Oracle Battlestaff"
                             );
+                            Bot.Wait.ForItemBuy();
                             CoreBots.Instance.Equip("Battle Oracle Battlestaff");
                             Bot.Shops.SellItem(defaultWeapon.ID);
                             Bot.Wait.ForTrue(
@@ -291,7 +294,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 2b. Oracle (free 0 AC Healer/Support class in /classhalla shop 299 — bought early so Player 2 can heal from Level 1!)
-        bool HasOracle() => CoreBots.Instance.CheckInventory("Oracle", toInv: false);
+        bool HasOracle() => HasClassInInventory("Oracle");
         bool HasOracleRank10() => HasOracle() && HasRank10Class("Oracle");
 
         if (
@@ -304,7 +307,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     CoreBots.Instance.Logger("Getting Starter Support/Healer class (Oracle - 0 AC)");
+                    LeaveCombatRoomForEquipmentChange();
                     CoreBots.Instance.BuyItem("classhalla", 299, "Oracle");
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -328,6 +333,9 @@ public class ArmyFarmerJoeDoAll
                     if (Bot.Player.Level >= 10)
                         return;
 
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    CoreBots.Instance.EquipClass(ClassType.Farm);
                     Farm.Experience(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -362,12 +370,7 @@ public class ArmyFarmerJoeDoAll
 
         // 4. Rogue
         CoreBots.Instance.Logger("Getting Started: Beginner Levels/Equipment");
-        bool HasRogue() =>
-            CoreBots.Instance.CheckInventory(
-                new[] { "Rogue (Rare)", "Rogue" },
-                any: true,
-                toInv: false
-            );
+        bool HasRogue() => HasAnyClassInInventory("Rogue (Rare)", "Rogue");
 
         if (
             !RunCooperativeObjective(
@@ -381,7 +384,9 @@ public class ArmyFarmerJoeDoAll
                     CoreBots.Instance.Logger(
                         "Getting rogue.. so we can get ninja (there's a 10k hp \"boss\" to kill during the \"Hit Job\" quest.)"
                     );
+                    LeaveCombatRoomForEquipmentChange();
                     Adv.BuyItem("classhalla", 172, "Rogue");
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -393,12 +398,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 5. Ninja (split into granular cooperative barriers)
-        bool HasNinja() =>
-            CoreBots.Instance.CheckInventory(
-                new[] { "Assassin", "Ninja Warrior", "Ninja" },
-                any: true,
-                toInv: false
-            );
+        bool HasNinja() => HasAnyClassInInventory("Assassin", "Ninja Warrior", "Ninja");
 
         bool HasRank10Rogue() =>
             HasRank10Class("Rogue") || HasRank10Class("Rogue (Rare)");
@@ -414,7 +414,7 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     CoreBots.Instance.Logger("Getting starter Dodge class (Ninja) - Ranking Rogue");
-                    string rogueClass = CoreBots.Instance.CheckInventory("Rogue (Rare)", toInv: false)
+                    string rogueClass = HasClassInInventory("Rogue (Rare)")
                         ? "Rogue (Rare)"
                         : "Rogue";
                     RankUpClassForArmy(rogueClass);
@@ -437,6 +437,9 @@ public class ArmyFarmerJoeDoAll
                     if (Bot.Player.Level >= 25)
                         return;
 
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    CoreBots.Instance.EquipClass(ClassType.Farm);
                     Farm.Experience(25);
                     SetClass();
                 },
@@ -462,7 +465,9 @@ public class ArmyFarmerJoeDoAll
                     if (HasNinja())
                         return;
 
+                    LeaveCombatRoomForEquipmentChange();
                     CoreBots.Instance.BuyItem("classhalla", 178, "Ninja");
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -487,8 +492,8 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     string ninjaClass =
-                        CoreBots.Instance.CheckInventory("Assassin", toInv: false) ? "Assassin"
-                        : CoreBots.Instance.CheckInventory("Ninja Warrior", toInv: false) ? "Ninja Warrior"
+                        HasClassInInventory("Assassin") ? "Assassin"
+                        : HasClassInInventory("Ninja Warrior") ? "Ninja Warrior"
                         : "Ninja";
                     RankUpClassForArmy(ninjaClass);
                 },
@@ -503,12 +508,7 @@ public class ArmyFarmerJoeDoAll
         SetClass();
 
         // 6. Mage
-        bool HasMage() =>
-            CoreBots.Instance.CheckInventory(
-                new[] { "Mage (Rare)", "Mage" },
-                any: true,
-                toInv: false
-            );
+        bool HasMage() => HasAnyClassInInventory("Mage (Rare)", "Mage");
 
         bool HasRank10Mage() =>
             HasRank10Class("Mage") || HasRank10Class("Mage (Rare)");
@@ -523,7 +523,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     CoreBots.Instance.Logger("Getting Starter Farm class (Mage)");
+                    LeaveCombatRoomForEquipmentChange();
                     Adv.BuyItem("classhalla", 174, 15653, shopItemID: 9845);
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -544,7 +546,7 @@ public class ArmyFarmerJoeDoAll
                     if (HasRank10Mage())
                         return;
 
-                    string mageClass = CoreBots.Instance.CheckInventory("Mage (Rare)", toInv: false)
+                    string mageClass = HasClassInInventory("Mage (Rare)")
                         ? "Mage (Rare)"
                         : "Mage";
                     RankUpClassForArmy(mageClass);
@@ -588,10 +590,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BEGINNER_NINJA_MAZUMI_90",
-                () => skipCondition() || core.isCompletedBefore(92) || Story.QuestProgression(90),
+                () => skipCondition() || core.isCompletedBefore(92) || core.isCompletedBefore(90),
                 () =>
                 {
-                    if (skipCondition() || core.isCompletedBefore(92) || Story.QuestProgression(90))
+                    if (skipCondition() || core.isCompletedBefore(92) || core.isCompletedBefore(90))
                         return;
 
                     SetClass();
@@ -828,6 +830,10 @@ public class ArmyFarmerJoeDoAll
                 () => Bot.Player.Level >= 30 && enhancedBracket30,
                 () =>
                 {
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+
                     if (
                         !enhancedBracket30
                         || Bot.Inventory.Items.Any(x =>
@@ -850,7 +856,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 4. Master Ranger (Sandsea Rep 10 -> Buy & Rank 10)
-        bool HasMasterRanger() => core.CheckInventory("Master Ranger", toInv: false);
+        bool HasMasterRanger() => HasClassInInventory("Master Ranger");
         bool HasMasterRangerRank10() => HasMasterRanger() && HasRank10Class("Master Ranger");
 
         // 4a. Sandsea Rep 10
@@ -867,7 +873,9 @@ public class ArmyFarmerJoeDoAll
                         core.SellItem("Venom Head");
 
                     core.Logger("Level 30: Farming Sandsea Rep 10 for Master Ranger");
+                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
+                    core.EquipClass(ClassType.Farm);
                     Farm.SandseaREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -892,7 +900,9 @@ public class ArmyFarmerJoeDoAll
                         core.SellItem("Venom Head");
 
                     core.Logger("Level 30: Buying Master Ranger");
+                    LeaveCombatRoomForEquipmentChange();
                     Adv.BuyItem("sandsea", 242, 7260, shopItemID: 5682);
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -925,7 +935,7 @@ public class ArmyFarmerJoeDoAll
         SetClass();
 
         // 5. Dragonslayer (Galanoth 4 quests coordinated 1 by 1 -> Buy -> Rank 10)
-        bool HasDragonslayer() => core.CheckInventory("Dragonslayer", toInv: false);
+        bool HasDragonslayer() => HasClassInInventory("Dragonslayer");
         bool HasDragonslayerRank10() => HasDragonslayer() && HasRank10Class("Dragonslayer");
 
         Story.PreLoad(Lair);
@@ -979,7 +989,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 30: Buying Dragonslayer");
+                    LeaveCombatRoomForEquipmentChange();
                     core.BuyItem("lair", 38, "Dragonslayer");
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1012,7 +1024,7 @@ public class ArmyFarmerJoeDoAll
         SetClass();
 
         // 5d. Imperial Chunin (Yokai Rep 10 in /dragonkoiz — No boss, Pockey Chew only ~1k HP, gives Boss Hit-Chance Debuffer for Player 3)
-        bool HasImperialChunin() => core.CheckInventory("Imperial Chunin", toInv: false);
+        bool HasImperialChunin() => HasClassInInventory("Imperial Chunin");
         bool HasImperialChuninRank10() =>
             HasImperialChunin() && HasRank10Class("Imperial Chunin");
 
@@ -1026,7 +1038,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 30: Farming Yokai Rep 10 for Imperial Chunin");
+                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
+                    core.EquipClass(ClassType.Farm);
                     Farm.YokaiREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -1047,7 +1061,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 30: Buying Imperial Chunin");
+                    LeaveCombatRoomForEquipmentChange();
                     Adv.BuyItem("dragonkoiz", 95, "Imperial Chunin");
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1079,9 +1095,9 @@ public class ArmyFarmerJoeDoAll
         SetClass();
 
         // 5e. Shaman & Evolved Shaman (Arcangrove Rep 10 in /arcangrove — No boss, Gorillaphant & Seed Spitter ~2k HP, unlocks 2 unique classes for Player 4 & Player 5 from the same Rep!)
-        bool HasShaman() => core.CheckInventory("Shaman", toInv: false);
+        bool HasShaman() => HasClassInInventory("Shaman");
         bool HasShamanRank10() => HasShaman() && HasRank10Class("Shaman");
-        bool HasEvolvedShaman() => core.CheckInventory("Evolved Shaman", toInv: false);
+        bool HasEvolvedShaman() => HasClassInInventory("Evolved Shaman");
         bool HasEvolvedShamanRank10() =>
             HasEvolvedShaman() && HasRank10Class("Evolved Shaman");
 
@@ -1100,7 +1116,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 30: Farming Arcangrove Rep 10 for Shaman & Evolved Shaman");
+                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
+                    core.EquipClass(ClassType.Farm);
                     Farm.ArcangroveREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -1121,7 +1139,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 30: Buying Shaman");
+                    LeaveCombatRoomForEquipmentChange();
                     Adv.BuyItem("arcangrove", 214, 5765, shopItemID: 4799);
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1162,7 +1182,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 30: Buying Evolved Shaman (same Arcangrove Rep 10)");
+                    LeaveCombatRoomForEquipmentChange();
                     Adv.BuyItem("arcangrove", 214, "Evolved Shaman", shopItemID: 6396);
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1324,7 +1346,9 @@ public class ArmyFarmerJoeDoAll
                 () => Farm.FactionRank("Blade of Awe") >= 10 && core.CheckInventory(17585, toInv: false),
                 () =>
                 {
+                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
+                    core.EquipClass(ClassType.Farm);
                     Farm.BladeofAweREP(10, farmBoA: true);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -1345,7 +1369,9 @@ public class ArmyFarmerJoeDoAll
                     if (core.CheckInventory("Awethur's Accoutrements", toInv: false))
                         return;
 
+                    LeaveCombatRoomForEquipmentChange();
                     Adv.BuyItem("museum", 631, "Awethur's Accoutrements");
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1369,8 +1395,10 @@ public class ArmyFarmerJoeDoAll
                     if (IsForgeHelmDone() || Farm.FactionRank("Blacksmithing") >= 4)
                         return;
 
+                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
-                    Farm.BlacksmithingREP(4, Bot.Config?.Get<bool>("UseGold") == true);
+                    core.EquipClass(ClassType.Farm);
+                    Farm.BlacksmithingREP(4, false);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1516,6 +1544,10 @@ public class ArmyFarmerJoeDoAll
                 () => Bot.Player.Level >= 50 && enhancedBracket50,
                 () =>
                 {
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+
                     if (
                         !enhancedBracket50
                         || Bot.Inventory.Items.Any(x =>
@@ -1523,12 +1555,10 @@ public class ArmyFarmerJoeDoAll
                         )
                     )
                     {
-                        LeaveCombatRoomForEquipmentChange();
                         Adv.SmartEnhance(Bot.Player.CurrentClass?.Name ?? string.Empty);
                         enhancedBracket50 = true;
                     }
 
-                    SetClass();
                     Farm.Experience(50);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -1540,7 +1570,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 2. Scarlet Sorceress (ShatterGlassMaze -> TowerOfMirrors -> Blood Sorceress drop -> 1 CP + unequip -> Quest 6236 -> Rank 10)
-        bool HasScarletSorceress() => core.CheckInventory("Scarlet Sorceress", toInv: false);
+        bool HasScarletSorceress() => HasClassInInventory("Scarlet Sorceress");
         bool HasScarletSorceressRank10() =>
             HasScarletSorceress() && HasRank10Class("Scarlet Sorceress");
 
@@ -1556,10 +1586,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET50_SS_BLOOD_DROP",
-                () => HasScarletSorceress() || core.CheckInventory(36298, toInv: true),
+                () => HasScarletSorceress() || HasClassInInventory(36298),
                 () =>
                 {
-                    if (HasScarletSorceress() || core.CheckInventory(36298, toInv: true))
+                    if (HasScarletSorceress() || HasClassInInventory(36298))
                         return;
 
                     core.Logger("Level 50: Farming Blood Sorceress drop from Scarletta");
@@ -1596,7 +1626,7 @@ public class ArmyFarmerJoeDoAll
                     if (HasScarletSorceress())
                         return;
 
-                    if (!core.CheckInventory(36298, toInv: true))
+                    if (!HasClassInInventory(36298))
                         return;
 
                     core.AddDrop(42992);
@@ -1639,7 +1669,7 @@ public class ArmyFarmerJoeDoAll
                         {
                             string fallbackClass =
                                 new[] { "Oracle", "Mage", "Rogue", "Healer", "Warrior" }
-                                    .FirstOrDefault(c => core.CheckInventory(c, toInv: true))
+                                    .FirstOrDefault(HasClassInInventory)
                                 ?? string.Empty;
                             if (!string.IsNullOrEmpty(fallbackClass))
                                 core.Equip(fallbackClass);
@@ -1682,7 +1712,7 @@ public class ArmyFarmerJoeDoAll
         SetClass();
 
         // 3. Dragonslayer General (30k Gold + 75 Enchanted Scale via Quest 5294 + 100 Dragon Claw in /dragontown -> Buy -> Rank 10)
-        bool HasDSG() => core.CheckInventory(35996, toInv: false);
+        bool HasDSG() => HasClassInInventory(35996);
         bool HasDSGRank10() => HasDSG() && HasRank10Class("Dragonslayer General");
 
         // 3a. 30,000 Gold for Dragonslayer General
@@ -1695,7 +1725,9 @@ public class ArmyFarmerJoeDoAll
                     if (HasDSG() || Bot.Player.Gold >= 30000)
                         return;
 
+                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
+                    core.EquipClass(ClassType.Farm);
                     Farm.Gold(30000);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -1727,12 +1759,12 @@ public class ArmyFarmerJoeDoAll
                     )
                         return;
 
-                    // Quest 5294 requires Dragonslayer Rank 10 in inventory (unbanked)
-                    core.CheckInventory("Dragonslayer", toInv: true);
+                    // Quest 5294 requires Dragonslayer Rank 10 in inventory
                     core.Logger(
                         "Level 50: Farming Enchanted Scale (75) & Dragon Claw (100) for Dragonslayer General"
                     );
                     core.AddDrop("Enchanted Scale", "Dragon Claw");
+                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
                     core.EquipClass(ClassType.Farm);
                     core.RegisterQuests(5294);
@@ -1773,7 +1805,9 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 50: Buying Dragonslayer General");
+                    LeaveCombatRoomForEquipmentChange();
                     core.BuyItem("dragontown", 1286, 35996, shopItemID: 3937);
+                    Bot.Wait.ForItemBuy();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -2712,8 +2746,3111 @@ public class ArmyFarmerJoeDoAll
     }
     #endregion Step 2B: Bracket 50
 
+    #region Step 2C: Brackets 55, 60, and 65
+    /// <summary>
+    /// Step 2C (Part 1 - Bracket 55):
+    /// 1. Level 55 + SmartEnhance
+    /// 2. Blaze Binder (Pyromancer -> 1 CP -> DoomWood REP 10 -> Embersea REP 10 -> Blaze Binder Rank 10)
+    /// 3. Cryomancer (Coordinated /frozentower 3907-3937 -> Daily 3966/3965 -> Buy & Rank 10 if 84x tokens reached)
+    /// 4. Arachnomancer (Coordinated /twilightedge 3428 + /weaverwar 3429-3439 -> Ravenloss REP 10 -> Buy & Rank 10)
+    /// </summary>
+    public bool RunBracket55()
+    {
+        CoreBots core = CoreBots.Instance;
+        ApplyArmyRoomSettings();
+
+        // Entry barrier for Bracket 55
+        if (!Army.SyncArmy("STEP2C_55_START"))
+            return false;
+
+        SetClass(rankUpIfNeeded: true);
+
+        // 1. Level 55 + SmartEnhance
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_LEVEL_55",
+                () => Bot.Player.Level >= 55,
+                () =>
+                {
+                    if (Bot.Player.Level >= 55)
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+
+                    string? currentClass = Bot.Player.CurrentClass?.Name;
+                    if (!string.IsNullOrWhiteSpace(currentClass))
+                        Adv.SmartEnhance(currentClass);
+
+                    Farm.Experience(55);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 2. Blaze Binder (Pyromancer -> 1 CP -> DoomWood REP 10 -> Embersea REP 10 -> Blaze Binder Rank 10)
+        bool HasBB() => HasClassInInventory("Blaze Binder");
+        bool HasBBRank10() => HasBB() && HasRank10Class("Blaze Binder");
+        bool HasPyro() => HasBB() || HasAnyClassInInventory(12811, 12812) || HasClassInInventory("Pyromancer");
+        bool HasPyro1CP() =>
+            HasBB()
+            || Bot.Inventory.Items.Any(item =>
+                item != null
+                && (
+                    item.ID == 12811
+                    || item.ID == 12812
+                    || string.Equals(item.Name?.Trim(), "Pyromancer", StringComparison.OrdinalIgnoreCase)
+                )
+                && item.Category == ItemCategory.Class
+                && item.Quantity >= 1
+            );
+
+        // 2a. Farm 84x Shurpu Blaze Token from Shurpu Ring Guardian in /xancave (cell r9, Down)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_BB_PYRO_TOKENS",
+                () => HasPyro() || core.CheckInventory("Shurpu Blaze Token", 84),
+                () =>
+                {
+                    if (HasPyro() || core.CheckInventory("Shurpu Blaze Token", 84))
+                        return;
+
+                    core.AddDrop("Shurpu Blaze Token");
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.KillMonster(
+                        "xancave",
+                        "r9",
+                        "Down",
+                        "Shurpu Ring Guardian",
+                        "Shurpu Blaze Token",
+                        84,
+                        isTemp: false
+                    );
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shurpu Ring Guardian");
+                }
+            )
+        )
+            return false;
+
+        // 2b. Buy Pyromancer (ItemID 12812) in /xancave Shop 447 and sell leftover tokens
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_BB_PYRO_BUY",
+                HasPyro,
+                () =>
+                {
+                    if (HasPyro())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    core.BuyItem("xancave", 447, 12812, shopItemID: 1278);
+                    Bot.Wait.ForItemBuy();
+                    if (core.CheckInventory("Shurpu Blaze Token"))
+                        core.SellItem("Shurpu Blaze Token", all: true);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 2c. Ensure Pyromancer has >= 1 Class Point (1 CP) so Firestorm Merge Shop (1140) accepts it
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_BB_PYRO_1CP",
+                HasPyro1CP,
+                () =>
+                {
+                    if (HasPyro1CP())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    core.Equip("Pyromancer");
+                    Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped("Pyromancer"), 20);
+                    Bot.Skills.StartAdvanced("Pyromancer", false, ClassUseMode.Base);
+                    core.KillMonster("noobshire", "Enter", "Spawn", "*", log: false);
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 2d. DoomWood REP Rank 10 in /shadowfallwar (Garden1, Left, Quests 1151, 1152, 1153)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_BB_DOOMWOOD_REP",
+                () => HasBB() || Farm.FactionRank("DoomWood") >= 10,
+                () =>
+                {
+                    if (HasBB() || Farm.FactionRank("DoomWood") >= 10)
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Farm.DoomWoodREP(10);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 2e. Embersea REP Rank 10 in /fireforge (Quest 4228, Blazebinder MapID 4)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_BB_EMBERSEA_REP",
+                () => HasBB() || Farm.FactionRank("Embersea") >= 10,
+                () =>
+                {
+                    if (HasBB() || Farm.FactionRank("Embersea") >= 10)
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Farm.EmberseaREP(10);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 2f. Buy Darkness Sigil, Flame Sigil, and Blaze Binder in /fireforge
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_BB_BUY",
+                HasBB,
+                () =>
+                {
+                    if (HasBB())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    if (Bot.Inventory.IsEquipped("Pyromancer"))
+                    {
+                        SetClass();
+                        core.EquipClass(ClassType.Solo);
+                    }
+
+                    Adv.BuyItem("fireforge", 1142, "Darkness Sigil");
+                    Adv.BuyItem("fireforge", 1142, "Flame Sigil");
+                    Adv.BuyItem("fireforge", 1140, "Blaze Binder");
+                    Bot.Wait.ForItemBuy();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 2g. Rank Blaze Binder to Rank 10 and update SetClass()
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_BB_RANK_10",
+                HasBBRank10,
+                () =>
+                {
+                    if (!HasBB())
+                        return;
+
+                    if (!HasBBRank10())
+                        RankUpClassForArmy("Blaze Binder");
+
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 3. Cryomancer (Coordinated /frozentower 3907-3937 -> Daily 3966/3965 -> Buy & Rank 10 if acquired)
+        bool HasCryo() => HasClassInInventory("Cryomancer");
+        bool HasCryoRank10() => HasCryo() && HasRank10Class("Cryomancer");
+        bool IsCryoDailyDone() =>
+            HasCryo()
+            || (
+                !Daily.CheckDailyv2(3966, true, true, "Glacera Ice Token")
+                && (!core.IsMember || !Daily.CheckDailyv2(3965, true, true, "Glacera Ice Token"))
+                && !core.CheckInventory("Glacera Ice Token", 84)
+            );
+
+        if (!RunCoordinatedFrozenTower(HasCryo))
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_CRYO_DAILY",
+                IsCryoDailyDone,
+                () =>
+                {
+                    if (IsCryoDailyDone())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Daily.Cryomancer();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader");
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_CRYO_RANK_10",
+                () => !HasCryo() || HasCryoRank10(),
+                () =>
+                {
+                    if (!HasCryo())
+                        return;
+
+                    if (!HasCryoRank10())
+                        RankUpClassForArmy("Cryomancer");
+
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 4. Arachnomancer (Coordinated /twilightedge 3428 + /weaverwar 3429-3439 -> Ravenloss REP 10 -> Buy & Rank 10)
+        bool HasArach() => HasClassInInventory("Arachnomancer");
+        bool HasArachRank10() => HasArach() && HasRank10Class("Arachnomancer");
+        bool IsWeaverWarDone() =>
+            HasArach() || Farm.FactionRank("Ravenloss") >= 10 || core.isCompletedBefore(3439);
+
+        if (!RunCoordinatedWeaverWar(IsWeaverWarDone))
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_ARACH_RAVENLOSS_REP",
+                () => HasArach() || Farm.FactionRank("Ravenloss") >= 10,
+                () =>
+                {
+                    if (HasArach() || Farm.FactionRank("Ravenloss") >= 10)
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Farm.RavenlossREP(10);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "ChaosWeaver Mage");
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_ARACH_BUY",
+                HasArach,
+                () =>
+                {
+                    if (HasArach())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    core.BuyItem("ravenloss", 850, "Arachnomancer", shopItemID: 14837);
+                    Bot.Wait.ForItemBuy();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_ARACH_RANK_10",
+                HasArachRank10,
+                () =>
+                {
+                    if (!HasArach())
+                        return;
+
+                    if (!HasArachRank10())
+                        RankUpClassForArmy("Arachnomancer");
+
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        SetClass(rankUpIfNeeded: true);
+        return Army.SyncArmy("STEP2C_55_COMPLETE") && !Bot.ShouldExit;
+    }
+
+    /// <summary>
+    /// Step 2C (Part 2 - Bracket 60):
+    /// 1. Level 60 + SmartEnhance
+    /// 2. DragonSoul Shinobi (Coordinated Yokai Story: /shogunwar, /shinringrove, /greenshell, /heiwavalley, /shadowfortress -> 300x Dragon Shinobi Token -> Buy & Rank 10)
+    /// 3. Unlock Forge Weapon Enhancement: Lacerate (Quest 8739)
+    /// </summary>
+    public bool RunBracket60()
+    {
+        CoreBots core = CoreBots.Instance;
+        ApplyArmyRoomSettings();
+
+        // Entry barrier for Bracket 60
+        if (!Army.SyncArmy("STEP2C_60_START"))
+            return false;
+
+        SetClass(rankUpIfNeeded: true);
+
+        // 1. Level 60 + SmartEnhance
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LEVEL_60",
+                () => Bot.Player.Level >= 60,
+                () =>
+                {
+                    if (Bot.Player.Level >= 60)
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+
+                    string? currentClass = Bot.Player.CurrentClass?.Name;
+                    if (!string.IsNullOrWhiteSpace(currentClass))
+                        Adv.SmartEnhance(currentClass);
+
+                    Farm.Experience(60);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 2. DragonSoul Shinobi (ItemID 59476)
+        bool HasDSS() =>
+            HasClassInInventory(59476) || HasClassInInventory("DragonSoul Shinobi");
+        bool HasDSSRank10() => HasRank10Class("DragonSoul Shinobi");
+
+        if (!RunCoordinatedYokaiStory(HasDSS))
+            return false;
+
+        // 2a. Farm 300x Dragon Shinobi Token (ItemID 20561) via Quest 7924 from 1st Head of Orochi in /shadowfortress
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_DSS_TOKENS",
+                () => HasDSS() || core.CheckInventory(20561, 300),
+                () =>
+                {
+                    if (HasDSS() || core.CheckInventory(20561, 300))
+                        return;
+
+                    core.AddDrop(20561);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.FarmingLogger("Dragon Shinobi Token", 300);
+                    core.RegisterQuests(7924);
+                    while (!Bot.ShouldExit && !core.CheckInventory(20561, 300))
+                        core.HuntMonster("shadowfortress", "1st Head of Orochi", log: false);
+                    core.CancelRegisteredQuests();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "1st Head of Orochi");
+                }
+            )
+        )
+            return false;
+
+        // 2b. Buy DragonSoul Shinobi (ItemID 59476) in /shadowfortress Shop 1968
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_DSS_BUY",
+                HasDSS,
+                () =>
+                {
+                    if (HasDSS())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    Adv.BuyItem("shadowfortress", 1968, 59476, shopItemID: 8078);
+                    Bot.Wait.ForItemBuy();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 2c. Rank DragonSoul Shinobi to Rank 10
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_DSS_RANK_10",
+                HasDSSRank10,
+                () =>
+                {
+                    if (!HasDSS())
+                        return;
+
+                    if (!HasDSSRank10())
+                        RankUpClassForArmy("DragonSoul Shinobi");
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 3. Unlock Forge Weapon Enhancement: Lacerate (Quest 8739)
+        bool IsLacerateDone() => core.isCompletedBefore(8739);
+        bool HasBlacksmithRank5() => IsLacerateDone() || Farm.FactionRank("Blacksmithing") >= 5;
+
+        // 3a. Ensure Prerequisite Quest 92 (Mazumi) is completed
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_PREREQ_92",
+                () => IsLacerateDone() || Bot.Quests.IsUnlocked(8739) || core.isCompletedBefore(92),
+                () =>
+                {
+                    if (IsLacerateDone() || Bot.Quests.IsUnlocked(8739) || core.isCompletedBefore(92))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    if (!Bot.Quests.IsUnlocked(92))
+                    {
+                        if (!Bot.Quests.IsUnlocked(91))
+                        {
+                            core.EnsureAccept(90);
+                            core.HuntMonster("pirates", "Shark Bait", "Pirate Medallion", 12);
+                            core.EnsureComplete(90);
+                        }
+                        core.EnsureAccept(91);
+                        core.KillMonster("greenguardwest", "West1", "Left", "Kittarian", "Kittarian's Wallet", 2);
+                        core.KillMonster("greenguardwest", "West9", "Left", "River Fishman", "River Fishman's Wallet", 2);
+                        core.KillMonster("greenguardwest", "West10", "Left", "Slime", "Slime-Soaked Wallet", 2);
+                        core.KillMonster("greenguardwest", "West3", "Left", "Frogzard", "Frogzard's Lint Hoard", 2);
+                        core.KillMonster("greenguardwest", "West12", "Up", "Big Bad Boar", "Big Bad Boar's Wallet");
+                        core.EnsureComplete(91);
+                    }
+                    if (!core.isCompletedBefore(92))
+                    {
+                        core.EnsureAccept(92);
+                        core.HuntMonster("greenguardwest", "Breken the Vile", "Breken the Vile's Sword", 1);
+                        core.HuntMonster("greenguardwest", "Ogug Stoneaxe", "Ogug Stoneaxe's Helmet", 1);
+                        core.EnsureComplete(92);
+                    }
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 3b. Blacksmithing Rank 5 (Traditional Rank 4 via Quest 2777 + 6 shared rounds of Quest 8736)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_BLACKSMITH_REP_4",
+                () => HasBlacksmithRank5() || Farm.FactionRank("Blacksmithing") >= 4,
+                () =>
+                {
+                    if (HasBlacksmithRank5() || Farm.FactionRank("Blacksmithing") >= 4)
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Farm.BlacksmithingREP(4, false);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // Coordinate Quest 8736 (Intensive Metallic Mastery: 2,500 Rep per turn-in, 12,500 Rep from Rank 4 to Rank 5)
+        // Split across its 3 maps per round so the entire army fights Hydra Head 25, Creature Creation, and Dread Klunk together!
+        for (int round = 1; round <= 6; round++)
+        {
+            int currentRound = round;
+            bool roundCompleted = false;
+
+            if (
+                !RunCooperativeObjective(
+                    $"BRACKET60_LACERATE_BS8736_R{currentRound}_HYDRA",
+                    () => HasBlacksmithRank5() || core.CheckInventory("Hydra Scale Piece", 75),
+                    () =>
+                    {
+                        if (HasBlacksmithRank5() || core.CheckInventory("Hydra Scale Piece", 75))
+                            return;
+
+                        core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
+                        core.EnsureAccept(8736);
+                        SetClass();
+                        core.EquipClass(ClassType.Solo);
+                        core.HuntMonster(
+                            "hydrachallenge",
+                            "Hydra Head 25",
+                            "Hydra Scale Piece",
+                            75,
+                            isTemp: false,
+                            log: false
+                        );
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                    {
+                        Army.CoordinateFollowAndCombat(targetPlayerName, "Hydra Head 25");
+                    }
+                )
+            )
+                return false;
+
+            if (
+                !RunCooperativeObjective(
+                    $"BRACKET60_LACERATE_BS8736_R{currentRound}_MAUL",
+                    () => HasBlacksmithRank5() || core.CheckInventory("Creature Shard", 1),
+                    () =>
+                    {
+                        if (HasBlacksmithRank5() || core.CheckInventory("Creature Shard", 1))
+                            return;
+
+                        core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
+                        core.EnsureAccept(8736);
+                        SetClass();
+                        core.EquipClass(ClassType.Solo);
+                        core.HuntMonster(
+                            "maul",
+                            "Creature Creation",
+                            "Creature Shard",
+                            1,
+                            isTemp: false,
+                            log: false
+                        );
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                    {
+                        Army.CoordinateFollowAndCombat(targetPlayerName, "Creature Creation");
+                    }
+                )
+            )
+                return false;
+
+            if (
+                !RunCooperativeObjective(
+                    $"BRACKET60_LACERATE_BS8736_R{currentRound}_KLUNK",
+                    () => HasBlacksmithRank5() || roundCompleted,
+                    () =>
+                    {
+                        if (HasBlacksmithRank5() || roundCompleted)
+                            return;
+
+                        core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
+                        core.EnsureAccept(8736);
+                        SetClass();
+                        core.EquipClass(ClassType.Solo);
+                        core.HuntMonster(
+                            "towerofdoom",
+                            "Dread Klunk",
+                            "Monster Trophy",
+                            15,
+                            isTemp: false,
+                            log: false
+                        );
+                        core.EnsureComplete(8736);
+                        roundCompleted = true;
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                    {
+                        Army.CoordinateFollowAndCombat(targetPlayerName, "Dread Klunk");
+                    }
+                )
+            )
+                return false;
+        }
+
+        // 3c. Coordinate the 6 required items for Quest 8739 (Lacerate)
+        // Item 1: Undead Plague Spear (Big Jack Sprat in /graveyard)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_SPEAR",
+                () => IsLacerateDone() || core.CheckInventory("Undead Plague Spear"),
+                () =>
+                {
+                    if (IsLacerateDone() || core.CheckInventory("Undead Plague Spear"))
+                        return;
+
+                    core.AddDrop("Undead Plague Spear");
+                    core.EnsureAccept(8739);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.HuntMonster("graveyard", "Big Jack Sprat", "Undead Plague Spear", isTemp: false);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Big Jack Sprat");
+                }
+            )
+        )
+            return false;
+
+        // Item 2: Kuro's Wrath (Kuro in /river)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_KURO",
+                () => IsLacerateDone() || core.CheckInventory("Kuro's Wrath"),
+                () =>
+                {
+                    if (IsLacerateDone() || core.CheckInventory("Kuro's Wrath"))
+                        return;
+
+                    core.AddDrop("Kuro's Wrath");
+                    core.EnsureAccept(8739);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.HuntMonster("river", "Kuro", "Kuro's Wrath", isTemp: false);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kuro");
+                }
+            )
+        )
+            return false;
+
+        // Item 3: Massive Horc Cleaver (Quest 279 -> Horc Master in /warhorc)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_CLEAVER",
+                () => IsLacerateDone() || core.CheckInventory("Massive Horc Cleaver"),
+                () =>
+                {
+                    if (IsLacerateDone() || core.CheckInventory("Massive Horc Cleaver"))
+                        return;
+
+                    core.AddDrop("Massive Horc Cleaver");
+                    core.EnsureAccept(8739);
+                    core.EnsureAccept(279);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.HuntMonster("warhorc", "Horc Master", "Boss Prize");
+                    core.EnsureComplete(279);
+                    Bot.Wait.ForPickup("Massive Horc Cleaver");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Horc Master");
+                }
+            )
+        )
+            return false;
+
+        // Item 4: Sword in the Stone (Quest 316 -> 7x MapItem 54 + Spider in /greenguardeast)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_SWORD_STONE",
+                () => IsLacerateDone() || core.CheckInventory("Sword in the Stone"),
+                () =>
+                {
+                    if (IsLacerateDone() || core.CheckInventory("Sword in the Stone"))
+                        return;
+
+                    core.AddDrop("Sword in the Stone");
+                    core.EnsureAccept(8739);
+                    core.EnsureAccept(316);
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.GetMapItem(54, 7, "greenguardeast");
+                    core.HuntMonster("greenguardeast", "Spider", "Tiny Sword");
+                    core.EnsureComplete(316);
+                    Bot.Wait.ForPickup("Sword in the Stone");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Spider");
+                }
+            )
+        )
+            return false;
+
+        // Item 5: Forest Axe (Quest 301 -> 4x MapItem 55 + Mosquito in /farm)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_FOREST_AXE",
+                () => IsLacerateDone() || core.CheckInventory("Forest Axe"),
+                () =>
+                {
+                    if (IsLacerateDone() || core.CheckInventory("Forest Axe"))
+                        return;
+
+                    core.AddDrop("Forest Axe");
+                    core.EnsureAccept(8739);
+                    core.EnsureAccept(301);
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.GetMapItem(55, 4, "farm");
+                    core.HuntMonster("farm", "Mosquito", "Mosquito Juice");
+                    core.EnsureComplete(301);
+                    Bot.Wait.ForPickup("Forest Axe");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Mosquito");
+                }
+            )
+        )
+            return false;
+
+        // Item 6: Black Knight Orb (Quest 318 across 4 bosses)
+        bool HasBKO() => IsLacerateDone() || core.CheckInventory("Black Knight Orb");
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_BKO_WELL",
+                () => HasBKO() || Bot.TempInv.Contains("Black Knight Leg Piece"),
+                () =>
+                {
+                    if (HasBKO() || Bot.TempInv.Contains("Black Knight Leg Piece"))
+                        return;
+
+                    core.AddDrop("Black Knight Orb");
+                    core.EnsureAccept(8739);
+                    core.EnsureAccept(318);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.HuntMonster("well", "Gell Oh No", "Black Knight Leg Piece");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Gell Oh No");
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_BKO_DRAGON",
+                () => HasBKO() || Bot.TempInv.Contains("Black Knight Chest Piece"),
+                () =>
+                {
+                    if (HasBKO() || Bot.TempInv.Contains("Black Knight Chest Piece"))
+                        return;
+
+                    core.AddDrop("Black Knight Orb");
+                    core.EnsureAccept(8739);
+                    core.EnsureAccept(318);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.HuntMonster("greendragon", "Greenguard Dragon", "Black Knight Chest Piece");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Greenguard Dragon");
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_BKO_DEATHGAZER",
+                () => HasBKO() || Bot.TempInv.Contains("Black Knight Shoulder Piece"),
+                () =>
+                {
+                    if (HasBKO() || Bot.TempInv.Contains("Black Knight Shoulder Piece"))
+                        return;
+
+                    core.AddDrop("Black Knight Orb");
+                    core.EnsureAccept(8739);
+                    core.EnsureAccept(318);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.HuntMonster("deathgazer", "Deathgazer", "Black Knight Shoulder Piece");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Deathgazer");
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_BKO_TRUNK",
+                () => HasBKO() || Bot.TempInv.Contains("Black Knight Arm Piece"),
+                () =>
+                {
+                    if (HasBKO() || Bot.TempInv.Contains("Black Knight Arm Piece"))
+                        return;
+
+                    core.AddDrop("Black Knight Orb");
+                    core.EnsureAccept(8739);
+                    core.EnsureAccept(318);
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.HuntMonster("trunk", "GreenGuard Basilisk", "Black Knight Arm Piece");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "GreenGuard Basilisk");
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_BKO_COMPLETE",
+                HasBKO,
+                () =>
+                {
+                    if (HasBKO())
+                        return;
+
+                    core.AddDrop("Black Knight Orb");
+                    core.EnsureComplete(318);
+                    Bot.Wait.ForPickup("Black Knight Orb");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3d. Turn in Quest 8739 to unlock Lacerate
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_LACERATE_COMPLETE",
+                IsLacerateDone,
+                () =>
+                {
+                    if (IsLacerateDone())
+                        return;
+
+                    core.EnsureAccept(8739);
+                    core.EnsureComplete(8739);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        SetClass(rankUpIfNeeded: true);
+        return Army.SyncArmy("STEP2C_60_COMPLETE") && !Bot.ShouldExit;
+    }
+
+    /// <summary>
+    /// Step 2C (Part 3 - Bracket 65):
+    /// 1. Level 65 + SmartEnhance
+    /// 2. Glacial Berserker (Coordinated Glacera Story up to Quest 5601 -> Glacera REP 10 -> Buy & Rank 10 if Shop 1339 is active)
+    /// </summary>
+    public bool RunBracket65()
+    {
+        CoreBots core = CoreBots.Instance;
+        ApplyArmyRoomSettings();
+
+        // Entry barrier for Bracket 65
+        if (!Army.SyncArmy("STEP2C_65_START"))
+            return false;
+
+        SetClass(rankUpIfNeeded: true);
+
+        // 1. Level 65 + SmartEnhance
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_LEVEL_65",
+                () => Bot.Player.Level >= 65,
+                () =>
+                {
+                    if (Bot.Player.Level >= 65)
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+
+                    string? currentClass = Bot.Player.CurrentClass?.Name;
+                    if (!string.IsNullOrWhiteSpace(currentClass))
+                        Adv.SmartEnhance(currentClass);
+
+                    Farm.Experience(65);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 2. Glacial Berserker (ItemID 38084 or 38049)
+        bool HasGB() =>
+            HasAnyClassInInventory(38084, 38049) || HasClassInInventory("Glacial Berserker");
+        bool HasGBRank10() => HasRank10Class("Glacial Berserker");
+        bool IsGlaceraRepDone() => HasGB() || Farm.FactionRank("Glacera") >= 10;
+        bool IsGlaceraStoryDone() => IsGlaceraRepDone() || core.isCompletedBefore(5601);
+
+        if (!RunCoordinatedFrozenTower(IsGlaceraStoryDone))
+            return false;
+
+        if (!RunCoordinatedGlaceraForGB(IsGlaceraStoryDone))
+            return false;
+
+        // 2a. Glacera REP Rank 10 in /icewindwar (cell r5, Left, Quests 5597, 5598, 5599, 5600)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GB_GLACERA_REP",
+                IsGlaceraRepDone,
+                () =>
+                {
+                    if (IsGlaceraRepDone())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Farm.GlaceraREP(10);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        // 2b. Buy Glacial Berserker in /icewindpass Shop 1339 (Seasonal Frostval shop; skips cleanly if out-of-season)
+        bool gbBuyAttempted = false;
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GB_BUY",
+                () => HasGB() || gbBuyAttempted,
+                () =>
+                {
+                    if (HasGB() || gbBuyAttempted)
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    Adv.BuyItem("icewindpass", 1339, "Glacial Berserker", shopItemID: 22266);
+                    Bot.Wait.ForItemBuy();
+                    gbBuyAttempted = true;
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 2c. Rank Glacial Berserker to Rank 10 if acquired
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GB_RANK_10",
+                () => !HasGB() || HasGBRank10(),
+                () =>
+                {
+                    if (!HasGB())
+                        return;
+
+                    if (!HasGBRank10())
+                        RankUpClassForArmy("Glacial Berserker");
+
+                    LeaveCombatRoomForEquipmentChange();
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                }
+            )
+        )
+            return false;
+
+        SetClass(rankUpIfNeeded: true);
+        return Army.SyncArmy("STEP2C_COMPLETE") && !Bot.ShouldExit;
+    }
+
+    /// <summary>
+    /// Coordinates /frozentower Quests 3907-3937 (Slot 185, Value 1..31) for Cryomancer and Glacera Story.
+    /// </summary>
+    private bool RunCoordinatedFrozenTower(Func<bool> skipCondition)
+    {
+        CoreBots core = CoreBots.Instance;
+
+        bool IsFTQuestDone(int questId) =>
+            skipCondition() || core.isCompletedBefore(3937) || core.isCompletedBefore(questId);
+
+        Story.PreLoad(this);
+
+        // 3907: Seek the Tower
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3907",
+                () => IsFTQuestDone(3907),
+                () =>
+                {
+                    if (IsFTQuestDone(3907))
+                        return;
+                    Story.MapItemQuest(3907, "frozentower", 3022);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3908: A n-Ice Beginning
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3908",
+                () => IsFTQuestDone(3908),
+                () =>
+                {
+                    if (IsFTQuestDone(3908))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3908, "frozentower", "Polar Elemental");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+            )
+        )
+            return false;
+
+        // 3909: Search for Syrrus
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3909",
+                () => IsFTQuestDone(3909),
+                () =>
+                {
+                    if (IsFTQuestDone(3909))
+                        return;
+                    Story.MapItemQuest(3909, "frozentower", 3019);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3910: Building the Base
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3910",
+                () => IsFTQuestDone(3910),
+                () =>
+                {
+                    if (IsFTQuestDone(3910))
+                        return;
+                    Story.MapItemQuest(3910, "frozentower", 3004, 13);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3911: Refugee Roundup
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3911",
+                () => IsFTQuestDone(3911),
+                () =>
+                {
+                    if (IsFTQuestDone(3911))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3911);
+                    core.HuntMonster("frozentower", "Frostwyrm", "Refugee Saved", 7);
+                    core.EnsureComplete(3911);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm")
+            )
+        )
+            return false;
+
+        // 3912: Retrieve the Water Starstone
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3912",
+                () => IsFTQuestDone(3912),
+                () =>
+                {
+                    if (IsFTQuestDone(3912))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(3912, "frozentower", "FrostDeep Dweller");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "FrostDeep Dweller")
+            )
+        )
+            return false;
+
+        // 3913: Magical Attraction
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3913",
+                () => IsFTQuestDone(3913),
+                () =>
+                {
+                    if (IsFTQuestDone(3913))
+                        return;
+                    Story.MapItemQuest(3913, "frozentower", 3005, 13);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3914: Frozen Blood
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3914",
+                () => IsFTQuestDone(3914),
+                () =>
+                {
+                    if (IsFTQuestDone(3914))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3914, "frozentower", "Twisted Ice");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Twisted Ice")
+            )
+        )
+            return false;
+
+        // 3915: Retrieve the Fire Starstone
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3915",
+                () => IsFTQuestDone(3915),
+                () =>
+                {
+                    if (IsFTQuestDone(3915))
+                        return;
+                    Story.MapItemQuest(3915, "frozentower", 3006);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3916: Defend the Tower!
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3916",
+                () => IsFTQuestDone(3916),
+                () =>
+                {
+                    if (IsFTQuestDone(3916))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3916, "frozentower", "Polar Elemental");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+            )
+        )
+            return false;
+
+        // 3917: Refugee Rescue Run
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3917",
+                () => IsFTQuestDone(3917),
+                () =>
+                {
+                    if (IsFTQuestDone(3917))
+                        return;
+                    Story.MapItemQuest(3917, "frozentower", 3007, 6);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3918: Retrieve the Earth Starstone
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3918",
+                () => IsFTQuestDone(3918),
+                () =>
+                {
+                    if (IsFTQuestDone(3918))
+                        return;
+                    Story.MapItemQuest(3918, "frozentower", 3013);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3919: Polar Penetration and Progress
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3919",
+                () => IsFTQuestDone(3919),
+                () =>
+                {
+                    if (IsFTQuestDone(3919))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3919);
+                    core.GetMapItem(3008, 6, "frozentower");
+                    core.HuntMonster("frozentower", "Polar Elemental", "Ice Sample", 6);
+                    core.EnsureComplete(3919);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+            )
+        )
+            return false;
+
+        // 3920: Save the Astronomer Apprentice
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3920",
+                () => IsFTQuestDone(3920),
+                () =>
+                {
+                    if (IsFTQuestDone(3920))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3920);
+                    core.GetMapItem(3020, 1, "frozentower");
+                    core.HuntMonster("frozentower", "Polar Elemental", "Polar Elemental Guard Defeated", 4);
+                    core.HuntMonster("frozentower", "Ice Wolf", "Ice Wolf Guard Defeated", 5);
+                    core.EnsureComplete(3920);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+            )
+        )
+            return false;
+
+        // 3921: Glacial Elixir
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3921",
+                () => IsFTQuestDone(3921),
+                () =>
+                {
+                    if (IsFTQuestDone(3921))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(3921);
+                    core.GetMapItem(3017, 6, "frozentower");
+                    core.HuntMonster("frozentower", "FrostDeep Dweller", "FrostDeep Venom", 1);
+                    core.EnsureComplete(3921);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "FrostDeep Dweller")
+            )
+        )
+            return false;
+
+        // 3922: Retrieve the Energy Starstone
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3922",
+                () => IsFTQuestDone(3922),
+                () =>
+                {
+                    if (IsFTQuestDone(3922))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3922, "frozentower", "Polar Elemental");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+            )
+        )
+            return false;
+
+        // 3923: Marking the Future
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3923",
+                () => IsFTQuestDone(3923),
+                () =>
+                {
+                    if (IsFTQuestDone(3923))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3923, "frozentower", "Frostwyrm");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm")
+            )
+        )
+            return false;
+
+        // 3924: Glacial Shift
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3924",
+                () => IsFTQuestDone(3924),
+                () =>
+                {
+                    if (IsFTQuestDone(3924))
+                        return;
+                    Story.MapItemQuest(3924, "frozentower", 3009, 6);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3925: Divination Draft
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3925",
+                () => IsFTQuestDone(3925),
+                () =>
+                {
+                    if (IsFTQuestDone(3925))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3925);
+                    core.GetMapItem(3012, 4, "frozentower");
+                    core.GetMapItem(3011, 4, "frozentower");
+                    core.HuntMonster("frozentower", "Frostwyrm", "Frozen Tail", 5);
+                    core.HuntMonster("frozentower", "Arctic Eel", "Frozen Scale", 5);
+                    core.EnsureComplete(3925);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+            )
+        )
+            return false;
+
+        // 3926: Retrieve the Light StarStone
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3926",
+                () => IsFTQuestDone(3926),
+                () =>
+                {
+                    if (IsFTQuestDone(3926))
+                        return;
+                    Story.MapItemQuest(3926, "frozentower", 3021);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3927: The Future is Bright
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3927",
+                () => IsFTQuestDone(3927),
+                () =>
+                {
+                    if (IsFTQuestDone(3927))
+                        return;
+                    Story.MapItemQuest(3927, "frozentower", 3014, 7);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3928: Bled Bone Dry
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3928",
+                () => IsFTQuestDone(3928),
+                () =>
+                {
+                    if (IsFTQuestDone(3928))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3928, "frozentower", "Arctic Eel");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Arctic Eel")
+            )
+        )
+            return false;
+
+        // 3929: Chill of Fear
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3929",
+                () => IsFTQuestDone(3929),
+                () =>
+                {
+                    if (IsFTQuestDone(3929))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3929, "frozentower", "Polar Elemental");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+            )
+        )
+            return false;
+
+        // 3930: Retrieve the Darkness Starstone
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3930",
+                () => IsFTQuestDone(3930),
+                () =>
+                {
+                    if (IsFTQuestDone(3930))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3930, "frozentower", "Twisted Ice");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Twisted Ice")
+            )
+        )
+            return false;
+
+        // 3931: Web of Fear
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3931",
+                () => IsFTQuestDone(3931),
+                () =>
+                {
+                    if (IsFTQuestDone(3931))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3931, "frozentower", "Frostwyrm");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm")
+            )
+        )
+            return false;
+
+        // 3932: Frozen in Time
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3932",
+                () => IsFTQuestDone(3932),
+                () =>
+                {
+                    if (IsFTQuestDone(3932))
+                        return;
+                    Story.MapItemQuest(3932, "frozentower", 3016, 13);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3933: Heart of the Matter
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3933",
+                () => IsFTQuestDone(3933),
+                () =>
+                {
+                    if (IsFTQuestDone(3933))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3933, "frozentower", "Ice Wolf");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Ice Wolf")
+            )
+        )
+            return false;
+
+        // 3934: Retrieve the Wind Starstone (Boss: Rotten Ice, 29,280 HP)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3934",
+                () => IsFTQuestDone(3934),
+                () =>
+                {
+                    if (IsFTQuestDone(3934))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(3934, "frozentower", "Rotten Ice");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Rotten Ice")
+            )
+        )
+            return false;
+
+        // 3935: Create the Gate
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3935",
+                () => IsFTQuestDone(3935),
+                () =>
+                {
+                    if (IsFTQuestDone(3935))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3935);
+                    core.GetMapItem(3018, 13, "frozentower");
+                    core.HuntMonster("frozentower", "Ice Wolf", "Blood of the Ice Wolf", 1);
+                    core.EnsureComplete(3935);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Ice Wolf")
+            )
+        )
+            return false;
+
+        // 3936: Drive Back the Invaders
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3936",
+                () => IsFTQuestDone(3936),
+                () =>
+                {
+                    if (IsFTQuestDone(3936))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3936);
+                    core.HuntMonster("frozentower", "Frost Invader", "FrostSpawn Invader defeated", 10);
+                    core.EnsureComplete(3936);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+            )
+        )
+            return false;
+
+        // 3937: Defeat the FrostSpawn Invaders
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_FT_3937",
+                () => IsFTQuestDone(3937),
+                () =>
+                {
+                    if (IsFTQuestDone(3937))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3937);
+                    core.HuntMonster("frozentower", "Frost Fangbeast", "Fangbeasts defeated", 15);
+                    core.EnsureComplete(3937);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast")
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+
+    /// <summary>
+    /// Coordinates /twilightedge Quest 3428 and /weaverwar Quests 3429-3439 to unlock Quest 3445 (Ravenloss REP).
+    /// </summary>
+    private bool RunCoordinatedWeaverWar(Func<bool> skipCondition)
+    {
+        CoreBots core = CoreBots.Instance;
+
+        bool IsWWQuestDone(int questId) =>
+            skipCondition() || core.isCompletedBefore(3439) || core.isCompletedBefore(questId);
+
+        Story.PreLoad(this);
+
+        // 3428: Clear Twilight's Edge
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_WW_3428",
+                () => IsWWQuestDone(3428),
+                () =>
+                {
+                    if (IsWWQuestDone(3428))
+                        return;
+                    Story.MapItemQuest(3428, "twilightedge", 2577);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        (int QuestId, int MapItemId, string Cell, string Monster, string TempItem, int Quant)[] weaverQuests =
+        {
+            (3429, 2578, "s1", "Weaver Queen's Hound", "Weaver Hounds Slain", 6),
+            (3430, 2579, "f1", "ChaosWeaver Mage", "Spider Slain", 6),
+            (3431, 2580, "d1", "Dread Arysa", "Arysa Slain", 6),
+            (3432, 2581, "do1", "Weaver Queen's Hound", "Weaver Hound Slain", 6),
+            (3433, 2582, "fr1", "ChaosWeaver Mage", "Weaver Slain", 6),
+            (3434, 2583, "n1", "Evolved Dreadspider", "Spider Slain", 6),
+            (3435, 2584, "b1", "Dread Arysa", "Arysa Slain", 6),
+            (3436, 2585, "g1", "ChaosWeaver Mage", "Weaver Slain", 6),
+            (3437, 2586, "sl1", "ChaosWeaver Mage", "Weaver Slain", 6),
+            (3438, 2587, "ba1", "Evolved Dreadspider", "Spider Slain", 6),
+        };
+
+        foreach (var wq in weaverQuests)
+        {
+            if (
+                !RunCooperativeObjective(
+                    $"BRACKET55_WW_{wq.QuestId}",
+                    () => IsWWQuestDone(wq.QuestId),
+                    () =>
+                    {
+                        if (IsWWQuestDone(wq.QuestId))
+                            return;
+
+                        SetClass();
+                        core.EquipClass(ClassType.Farm);
+                        core.EnsureAccept(wq.QuestId);
+                        core.GetMapItem(wq.MapItemId, 1, "weaverwar");
+                        core.KillMonster("weaverwar", wq.Cell, "Spawn", wq.Monster, wq.TempItem, wq.Quant);
+                        core.EnsureComplete(wq.QuestId);
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                        Army.CoordinateFollowAndCombat(targetPlayerName, wq.Monster)
+                )
+            )
+                return false;
+        }
+
+        // 3439: Save the SoulWeaver (Boss: ChaosWeaver Warrior, 132,840 HP in /twilightedge)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_WW_3439_BOSS",
+                () => IsWWQuestDone(3439),
+                () =>
+                {
+                    if (IsWWQuestDone(3439))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(3439, "twilightedge", "ChaosWeaver Warrior");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "ChaosWeaver Warrior")
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+
+    /// <summary>
+    /// Coordinates the Yokai Storyline (/shogunwar, /shinringrove, /greenshell, /heiwavalley, /shadowfortress)
+    /// up to Quest 6494 (Defeat Jaaku!) to unlock Quest 7924 for DragonSoul Shinobi.
+    /// Skips optional side-quests 6460, 6461, and 6473, and fixes the Quest 6494 completion bug.
+    /// </summary>
+    private bool RunCoordinatedYokaiStory(Func<bool> skipCondition)
+    {
+        CoreBots core = CoreBots.Instance;
+
+        bool IsShogunDone(int questId) =>
+            skipCondition()
+            || core.isCompletedBefore(6494)
+            || core.isCompletedBefore(6459)
+            || core.isCompletedBefore(questId);
+
+        bool IsShinrinDone(int questId) =>
+            skipCondition()
+            || core.isCompletedBefore(6494)
+            || core.isCompletedBefore(6472)
+            || core.isCompletedBefore(questId);
+
+        bool IsShadowFortressDone(int questId) =>
+            skipCondition() || core.isCompletedBefore(6494) || core.isCompletedBefore(questId);
+
+        Story.PreLoad(this);
+
+        // --- Part 1: ShogunWar (Quests 6450-6459) ---
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6450",
+                () => IsShogunDone(6450),
+                () =>
+                {
+                    if (IsShogunDone(6450))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6450);
+                    core.HuntMonster("shogunwar", "Shadow Samurai", "Shadow Medallions", 5);
+                    core.EnsureComplete(6450);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6451",
+                () => IsShogunDone(6451),
+                () =>
+                {
+                    if (IsShogunDone(6451))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6451);
+                    core.HuntMonsterMapID("shogunwar", 8, "Kijimuna Pollen", 4);
+                    core.HuntMonsterMapID("shogunwar", 7, "Reishi Spores", 4);
+                    core.EnsureComplete(6451);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6452",
+                () => IsShogunDone(6452),
+                () =>
+                {
+                    if (IsShogunDone(6452))
+                        return;
+                    Story.MapItemQuest(6452, "shogunwar", 5956, 5);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6453",
+                () => IsShogunDone(6453),
+                () =>
+                {
+                    if (IsShogunDone(6453))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6453, "shogunwar", "Shadow Samurai");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6454",
+                () => IsShogunDone(6454),
+                () =>
+                {
+                    if (IsShogunDone(6454))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6454, "shogunwar", "Bamboo Treeant");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Bamboo Treeant")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6455",
+                () => IsShogunDone(6455),
+                () =>
+                {
+                    if (IsShogunDone(6455))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6455, "shogunwar", "Shadow Samurai");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6456",
+                () => IsShogunDone(6456),
+                () =>
+                {
+                    if (IsShogunDone(6456))
+                        return;
+                    Story.MapItemQuest(6456, "shogunwar", new[] { 5957, 5958, 5959, 5960 });
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6457",
+                () => IsShogunDone(6457),
+                () =>
+                {
+                    if (IsShogunDone(6457))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6457, "shogunwar", "Reishi");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Reishi")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6458",
+                () => IsShogunDone(6458),
+                () =>
+                {
+                    if (IsShogunDone(6458))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6458, "shogunwar", "Bamboo Treeant");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Bamboo Treeant")
+            )
+        )
+            return false;
+
+        // 6459: Defeat the Beast (Boss: Orochi, MapID 25)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6459_OROCHI",
+                () => IsShogunDone(6459),
+                () =>
+                {
+                    if (IsShogunDone(6459))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(6459);
+                    core.HuntMonsterMapID("shogunwar", 25, "Orochi Defeated");
+                    core.EnsureComplete(6459);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "25")
+            )
+        )
+            return false;
+
+        // --- Part 2: ShinrinGrove & GreenShell (Quests 6462-6472) ---
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6462",
+                () => IsShinrinDone(6462),
+                () =>
+                {
+                    if (IsShinrinDone(6462))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(6462);
+                    core.HuntMonster("shinringrove", "Kame", "Kame Defeated");
+                    core.EnsureComplete(6462);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kame")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6463",
+                () => IsShinrinDone(6463),
+                () =>
+                {
+                    if (IsShinrinDone(6463))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6463);
+                    core.HuntMonster("shinringrove", "Reishi", "Reishi Caps", 6);
+                    core.HuntMonster("shinringrove", "Tsurubebi", "Tsurubebi Flame", 3);
+                    core.EnsureComplete(6463);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+            )
+        )
+            return false;
+
+        // 6464: Summon Otoroshi (Boss: Otoroshi, 84,920 HP in /shinringrove r4a, Left)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6464_OTOROSHI",
+                () => IsShinrinDone(6464),
+                () =>
+                {
+                    if (IsShinrinDone(6464))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(6464);
+                    core.GetMapItem(5962, 1, "shinringrove");
+                    core.Sleep();
+                    core.KillMonster("shinringrove", "r4a", "Left", "Otoroshi", "Otoroshi Defeated");
+                    core.EnsureComplete(6464);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Otoroshi")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6465",
+                () => IsShinrinDone(6465),
+                () =>
+                {
+                    if (IsShinrinDone(6465))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6465);
+                    core.GetMapItem(5964, 5, "greenshell");
+                    core.HuntMonster("greenshell", "Tsurubebi", "Tsurubebi Extinguished", 5);
+                    core.EnsureComplete(6465);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tsurubebi")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6466",
+                () => IsShinrinDone(6466),
+                () =>
+                {
+                    if (IsShinrinDone(6466))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6466, "greenshell", "Tsukumogami");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tsukumogami")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6467",
+                () => IsShinrinDone(6467),
+                () =>
+                {
+                    if (IsShinrinDone(6467))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6467, "shinringrove", "Kodama");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kodama")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6468",
+                () => IsShinrinDone(6468),
+                () =>
+                {
+                    if (IsShinrinDone(6468))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6468, "shinringrove", "Moglinberry Bush");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Moglinberry Bush")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6469",
+                () => IsShinrinDone(6469),
+                () =>
+                {
+                    if (IsShinrinDone(6469))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6469);
+                    core.GetMapItem(5965, 8, "greenshell");
+                    core.HuntMonster("shinringrove", "Reishi", "Luminous Spores", 6);
+                    core.EnsureComplete(6469);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Reishi")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6470",
+                () => IsShinrinDone(6470),
+                () =>
+                {
+                    if (IsShinrinDone(6470))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6470);
+                    core.GetMapItem(5966, 1, "greenshell");
+                    core.HuntMonster("greenshell", "Merdraconian", "Merdraconians Slain", 3);
+                    core.EnsureComplete(6470);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Merdraconian")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6471",
+                () => IsShinrinDone(6471),
+                () =>
+                {
+                    if (IsShinrinDone(6471))
+                        return;
+                    Story.MapItemQuest(6471, "greenshell", 5967);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 6472: Battle for the Shinrin Do (Boss: Nagami, 129,050 HP in /greenshell)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6472_NAGAMI",
+                () => IsShinrinDone(6472),
+                () =>
+                {
+                    if (IsShinrinDone(6472))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(6472);
+                    core.HuntMonster("greenshell", "Nagami", "Nagami Defeated");
+                    core.EnsureComplete(6472);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Nagami")
+            )
+        )
+            return false;
+
+        // --- Part 3: HeiwaValley & ShadowFortress (Quests 6474-6483 & 6485-6494) ---
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6474",
+                () => IsShadowFortressDone(6474),
+                () =>
+                {
+                    if (IsShadowFortressDone(6474))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6474, "heiwavalley", "Abumi Guchi");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Abumi Guchi")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6475",
+                () => IsShadowFortressDone(6475),
+                () =>
+                {
+                    if (IsShadowFortressDone(6475))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6475);
+                    core.HuntMonster("heiwavalley", "Shadow Samurai", "Pilfered Armor", 5);
+                    core.HuntMonster("heiwavalley", "Shadow Samurai", "Stolen Sword", 5);
+                    core.EnsureComplete(6475);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6476",
+                () => IsShadowFortressDone(6476),
+                () =>
+                {
+                    if (IsShadowFortressDone(6476))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6476);
+                    core.GetMapItem(5968, 6, "heiwavalley");
+                    core.HuntMonster("heiwavalley", "Kosenjobi", "Kosenjobi Flame", 6);
+                    core.EnsureComplete(6476);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kosenjobi")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6477",
+                () => IsShadowFortressDone(6477),
+                () =>
+                {
+                    if (IsShadowFortressDone(6477))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6477, "heiwavalley", "Goryo");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Goryo")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6478",
+                () => IsShadowFortressDone(6478),
+                () =>
+                {
+                    if (IsShadowFortressDone(6478))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6478);
+                    core.HuntMonster("heiwavalley", "Kosenjobi", "Spectral Heat", 5);
+                    Story.BuyQuest(6478, "heiwavalley", 1608, "Wasabi");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kosenjobi")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6479",
+                () => IsShadowFortressDone(6479),
+                () =>
+                {
+                    if (IsShadowFortressDone(6479))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6479, "heiwavalley", "Abumi Guchi");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Abumi Guchi")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6480",
+                () => IsShadowFortressDone(6480),
+                () =>
+                {
+                    if (IsShadowFortressDone(6480))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6480, "heiwavalley", "Inugami");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Inugami")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6481",
+                () => IsShadowFortressDone(6481),
+                () =>
+                {
+                    if (IsShadowFortressDone(6481))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6481);
+                    core.HuntMonster("heiwavalley", "Inugami", "Spirit Eyes", 4);
+                    Story.MapItemQuest(6481, "heiwavalley", 5970, 8);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Inugami")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6482",
+                () => IsShadowFortressDone(6482),
+                () =>
+                {
+                    if (IsShadowFortressDone(6482))
+                        return;
+                    Story.MapItemQuest(6482, "heiwavalley", 5971);
+                    Story.MapItemQuest(6482, "heiwavalley", 5972, 8);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 6483: Defeat the Onryo (Boss: Onryo, MapID 15 in /heiwavalley)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6483_ONRYO",
+                () => IsShadowFortressDone(6483),
+                () =>
+                {
+                    if (IsShadowFortressDone(6483))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(6483);
+                    core.HuntMonsterMapID("heiwavalley", 15, "Onryo Slain");
+                    core.EnsureComplete(6483);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "15")
+            )
+        )
+            return false;
+
+        // 6485: Calm the Spirits
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6485",
+                () => IsShadowFortressDone(6485),
+                () =>
+                {
+                    if (IsShadowFortressDone(6485))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6485, "shadowfortress", "Restless Spirit");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Restless Spirit")
+            )
+        )
+            return false;
+
+        // 6486: Disarm the Samurai
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6486",
+                () => IsShadowFortressDone(6486),
+                () =>
+                {
+                    if (IsShadowFortressDone(6486))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6486, "shadowfortress", "Shadow Samurai");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+            )
+        )
+            return false;
+
+        // 6487: Find the Throne Room
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6487",
+                () => IsShadowFortressDone(6487),
+                () =>
+                {
+                    if (IsShadowFortressDone(6487))
+                        return;
+                    Story.MapItemQuest(6487, "shadowfortress", 5973);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 6488: Shadow Essences
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6488",
+                () => IsShadowFortressDone(6488),
+                () =>
+                {
+                    if (IsShadowFortressDone(6488))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6488);
+                    core.GetMapItem(5974, 1, "shadowfortress");
+                    core.HuntMonster("shadowfortress", "Living Shadow", "Shadow Essence", 7);
+                    core.EnsureComplete(6488);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Living Shadow")
+            )
+        )
+            return false;
+
+        // 6489: New Recruits
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6489",
+                () => IsShadowFortressDone(6489),
+                () =>
+                {
+                    if (IsShadowFortressDone(6489))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(6489, "shadowfortress", "Shadow Samurai");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+            )
+        )
+            return false;
+
+        // 6490: Shadow Heads
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6490",
+                () => IsShadowFortressDone(6490),
+                () =>
+                {
+                    if (IsShadowFortressDone(6490))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(6490);
+                    core.GetMapItem(5975, 7, "shadowfortress");
+                    core.HuntMonster("shadowfortress", "Creeping Shadow", "Shadows Slain", 7);
+                    core.EnsureComplete(6490);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Creeping Shadow")
+            )
+        )
+            return false;
+
+        // 6491: A Head has Woken (Boss: 7th Head of Orochi)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6491",
+                () => IsShadowFortressDone(6491),
+                () =>
+                {
+                    if (IsShadowFortressDone(6491))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(6491, "shadowfortress", "7th Head of Orochi");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "7th Head of Orochi")
+            )
+        )
+            return false;
+
+        // 6492: Get to the Roof
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6492",
+                () => IsShadowFortressDone(6492),
+                () =>
+                {
+                    if (IsShadowFortressDone(6492))
+                        return;
+                    Story.MapItemQuest(6492, "shadowfortress", new[] { 5976, 5979 });
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 6493: Find Jaaku! (Coordinate each of the 6 Heads of Orochi + MapItem 5977)
+        (string Label, string Monster, string TempDrop)[] orochiHeads =
+        {
+            ("6TH", "6th Head of Orochi", "6th Head Defeated"),
+            ("5TH", "5th Head of Orochi", "5th Head Defeated"),
+            ("4TH", "4th Head of Orochi", "4th Head Defeated"),
+            ("3RD", "3rd Head of Orochi", "3rd Head Defeated"),
+            ("2ND", "2nd Head of Orochi", "2nd Head Defeated"),
+            ("1ST", "1st Head of Orochi", "1st Head Defeated"),
+        };
+
+        foreach (var head in orochiHeads)
+        {
+            if (
+                !RunCooperativeObjective(
+                    $"BRACKET60_YOKAI_6493_HEAD_{head.Label}",
+                    () => IsShadowFortressDone(6493) || Bot.TempInv.Contains(head.TempDrop),
+                    () =>
+                    {
+                        if (IsShadowFortressDone(6493) || Bot.TempInv.Contains(head.TempDrop))
+                            return;
+
+                        SetClass();
+                        core.EquipClass(ClassType.Solo);
+                        core.EnsureAccept(6493);
+                        core.HuntMonster("shadowfortress", head.Monster, head.TempDrop);
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                        Army.CoordinateFollowAndCombat(targetPlayerName, head.Monster)
+                )
+            )
+                return false;
+        }
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6493_COMPLETE",
+                () => IsShadowFortressDone(6493),
+                () =>
+                {
+                    if (IsShadowFortressDone(6493))
+                        return;
+
+                    core.EnsureAccept(6493);
+                    Story.MapItemQuest(6493, "shadowfortress", 5977);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 6494: Defeat Jaaku! (Boss: Jaaku, MapID 31, 175,880 HP — fixes EnsureComplete(6494))
+        if (
+            !RunCooperativeObjective(
+                "BRACKET60_YOKAI_6494_JAAKU",
+                () => IsShadowFortressDone(6494),
+                () =>
+                {
+                    if (IsShadowFortressDone(6494))
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    core.EnsureAccept(6494);
+                    core.HuntMonsterMapID("shadowfortress", 31, "Jaaku Defeated");
+                    core.EnsureComplete(6494);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "31")
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+
+    /// <summary>
+    /// Coordinates /frozenruins, /glacera, /icewindpass, and /icewindwar Quests (3941-3954 & 5587-5601)
+    /// to unlock Glacera REP farming (Quests 5597-5600) for Glacial Berserker.
+    /// Skips Northstar (3958-3971), optional quests 5595-5596, and IceDungeon (7832-7841).
+    /// </summary>
+    private bool RunCoordinatedGlaceraForGB(Func<bool> skipCondition)
+    {
+        CoreBots core = CoreBots.Instance;
+
+        bool IsRuinsQuestDone(int questId) =>
+            skipCondition()
+            || core.isCompletedBefore(5601)
+            || core.isCompletedBefore(3954)
+            || core.isCompletedBefore(questId);
+
+        bool IsIceWindQuestDone(int questId) =>
+            skipCondition() || core.isCompletedBefore(5601) || core.isCompletedBefore(questId);
+
+        Story.PreLoad(this);
+
+        // --- Part 1: FrozenRuins & Glacera (Quests 3941-3954) ---
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3941",
+                () => IsRuinsQuestDone(3941),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3941))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3941, "frozenruins", "Frost Fangbeast");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast")
+            )
+        )
+            return false;
+
+        for (int qId = 3942; qId <= 3944; qId++)
+        {
+            int currentQuest = qId;
+            if (
+                !RunCooperativeObjective(
+                    $"BRACKET65_GLACERA_{currentQuest}",
+                    () => IsRuinsQuestDone(currentQuest),
+                    () =>
+                    {
+                        if (IsRuinsQuestDone(currentQuest))
+                            return;
+                        SetClass();
+                        core.EquipClass(ClassType.Farm);
+                        Story.KillQuest(currentQuest, "frozenruins", "Frost Reaper");
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                        Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper")
+                )
+            )
+                return false;
+        }
+
+        // 3945: Form the Lock
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3945",
+                () => IsRuinsQuestDone(3945),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3945))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3945);
+                    core.GetMapItem(3050, 10, "frozenruins");
+                    core.HuntMonster("frozenruins", "Frozen Moglinster", "Frostbreath Weed", 5);
+                    core.EnsureComplete(3945);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frozen Moglinster")
+            )
+        )
+            return false;
+
+        // 3946: Glacera
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3946",
+                () => IsRuinsQuestDone(3946),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3946))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3946);
+                    if (!core.CheckInventory(27357))
+                        core.HuntMonster("frozenruins", "Frost Reaper", "Mercury");
+                    core.EnsureComplete(3946);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper")
+            )
+        )
+            return false;
+
+        // 3947: A Frosty Welcome
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3947",
+                () => IsRuinsQuestDone(3947),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3947))
+                        return;
+                    core.EnsureAccept(3947);
+                    core.Join("glacera");
+                    Bot.Wait.ForMapLoad("glacera");
+                    core.GetMapItem(3048, 1, "glacera");
+                    core.EnsureComplete(3947);
+                    core.Jump("Enter", "Spawn");
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3948: Key to the Fortress
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3948",
+                () => IsRuinsQuestDone(3948),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3948))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3948, "glacera", "Frost Invader");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+            )
+        )
+            return false;
+
+        // 3949: Breaking Boulders
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3949",
+                () => IsRuinsQuestDone(3949),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3949))
+                        return;
+                    Story.MapItemQuest(3949, "glacera", 3049, 6);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3950: The Scythe of Vengeance
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3950",
+                () => IsRuinsQuestDone(3950),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3950))
+                        return;
+                    Story.MapItemQuest(3950, "glacera", 3047);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 3951: Rescue the Refugees
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3951",
+                () => IsRuinsQuestDone(3951),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3951))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(3951);
+                    core.HuntMonster("frozenruins", "Frost Invader", "Ice Beast Destroyed", 10);
+                    core.EnsureComplete(3951);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+            )
+        )
+            return false;
+
+        // 3952: Defeat the Fangbeasts
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3952",
+                () => IsRuinsQuestDone(3952),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3952))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3952, "frozenruins", "Frost Fangbeast");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast")
+            )
+        )
+            return false;
+
+        // 3953: Destroy the Frost Reapers
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3953",
+                () => IsRuinsQuestDone(3953),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3953))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(3953, "frozenruins", "Frost Reaper");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper")
+            )
+        )
+            return false;
+
+        // 3954: FrostSpawn General Takedown (Boss: Frost General, 65,620 HP)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_3954_BOSS",
+                () => IsRuinsQuestDone(3954),
+                () =>
+                {
+                    if (IsRuinsQuestDone(3954))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(3954, "frozenruins", "Frost General");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost General")
+            )
+        )
+            return false;
+
+        // --- Part 2: IceWindPass & IceWindWar (Quests 5587-5594, 5597-5601) ---
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5587",
+                () => IsIceWindQuestDone(5587),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5587))
+                        return;
+                    Story.MapItemQuest(5587, "icewindpass", 5074, 5);
+                },
+                (targetPlayerNumber, targetPlayerName) => Bot.Sleep(1000),
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5588",
+                () => IsIceWindQuestDone(5588),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5588))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(5588, "icewindpass", "Glacial Elemental");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Glacial Elemental")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5589",
+                () => IsIceWindQuestDone(5589),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5589))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAccept(5589);
+                    core.GetMapItem(5075, 5, "icewindpass");
+                    core.HuntMonster("icewindpass", "Glacial Elemental", "Iced Mana", 9);
+                    core.EnsureComplete(5589);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Glacial Elemental")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5590",
+                () => IsIceWindQuestDone(5590),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5590))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(5590, "icewindpass", "Polar Golem");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Golem")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5591",
+                () => IsIceWindQuestDone(5591),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5591))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(5591, "icewindpass", "Frost Invader");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+            )
+        )
+            return false;
+
+        // 5592: Blast the Frostspawn Symbiote (Boss: Frostspawn Symbiote)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5592_SYMBIOTE",
+                () => IsIceWindQuestDone(5592),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5592))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(5592, "icewindpass", "Frostspawn Symbiote");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostspawn Symbiote")
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5593",
+                () => IsIceWindQuestDone(5593),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5593))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    Story.KillQuest(5593, "icewindpass", "Frost Invader");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+            )
+        )
+            return false;
+
+        // 5594: Take it Down (Boss: Frostspawn Horror, 153,590 HP)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5594_HORROR",
+                () => IsIceWindQuestDone(5594),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5594))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(5594, "icewindpass", "Frostspawn Horror");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostspawn Horror")
+            )
+        )
+            return false;
+
+        // 5597, 5598, 5599, 5600: IceWindWar Medals (Slot 225, Value 9)
+        bool warMedalsDone = false;
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5597_5600_WAR",
+                () => IsIceWindQuestDone(5597) || warMedalsDone,
+                () =>
+                {
+                    if (IsIceWindQuestDone(5597) || warMedalsDone)
+                        return;
+
+                    SetClass();
+                    core.EquipClass(ClassType.Farm);
+                    core.EnsureAcceptmultiple(new[] { 5597, 5598, 5599, 5600 });
+                    core.HuntMonster("icewindwar", "Glaceran Defender", "FrostSpawn Medal", 10);
+                    core.HuntMonster("icewindwar", "Glaceran Defender", "Mega Frostspawn Medal", 5);
+                    core.HuntMonster("icewindwar", "Frost Invader", "World Ender Medal", 10);
+                    core.HuntMonster("icewindwar", "Frost Invader", "Mega World Ender Medal", 5);
+                    core.EnsureComplete(new[] { 5597, 5598, 5599, 5600 });
+                    warMedalsDone = true;
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+            )
+        )
+            return false;
+
+        // 5601: What is THAT? (Boss: Soricomorpha in /icewindwar, Slot 225, Value 10)
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5601_SORICOMORPHA",
+                () => IsIceWindQuestDone(5601),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5601))
+                        return;
+                    SetClass();
+                    core.EquipClass(ClassType.Solo);
+                    Story.KillQuest(5601, "icewindwar", "Soricomorpha");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Soricomorpha")
+            )
+        )
+            return false;
+
+        return !Bot.ShouldExit;
+    }
+    #endregion Step 2C: Brackets 55, 60, and 65
+
     #region SetClass (Party Role Composition & CBO Resolution — 100% Free-to-Play Classes Only)
-    // Player 1: Main Solo DPS (never overlaps with Players 2-7 at the same milestone)
+    // Required Players 1-4 form the Endgame Meta Core (Main DPS + StoneCrusher + ArchPaladin + Lord of Order).
+    // Optional Players 5-7 add non-overlapping debuffs, amplifiers, dodge DPS, and backup support.
+
+    // Player 1 (Required): Main Solo DPS (never overlaps with Players 2-7 at the same milestone)
     private static readonly string[] Player1SoloClasses =
     {
         "King's Echo",
@@ -2731,78 +5868,80 @@ public class ArmyFarmerJoeDoAll
         "Rogue",
     };
 
-    // Player 2 (and Player 7 fallback in 7-player armies): Dedicated Healer / Support Buffer
+    // Player 2 (Required): Primary Support / Haste & HoT Buffer -> Endgame preference: StoneCrusher
     private static readonly string[] Player2SupportClasses =
     {
-        "Lord of Order",
-        "ArchPaladin",
         "StoneCrusher",
         "Oracle",
+        "Healer (Rare)",
         "Healer",
     };
 
-    // Player 3: Boss Hit-Chance Debuffer / Defense Shredder (Rogue at Step 1 -> Imperial Chunin at Lv 30)
+    // Player 3 (Required): Hit-Chance / Damage Debuffer & Tank -> Endgame preference: ArchPaladin
     private static readonly string[] Player3DebuffClasses =
     {
-        "Verus DoomKnight",
         "ArchPaladin",
-        "StoneCrusher",
         "Imperial Chunin",
+        "Rogue (Rare)",
         "Rogue",
         "Ninja",
+        "Oracle",
     };
 
-    // Player 4: Magic Damage Amplifier & Evasion Suppressor (Mage at Step 1 -> Shaman at Lv 30)
+    // Player 4 (Required): Damage Amplifier & Stat Buffer -> Endgame preference: Lord of Order
     private static readonly string[] Player4AmpClasses =
     {
-        "Archfiend",
-        "StoneCrusher",
+        "Lord of Order",
         "Arachnomancer",
         "Shaman",
+        "Mage (Rare)",
         "Mage",
         "Oracle",
     };
 
-    // Player 5: Ranged / Secondary Debuff & Heal (Oracle at Step 1 -> Evolved Shaman at Lv 30)
+    // Player 5 (Optional): Defense Shred / Decay Debuffer & Sub-DPS (Evolved Shaman -> Glacial Berserker -> Verus DoomKnight)
     private static readonly string[] Player5FlexClasses =
     {
-        "Dragon of Time",
+        "Verus DoomKnight",
         "Glacial Berserker",
         "Evolved Shaman",
         "Master Ranger",
         "Oracle",
+        "Healer (Rare)",
         "Healer",
     };
 
-    // Player 6: Ranged Physical DPS / Secondary Support (Master Ranger at Lv 30, or Support fallback)
+    // Player 6 (Optional): Crit / Damage Amplifier & Flex DPS (Master Ranger -> Scarlet Sorceress -> Archfiend)
     private static readonly string[] Player6FlexClasses =
     {
-        "Void Highlord",
-        "ArchPaladin",
-        "StoneCrusher",
+        "Archfiend",
+        "Scarlet Sorceress",
         "Master Ranger",
         "Oracle",
+        "Healer (Rare)",
         "Healer",
     };
 
-    // Player 7: Stealth / Dodge DPS or Secondary Healer
+    // Player 7 (Optional): Stealth / Dodge DPS & Execute (Ninja -> DragonSoul Shinobi -> Yami No Ronin)
     private static readonly string[] Player7FlexClasses =
     {
         "Yami No Ronin",
         "DragonSoul Shinobi",
         "Ninja",
         "Oracle",
+        "Healer (Rare)",
         "Healer",
     };
 
     // Secondary Support pool for Player 5 during Farm mode in larger armies (5-7 players)
     private static readonly string[] Player5FarmSupportClasses =
     {
+        "Lord of Order",
         "StoneCrusher",
         "ArchPaladin",
-        "Lord of Order",
-        "Evolved Shaman",
         "Oracle",
+        "Evolved Shaman",
+        "Healer (Rare)",
         "Healer",
     };
 
@@ -2842,8 +5981,8 @@ public class ArmyFarmerJoeDoAll
     private string[] GetRoleFarmPool()
     {
         // Farm Composition: AoE Farm classes combined with Support/Healer classes
-        // - Player 2 stays on Primary Healer/Support (2-7 player armies)
-        // - Player 5 stays on Secondary Buffer/Support (5-7 player armies)
+        // - Player 2 stays on Primary Healer/Support (4-7 player armies)
+        // - Player 5 adds Secondary Buffer/Support in larger armies (5-7 player armies)
         if (IsPlayer(2))
             return Player2SupportClasses;
         if (IsPlayer(5))
@@ -2855,17 +5994,17 @@ public class ArmyFarmerJoeDoAll
     private string GetPartyRoleLabel()
     {
         if (IsPlayer(2))
-            return "P2-Healer/Support";
+            return "P2-Support(SC)";
         if (IsPlayer(3))
-            return "P3-Debuffer";
+            return "P3-Debuff(AP)";
         if (IsPlayer(4))
-            return "P4-MagicAmp";
+            return "P4-BuffAmp(LoO)";
         if (IsPlayer(5))
-            return "P5-SubHealer/Debuff";
+            return "P5-FlexDebuff";
         if (IsPlayer(6))
-            return "P6-RangedDPS/Support";
+            return "P6-FlexAmpDPS";
         if (IsPlayer(7))
-            return "P7-DodgeDPS/Support";
+            return "P7-FlexDodgeDPS";
         return "P1-MainDPS";
     }
 
@@ -2914,13 +6053,9 @@ public class ArmyFarmerJoeDoAll
         core.BossClass = core.SoloClass;
         core.FarmClass = ResolveClass(farmPool);
 
-        static bool Settled(string? className) =>
+        bool Settled(string? className) =>
             CoreBots.IsGenericClass(className)
-            || Bot.Inventory.Items.Concat(Bot.Bank.Items).Any(item =>
-                item.Category == ItemCategory.Class
-                && item.Name.Equals(className, StringComparison.OrdinalIgnoreCase)
-                && item.Quantity >= Rank10ClassPoints
-            );
+            || (!string.IsNullOrWhiteSpace(className) && HasRank10Class(className));
 
         if (
             !rankUpIfNeeded
@@ -2968,6 +6103,12 @@ public class ArmyFarmerJoeDoAll
     {
         if (string.IsNullOrWhiteSpace(className) || Bot.ShouldExit)
             return;
+
+        if (!HasClassInInventory(className))
+        {
+            CoreBots.Instance.Logger($"WARNING: Cannot rank up class '{className}' because it is not in inventory.");
+            return;
+        }
 
         // If the class is not yet equipped, step out to /whitemap first so SmartEnhance and Equip
         // cannot be blocked by monster aggro, kill-credit, or party buffs in the room.
@@ -3023,17 +6164,15 @@ public class ArmyFarmerJoeDoAll
 
     private string ResolveClass(string[] pool)
     {
-        CoreBots core = CoreBots.Instance;
-        // Prefer the highest-priority class in the pool that is already Rank 10,
-        // falling back to the highest-priority owned class.
+        // Prefer the highest-priority class in the pool that is already Rank 10 in Inventory,
+        // falling back to the highest-priority owned class in Inventory.
         string? bestRank10 = pool.FirstOrDefault(className =>
-            HasRank10Class(className) && core.CheckInventory(className, toInv: true)
+            HasClassInInventory(className) && HasRank10Class(className)
         );
         if (!string.IsNullOrEmpty(bestRank10))
             return bestRank10;
 
-        return pool.FirstOrDefault(className => core.CheckInventory(className, toInv: true))
-            ?? "Generic";
+        return pool.FirstOrDefault(HasClassInInventory) ?? "Generic";
     }
 
     private void RankIfNeeded(string? className, string label)
@@ -3042,13 +6181,13 @@ public class ArmyFarmerJoeDoAll
         if (string.IsNullOrEmpty(className) || CoreBots.IsGenericClass(className))
             return;
 
-        if (!core.CheckInventory(className))
+        if (!HasClassInInventory(className))
         {
             core.Logger($"WARNING: {label} class '{className}' not in inventory!");
             return;
         }
 
-        if (core.CheckClassRank(false, className) >= 10)
+        if (HasRank10Class(className))
             return;
 
         core.Logger($"{label} resolved -> {className}");
@@ -3056,12 +6195,33 @@ public class ArmyFarmerJoeDoAll
     }
     #endregion SetClass
 
+    private bool HasClassInInventory(string? className) =>
+        !string.IsNullOrWhiteSpace(className)
+        && Bot.Inventory?.Items.Any(item =>
+            item.Category == ItemCategory.Class
+            && item.Name?.Trim().Equals(className.Trim(), StringComparison.OrdinalIgnoreCase) == true
+        ) == true;
+
+    private bool HasClassInInventory(int itemId) =>
+        itemId > 0
+        && Bot.Inventory?.Items.Any(item =>
+            item.Category == ItemCategory.Class && item.ID == itemId
+        ) == true;
+
+    private bool HasAnyClassInInventory(params string[] classNames) =>
+        classNames.Any(HasClassInInventory);
+
+    private bool HasAnyClassInInventory(params int[] itemIds) =>
+        itemIds.Any(HasClassInInventory);
+
     private bool HasRank10Class(string className)
     {
-        InventoryItem? item = Bot.Inventory.Items.Concat(Bot.Bank.Items).FirstOrDefault(
-            item =>
-                item.Name?.Trim().Equals(className, StringComparison.OrdinalIgnoreCase) == true
-                && item.Category == ItemCategory.Class
+        if (string.IsNullOrWhiteSpace(className))
+            return false;
+
+        InventoryItem? item = Bot.Inventory?.Items.FirstOrDefault(item =>
+            item.Category == ItemCategory.Class
+            && item.Name?.Trim().Equals(className.Trim(), StringComparison.OrdinalIgnoreCase) == true
         );
 
         return item != null && item.Quantity >= Rank10ClassPoints;
