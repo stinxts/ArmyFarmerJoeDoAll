@@ -842,21 +842,26 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 1. Elders' Blood Daily (if Level >= 30 and daily available)
+        bool eldersBloodAvailable =
+            Bot.Player.Level >= 30
+            && !core.CheckInventory("Elders' Blood", 20, toInv: false)
+            && CanRunPeriodicQuest(802);
         if (
             !RunCooperativeObjective(
                 "BRACKET30_ELDERS_BLOOD",
                 () =>
-                    Bot.Player.Level < 30
-                    || core.CheckInventory("Elders' Blood", 20)
-                    || !Daily.CheckDailyv2(802, true, true, "Elders' Blood"),
+                    !eldersBloodAvailable
+                    || Bot.Quests.IsDailyComplete(802)
+                    || core.CheckInventory("Elders' Blood", 20, toInv: false),
                 () =>
                 {
                     if (
-                        Bot.Player.Level >= 30
-                        && !core.CheckInventory("Elders' Blood", 20)
-                        && Daily.CheckDailyv2(802, true, true, "Elders' Blood")
+                        eldersBloodAvailable
+                        && !Bot.Quests.IsDailyComplete(802)
+                        && !core.CheckInventory("Elders' Blood", 20, toInv: false)
                     )
                     {
+                        UnbankIfOwned("Elders' Blood");
                         SetClass(ClassType.Farm);
                         Daily.EldersBlood();
                     }
@@ -910,42 +915,8 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        // 3. Level 30 + SmartEnhance
-        bool enhancedBracket30 = Bot.Player.Level > 75;
-        if (
-            !RunCooperativeObjective(
-                "BRACKET30_LEVEL_30",
-                () => Bot.Player.Level >= 30 && enhancedBracket30,
-                () =>
-                {
-                    SetClass(ClassType.Farm);
-
-                    string? currentClass = Bot.Player.CurrentClass?.Name;
-                    if (
-                        !enhancedBracket30
-                        || Bot.Inventory.Items.Any(x =>
-                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
-                        )
-                    )
-                    {
-                        LeaveCombatRoomForEquipmentChange();
-                        Adv.SmartEnhance(currentClass ?? string.Empty);
-                        if (!string.IsNullOrWhiteSpace(currentClass))
-                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
-                        enhancedBracket30 = true;
-                    }
-
-                    Farm.Experience(30);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(
-                        targetPlayerName,
-                        compositionType: ClassType.Farm
-                    );
-                }
-            )
-        )
+        // 3. Level 30 + post-level-up SmartEnhance
+        if (!RunBracketLevelAndEnhance("BRACKET30_LEVEL_30", 30))
             return false;
 
         // 4. Master Ranger (Sandsea Rep 10 -> Buy & Rank 10)
@@ -1662,42 +1633,8 @@ public class ArmyFarmerJoeDoAll
         core.Logger("Army FarmerJoe: starting Step 2B (Bracket 50) on all accounts.");
         EnsureBestStaticBoostGearEquipped();
 
-        // 1. Level 50 + SmartEnhance
-        bool enhancedBracket50 = Bot.Player.Level > 75;
-        if (
-            !RunCooperativeObjective(
-                "BRACKET50_LEVEL_50",
-                () => Bot.Player.Level >= 50 && enhancedBracket50,
-                () =>
-                {
-                    SetClass(ClassType.Farm);
-
-                    string? currentClass = Bot.Player.CurrentClass?.Name;
-                    if (
-                        !enhancedBracket50
-                        || Bot.Inventory.Items.Any(x =>
-                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
-                        )
-                    )
-                    {
-                        LeaveCombatRoomForEquipmentChange();
-                        Adv.SmartEnhance(currentClass ?? string.Empty);
-                        if (!string.IsNullOrWhiteSpace(currentClass))
-                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
-                        enhancedBracket50 = true;
-                    }
-
-                    Farm.Experience(50);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(
-                        targetPlayerName,
-                        compositionType: ClassType.Farm
-                    );
-                }
-            )
-        )
+        // 1. Level 50 + post-level-up SmartEnhance
+        if (!RunBracketLevelAndEnhance("BRACKET50_LEVEL_50", 50))
             return false;
 
         // 2. Scarlet Sorceress (ShatterGlassMaze -> TowerOfMirrors -> Blood Sorceress drop -> 1 CP + unequip -> Quest 6236 -> Rank 10)
@@ -1778,7 +1715,7 @@ public class ArmyFarmerJoeDoAll
                         )
                         {
                             LeaveCombatRoomForEquipmentChange();
-                            Adv.SmartEnhance("Blood Sorceress");
+                            EnhanceClassForArmyRespectingGearPolicy("Blood Sorceress", allowFullGearEnhance: false);
                             core.Equip("Blood Sorceress");
                             Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped("Blood Sorceress"), 20);
                         }
@@ -2853,43 +2790,8 @@ public class ArmyFarmerJoeDoAll
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
 
-        // 1. Level 55 + SmartEnhance
-        if (
-            !RunCooperativeObjective(
-                "BRACKET55_LEVEL_55",
-                () => Bot.Player.Level >= 55,
-                () =>
-                {
-                    if (Bot.Player.Level >= 55)
-                        return;
-
-                    SetClass(ClassType.Farm);
-
-                    string? currentClass = Bot.Player.CurrentClass?.Name;
-                    if (
-                        !string.IsNullOrWhiteSpace(currentClass)
-                        && Bot.Inventory.Items.Any(x =>
-                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
-                        )
-                    )
-                    {
-                        LeaveCombatRoomForEquipmentChange();
-                        Adv.SmartEnhance(currentClass);
-                        Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
-                    }
-
-                    Farm.Experience(55);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(
-                        targetPlayerName,
-                        "*",
-                        compositionType: ClassType.Farm
-                    );
-                }
-            )
-        )
+        // 1. Level 55 + post-level-up SmartEnhance
+        if (!RunBracketLevelAndEnhance("BRACKET55_LEVEL_55", 55))
             return false;
 
         // 2. Blaze Binder (Pyromancer -> 1 CP -> DoomWood REP 10 -> Embersea REP 10 -> Blaze Binder Rank 10)
@@ -3088,17 +2990,26 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 3. Cryomancer (Coordinated /frozentower 3907-3937 -> Daily 3966/3965 -> Buy & Rank 10 if acquired)
+        bool HasCryoAnywhere() => core.CheckInventory("Cryomancer", toInv: false);
         bool HasCryo() => HasClassInInventory("Cryomancer");
         bool HasCryoRank10() => HasCryo() && HasRank10Class("Cryomancer");
+        bool cryoDailyAvailable =
+            !HasCryoAnywhere()
+            && (
+                CanRunPeriodicQuest(3966)
+                || (core.IsMember && CanRunPeriodicQuest(3965))
+                || core.CheckInventory("Glacera Ice Token", 84, toInv: false)
+            );
         bool IsCryoDailyDone() =>
-            HasCryo()
+            !cryoDailyAvailable
+            || HasCryoAnywhere()
             || (
-                !Daily.CheckDailyv2(3966, true, true, "Glacera Ice Token")
-                && (!core.IsMember || !Daily.CheckDailyv2(3965, true, true, "Glacera Ice Token"))
-                && !core.CheckInventory("Glacera Ice Token", 84)
+                Bot.Quests.IsDailyComplete(3966)
+                && (!core.IsMember || Bot.Quests.IsDailyComplete(3965))
+                && !core.CheckInventory("Glacera Ice Token", 84, toInv: false)
             );
 
-        if (!RunCoordinatedFrozenTower(HasCryo))
+        if (!RunCoordinatedFrozenTower(HasCryoAnywhere))
             return false;
 
         if (
@@ -3110,8 +3021,29 @@ public class ArmyFarmerJoeDoAll
                     if (IsCryoDailyDone())
                         return;
 
-                    SetClass(ClassType.Farm);
-                    Daily.Cryomancer();
+                    UnbankIfOwned("Glacera Ice Token");
+                    if (!HasCryoAnywhere() && core.CheckInventory("Glacera Ice Token", 84))
+                    {
+                        LeaveCombatRoomForEquipmentChange();
+                        core.BuyItem("frozenruins", 1056, 27525, shopItemID: 2603, index: 1);
+                        Bot.Wait.ForItemBuy();
+                    }
+
+                    if (!HasCryoAnywhere())
+                    {
+                        SetClass(ClassType.Farm);
+                        Daily.Cryomancer();
+
+                        if (!HasCryoAnywhere() && core.CheckInventory("Glacera Ice Token", 84, toInv: false))
+                        {
+                            UnbankIfOwned("Glacera Ice Token");
+                            LeaveCombatRoomForEquipmentChange();
+                            core.BuyItem("frozenruins", 1056, 27525, shopItemID: 2603, index: 1);
+                            Bot.Wait.ForItemBuy();
+                        }
+                    }
+
+                    BankIfPresent("Glacera Ice Token");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -3246,43 +3178,8 @@ public class ArmyFarmerJoeDoAll
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
 
-        // 1. Level 60 + SmartEnhance
-        if (
-            !RunCooperativeObjective(
-                "BRACKET60_LEVEL_60",
-                () => Bot.Player.Level >= 60,
-                () =>
-                {
-                    if (Bot.Player.Level >= 60)
-                        return;
-
-                    SetClass(ClassType.Farm);
-
-                    string? currentClass = Bot.Player.CurrentClass?.Name;
-                    if (
-                        !string.IsNullOrWhiteSpace(currentClass)
-                        && Bot.Inventory.Items.Any(x =>
-                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
-                        )
-                    )
-                    {
-                        LeaveCombatRoomForEquipmentChange();
-                        Adv.SmartEnhance(currentClass);
-                        Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
-                    }
-
-                    Farm.Experience(60);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(
-                        targetPlayerName,
-                        "*",
-                        compositionType: ClassType.Farm
-                    );
-                }
-            )
-        )
+        // 1. Level 60 + post-level-up SmartEnhance
+        if (!RunBracketLevelAndEnhance("BRACKET60_LEVEL_60", 60))
             return false;
 
         // 2. DragonSoul Shinobi (ItemID 59476)
@@ -3518,6 +3415,7 @@ public class ArmyFarmerJoeDoAll
                             isTemp: false,
                             log: false
                         );
+                        LeaveCombatRoomForEquipmentChange();
                         core.EnsureComplete(8736);
                         roundCompleted = true;
                     },
@@ -3761,6 +3659,7 @@ public class ArmyFarmerJoeDoAll
                     if (HasBKO())
                         return;
 
+                    LeaveCombatRoomForEquipmentChange();
                     core.AddDrop("Black Knight Orb");
                     core.EnsureComplete(318);
                     Bot.Wait.ForPickup("Black Knight Orb");
@@ -3784,8 +3683,19 @@ public class ArmyFarmerJoeDoAll
                     if (IsLacerateDone())
                         return;
 
+                    LeaveCombatRoomForEquipmentChange();
                     core.EnsureAccept(8739);
                     core.EnsureComplete(8739);
+
+                    if (IsLacerateDone() && !ShouldPreserveEquippedGear() && !IsDisableAutoEnhanceEnabled())
+                    {
+                        string? currentClass = Bot.Player.CurrentClass?.Name;
+                        if (!string.IsNullOrWhiteSpace(currentClass))
+                        {
+                            Adv.SmartEnhance(currentClass);
+                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+                        }
+                    }
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -3817,43 +3727,8 @@ public class ArmyFarmerJoeDoAll
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
 
-        // 1. Level 65 + SmartEnhance
-        if (
-            !RunCooperativeObjective(
-                "BRACKET65_LEVEL_65",
-                () => Bot.Player.Level >= 65,
-                () =>
-                {
-                    if (Bot.Player.Level >= 65)
-                        return;
-
-                    SetClass(ClassType.Farm);
-
-                    string? currentClass = Bot.Player.CurrentClass?.Name;
-                    if (
-                        !string.IsNullOrWhiteSpace(currentClass)
-                        && Bot.Inventory.Items.Any(x =>
-                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
-                        )
-                    )
-                    {
-                        LeaveCombatRoomForEquipmentChange();
-                        Adv.SmartEnhance(currentClass);
-                        Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
-                    }
-
-                    Farm.Experience(65);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(
-                        targetPlayerName,
-                        "*",
-                        compositionType: ClassType.Farm
-                    );
-                }
-            )
-        )
+        // 1. Level 65 + post-level-up SmartEnhance
+        if (!RunBracketLevelAndEnhance("BRACKET65_LEVEL_65", 65))
             return false;
 
         // 2. Glacial Berserker (ItemID 38084 or 38049)
@@ -6196,6 +6071,97 @@ public class ArmyFarmerJoeDoAll
         }
     }
 
+    private bool IsDisableAutoEnhanceEnabled() =>
+        CoreBots.Instance.CBOBool("DisableAutoEnhance", out bool disabled) && disabled;
+
+    private bool HasEquippedItemBelowCurrentCap()
+    {
+        if (ShouldPreserveEquippedGear() || IsDisableAutoEnhanceEnabled() || Bot.Inventory?.Items == null)
+            return false;
+
+        int cap = Math.Min(Bot.Player.Level, 100);
+        return Bot.Inventory.Items.Any(x =>
+            x != null
+            && x.Equipped
+            && (
+                x.Category == ItemCategory.Class
+                || string.Equals(x.ItemGroup, "Weapon", StringComparison.OrdinalIgnoreCase)
+                || x.Category == ItemCategory.Helm
+                || x.Category == ItemCategory.Cape
+            )
+            && x.EnhancementLevel < cap
+        );
+    }
+
+    private void EnhanceClassForArmyRespectingGearPolicy(string className, bool allowFullGearEnhance)
+    {
+        if (string.IsNullOrWhiteSpace(className) || IsDisableAutoEnhanceEnabled())
+            return;
+
+        InventoryItem? classItem = Bot.Inventory?.Items.FirstOrDefault(i =>
+            i != null
+            && i.Category == ItemCategory.Class
+            && i.Name?.Trim().Equals(className.Trim(), StringComparison.OrdinalIgnoreCase) == true
+        );
+
+        if (!allowFullGearEnhance || ShouldPreserveEquippedGear())
+        {
+            // ForceEnh: true returns right after enhancing an unenhanced Lv 0 class so equipped Weapon/Helm/Cape Forge enhancements stay untouched.
+            if (classItem != null && classItem.EnhancementLevel <= 0)
+                Adv.SmartEnhance(className, ForceEnh: true);
+            return;
+        }
+
+        Adv.SmartEnhance(className);
+    }
+
+    private bool RunBracketLevelAndEnhance(string objectiveName, int targetLevel)
+    {
+        bool enhanceAttempted = ShouldPreserveEquippedGear() || IsDisableAutoEnhanceEnabled();
+        return RunCooperativeObjective(
+            objectiveName,
+            () => Bot.Player.Level >= targetLevel && (enhanceAttempted || !HasEquippedItemBelowCurrentCap()),
+            () =>
+            {
+                if (Bot.Player.Level < targetLevel)
+                {
+                    SetClass(ClassType.Farm);
+                    Farm.Experience(targetLevel);
+                }
+
+                if (
+                    Bot.Player.Level >= targetLevel
+                    && !ShouldPreserveEquippedGear()
+                    && !IsDisableAutoEnhanceEnabled()
+                    && !enhanceAttempted
+                )
+                {
+                    if (HasEquippedItemBelowCurrentCap())
+                    {
+                        SetClass(ClassType.Farm);
+                        string? currentClass = Bot.Player.CurrentClass?.Name;
+                        if (!string.IsNullOrWhiteSpace(currentClass))
+                        {
+                            LeaveCombatRoomForEquipmentChange();
+                            Adv.SmartEnhance(currentClass);
+                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+                        }
+                    }
+
+                    enhanceAttempted = true;
+                }
+            },
+            (targetPlayerNumber, targetPlayerName) =>
+            {
+                Army.CoordinateFollowAndCombat(
+                    targetPlayerName,
+                    "*",
+                    compositionType: ClassType.Farm
+                );
+            }
+        );
+    }
+
     private void RankUpClassForArmy(string className)
     {
         if (string.IsNullOrWhiteSpace(className) || Bot.ShouldExit)
@@ -6207,12 +6173,14 @@ public class ArmyFarmerJoeDoAll
             return;
         }
 
+        bool preserveGear = ShouldPreserveEquippedGear();
+
         // If the class is not yet equipped, step out to /whitemap first so SmartEnhance and Equip
         // cannot be blocked by monster aggro, kill-credit, or party buffs in the room.
         if (!string.Equals(Bot.Player.CurrentClass?.Name, className, StringComparison.OrdinalIgnoreCase))
         {
             LeaveCombatRoomForEquipmentChange();
-            Adv.SmartEnhance(className);
+            EnhanceClassForArmyRespectingGearPolicy(className, allowFullGearEnhance: !preserveGear);
             CoreBots.Instance.Equip(className);
             Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped(className), 20);
         }
@@ -6222,6 +6190,21 @@ public class ArmyFarmerJoeDoAll
         // Start Skua's Advanced Skills Set rotation for the class being ranked up!
         // (Adv.RankUpClass only calls Core.Equip, which does not start Bot.Skills.StartAdvanced!)
         Bot.Skills.StartAdvanced(className, false, ClassUseMode.Base);
+
+        if (preserveGear)
+        {
+            // Adv.RankUpClass calls SmartEnhance(className) internally without ForceEnh, which would overwrite
+            // equipped endgame Forge enhancements on Weapon/Helm/Cape. Farm /icestormarena CP directly instead.
+            if (!HasRank10Class(className))
+            {
+                Farm.ToggleBoost(BoostType.Class);
+                Farm.IcestormArena(Bot.Player.Level, true);
+                CoreBots.Instance.Jump("Enter");
+                Bot.Options.AggroMonsters = false;
+                Farm.ToggleBoost(BoostType.Class, false);
+            }
+            return;
+        }
 
         // Pass gearRestore: false so that when this account hits Rank 10 in /icestormarena while other
         // accounts are still fighting, it doesn't try to restore/re-enhance old gear inside the active combat room!
@@ -7185,6 +7168,12 @@ public class ArmyFarmerJoeDoAll
             CoreBots.Instance.Unbank(inBank);
     }
 
+    private void WaitForDailyRewardPickup(int questId, string rewardName)
+    {
+        if (Bot.Quests.IsDailyComplete(questId))
+            Bot.Wait.ForPickup(rewardName);
+    }
+
     private bool JoinMapVerified(string map, string? cell = null, string? pad = null)
     {
         CoreBots core = CoreBots.Instance;
@@ -7438,8 +7427,7 @@ public class ArmyFarmerJoeDoAll
                 () =>
                 {
                     core.Logger("Weekly: Wheel of Doom [3076/3075]");
-                    if (HasGearForSpin())
-                        core.Unbank("Gear of Doom");
+                    UnbankIfOwned("Gear of Doom");
                     core.AddDrop("Treasure Potion");
                     Daily.WheelofDoom(log: true);
                     BankIfPresent("Gear of Doom", "Treasure Potion");
@@ -7467,7 +7455,7 @@ public class ArmyFarmerJoeDoAll
                     core.KillMonster("boxes", "Closet", "Center", "Sneevil", "Metal Ore", 1, isTemp: true);
                     LeaveCombatRoomForEquipmentChange();
                     core.EnsureComplete(6187);
-                    Bot.Wait.ForPickup("Crypto Token");
+                    WaitForDailyRewardPickup(6187, "Crypto Token");
                     BankIfPresent("Crypto Token");
                 }
             )
@@ -7666,7 +7654,7 @@ public class ArmyFarmerJoeDoAll
                     core.HuntMonster("stalagbite", "Balboa", "Raw Ore", 30, isTemp: true);
                     LeaveCombatRoomForEquipmentChange();
                     core.EnsureComplete(2091, targetMetalId);
-                    Bot.Wait.ForPickup(targetMetalName);
+                    WaitForDailyRewardPickup(2091, targetMetalName);
                     BankIfPresent(targetMetalName, "Axe of the Prospector");
                 }
             )
@@ -7674,7 +7662,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 8c. Daily: ShadowScythe General [3828 F2P / 3827 Mem] (Lvl 50+, fixed F2P handling)
-        bool HasSSG() => HasClassInInventory("ShadowScythe General");
+        bool HasSSG() => core.CheckInventory("ShadowScythe General", toInv: false);
         bool ssgF2PReady = Bot.Player.Level >= 50 && !HasSSG() && CanRunPeriodicQuest(3828);
         bool ssgMemReady = Bot.Player.Level >= 50 && !HasSSG() && core.IsMember && CanRunPeriodicQuest(3827);
         bool canBuySSGNow = !HasSSG() && core.CheckInventory("Shadow Shield", 100, toInv: false);
@@ -7704,7 +7692,7 @@ public class ArmyFarmerJoeDoAll
                         core.HuntMonster("lightguardwar", "Citadel Crusader", "Broken Blade", 1, isTemp: true);
                         LeaveCombatRoomForEquipmentChange();
                         core.EnsureComplete(3828);
-                        Bot.Wait.ForPickup("Shadow Shield");
+                        WaitForDailyRewardPickup(3828, "Shadow Shield");
                     }
 
                     if (ssgMemReady && !Bot.Quests.IsDailyComplete(3827))
@@ -7713,7 +7701,7 @@ public class ArmyFarmerJoeDoAll
                         core.HuntMonster("lightguardwar", "Citadel Crusader", "Broken Blade", 1, isTemp: true);
                         LeaveCombatRoomForEquipmentChange();
                         core.EnsureComplete(3827);
-                        Bot.Wait.ForPickup("Shadow Shield");
+                        WaitForDailyRewardPickup(3827, "Shadow Shield");
                     }
 
                     if (!HasSSG() && core.CheckInventory("Shadow Shield", 100))
@@ -7765,7 +7753,7 @@ public class ArmyFarmerJoeDoAll
                     core.HuntMonster("alteonbattle", "ULTRA Alteon", "Alteon Defeated", 1, isTemp: true);
                     LeaveCombatRoomForEquipmentChange();
                     core.EnsureComplete(3826);
-                    Bot.Wait.ForPickup("Seal of Light");
+                    WaitForDailyRewardPickup(3826, "Seal of Light");
                 }
             )
         )
@@ -7794,7 +7782,7 @@ public class ArmyFarmerJoeDoAll
                     core.HuntMonster("sepulchurebattle", "ULTRA Sepulchure", "Sepulchure Defeated", 1, isTemp: true);
                     LeaveCombatRoomForEquipmentChange();
                     core.EnsureComplete(3825);
-                    Bot.Wait.ForPickup("Seal of Darkness");
+                    WaitForDailyRewardPickup(3825, "Seal of Darkness");
                 }
             )
         )
@@ -7878,7 +7866,7 @@ public class ArmyFarmerJoeDoAll
                     core.KillMonster("mountdoomskull", "b1", "Left", "*", "Chaos Power Increased", 6, isTemp: true);
                     LeaveCombatRoomForEquipmentChange();
                     core.EnsureComplete(3596);
-                    Bot.Wait.ForPickup("Dage's Scroll Fragment");
+                    WaitForDailyRewardPickup(3596, "Dage's Scroll Fragment");
                     BankIfPresent("Dage's Scroll Fragment");
                 }
             )
@@ -8184,6 +8172,7 @@ public class ArmyFarmerJoeDoAll
                     return;
                 }
 
+                LeaveCombatRoomForEquipmentChange();
                 core.EnsureAccept(questId);
                 core.AddDrop(core.QuestRewards(questId));
                 if (chooseItemId > 0)
@@ -8191,7 +8180,6 @@ public class ArmyFarmerJoeDoAll
                     Bot.Drops.Add(chooseItemId);
                     core.EnsureComplete(questId, chooseItemId);
                     Bot.Wait.ForPickup(chooseItemId);
-                    core.EnsureCompleteChoose(questId);
                     BankQuestExtras(questId, "Lord of Order");
                 }
                 else
@@ -8261,18 +8249,30 @@ public class ArmyFarmerJoeDoAll
             core.AddDrop(core.QuestRewards(7156));
 
         if (
-            !RunCoordinatedTurnInStep(
+            !RunCoordinatedCombatStep(
+                "BRACKET65_LOO_7156_GOLD",
+                () => nextQuestId != 7156 || core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false) || Bot.Player.Gold >= 1000000,
+                () => nextQuestId != 7156 || core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false) || Bot.Player.Gold >= 1000000,
+                "*",
+                ClassType.Farm,
+                () =>
+                {
+                    if (Bot.Player.Gold < 1000000)
+                    {
+                        Farm.Gold(1000000);
+                        _syncedClassType = ClassType.None;
+                        SetClass();
+                    }
+                }
+            )
+            || !RunCoordinatedTurnInStep(
                 "BRACKET65_LOO_7156_SHOPS",
                 () => nextQuestId != 7156 || core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false),
                 () => nextQuestId != 7156 || core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false),
                 () =>
                 {
-                    if (!core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false))
-                    {
-                        Farm.Gold(1000000);
-                        LeaveCombatRoomForEquipmentChange();
+                    if (!core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false) && Bot.Player.Gold >= 1000000)
                         core.BuyItem("dreadrock", 1221, "Dreadrock Donation Receipt");
-                    }
                 }
             )
             || !RunLoODay1Stories(core, () => nextQuestId == 7156)
@@ -8365,19 +8365,30 @@ public class ArmyFarmerJoeDoAll
         // Day 3 [7158]: Purification of Chaos
         if (
             !RunCoordinatedCombatStep(
+                "BRACKET65_LOO_7158_GOLD",
+                () => nextQuestId != 7158 || core.CheckInventory("Chaoroot", 15, toInv: false) || Bot.Player.Gold >= 500000,
+                () => nextQuestId != 7158 || core.CheckInventory("Chaoroot", 15, toInv: false) || Bot.Player.Gold >= 500000,
+                "*",
+                ClassType.Farm,
+                () =>
+                {
+                    if (Bot.Player.Gold < 500000)
+                    {
+                        Farm.Gold(500000);
+                        _syncedClassType = ClassType.None;
+                        SetClass();
+                    }
+                }
+            )
+            || !RunCoordinatedTurnInStep(
                 "BRACKET65_LOO_7158_CHAOROOT",
                 () => nextQuestId != 7158 || core.CheckInventory("Chaoroot", 15, toInv: false),
                 () => nextQuestId != 7158 || core.CheckInventory("Chaoroot", 15, toInv: false),
-                "*",
-                ClassType.Solo,
                 () =>
                 {
                     UnbankIfOwned("Chaoroot");
-                    if (!core.CheckInventory("Chaoroot", 15))
-                    {
-                        Farm.Gold(500000);
+                    if (!core.CheckInventory("Chaoroot", 15) && Bot.Player.Gold >= 500000)
                         Adv.BuyItem("tercessuinotlim", 1951, "Chaoroot", 15);
-                    }
                 }
             )
             || !RunLoOQuestMultiHunt(
@@ -8576,9 +8587,13 @@ public class ArmyFarmerJoeDoAll
                     UnbankIfOwned("Quixotic Mana Essence");
                     core.AddDrop("Quixotic Mana Essence");
                     core.EnsureAccept(7164);
-                    Adv.GearStore(EnhAfter: true);
+                    bool enhAfterRestore = !ShouldPreserveEquippedGear();
+                    Adv.GearStore(EnhAfter: enhAfterRestore);
                     core.KillXiang("Quixotic Mana Essence", 10, true);
-                    Adv.GearStore(true, EnhAfter: true);
+                    LeaveCombatRoomForEquipmentChange();
+                    Adv.GearStore(true, EnhAfter: enhAfterRestore);
+                    _syncedClassType = ClassType.None;
+                    SetClass();
                 }
             )
             || !RunCoordinatedHuntStep("BRACKET65_LOO_7164_SEREPTHYS", 7164, "yasaris", "Serepthys", "Inversion Infusion", 5, role: ClassType.Solo, isEnabled: () => nextQuestId == 7164)
@@ -8707,12 +8722,360 @@ public class ArmyFarmerJoeDoAll
                 core.AddDrop("Void Aura", "(Necro) Scroll of Dark Arts");
                 core.EnsureAccept(8653);
                 core.EnsureComplete(8653);
-                Bot.Wait.ForPickup("Void Aura");
+                WaitForDailyRewardPickup(8653, "Void Aura");
                 BankIfPresent("Void Aura", "(Necro) Scroll of Dark Arts");
             }
         );
     }
     #endregion Approved Dailies, Weeklies & Future NSoD Daily
+
+    #region Farmer Joe Optional Cosmetics & Cleanup
+    private static readonly string[] StarterClassesToSell =
+    {
+        "Warrior",
+        "Mage",
+        "Rogue",
+        "Healer",
+    };
+
+    private string ResolveSelectedOutfitPetName()
+    {
+        PetChoice choice = Bot.Config?.Get<PetChoice>("PetChoice") ?? PetChoice.None;
+        return choice switch
+        {
+            PetChoice.HotMama => "Hot Mama",
+            PetChoice.Akriloth => "Akriloth Pet",
+            _ => string.Empty,
+        };
+    }
+
+    private List<string> GetSellableStarterClassNames()
+    {
+        string currentClass = Bot.Player?.CurrentClass?.Name?.Trim() ?? string.Empty;
+        string activeBossClass = ResolveClass(GetRoleBossPool());
+        string activeFarmClass = ResolveClass(GetRoleFarmPool());
+
+        var ownedByName = new Dictionary<string, InventoryItem>(StringComparer.OrdinalIgnoreCase);
+        foreach (InventoryItem item in EnumerateOwnedInventoryAndBankItems())
+        {
+            if (
+                item.Category == ItemCategory.Class
+                && !string.IsNullOrWhiteSpace(item.Name)
+                && !ownedByName.ContainsKey(item.Name.Trim())
+            )
+            {
+                ownedByName[item.Name.Trim()] = item;
+            }
+        }
+
+        bool keepHealerFallback =
+            !ownedByName.ContainsKey("Lord of Order")
+            && !ownedByName.ContainsKey("ArchPaladin")
+            && !ownedByName.ContainsKey("StoneCrusher")
+            && !ownedByName.ContainsKey("Oracle");
+
+        var result = new List<string>();
+        foreach (string starterClass in StarterClassesToSell)
+        {
+            if (!ownedByName.TryGetValue(starterClass, out InventoryItem? item))
+                continue;
+
+            // Keep AC/0-AC classes, currently equipped class, and any active role or support fallback class.
+            if (item.Coins || item.Equipped)
+                continue;
+
+            if (
+                string.Equals(starterClass, currentClass, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(starterClass, activeBossClass, StringComparison.OrdinalIgnoreCase)
+                || string.Equals(starterClass, activeFarmClass, StringComparison.OrdinalIgnoreCase)
+                || (
+                    keepHealerFallback
+                    && string.Equals(starterClass, "Healer", StringComparison.OrdinalIgnoreCase)
+                )
+            )
+            {
+                continue;
+            }
+
+            bool inInventory =
+                Bot.Inventory?.Items?.Any(inv =>
+                    inv != null
+                    && inv.Category == ItemCategory.Class
+                    && string.Equals(inv.Name?.Trim(), starterClass, StringComparison.OrdinalIgnoreCase)
+                ) == true;
+            if (!inInventory && CoreBots.Instance.InventoryBagFreeSlots <= 0)
+                continue;
+
+            result.Add(item.Name!.Trim());
+        }
+
+        return result;
+    }
+
+    /// <summary>
+    /// Sells superseded non-AC starter classes when <c>SellStarterClasses</c> is enabled,
+    /// preserving equipped, AC-tagged, rare, and active Army role classes.
+    /// </summary>
+    public bool RunSellStarterClasses()
+    {
+        CoreBots core = CoreBots.Instance;
+        ApplyArmyRoomSettings();
+
+        bool sellEnabled = Bot.Config?.Get<bool>("SellStarterClasses") ?? false;
+        bool sellAttempted = false;
+
+        return RunCoordinatedTurnInStep(
+            "FARMERJOE_SELL_STARTER_CLASSES",
+            () => !sellEnabled || GetSellableStarterClassNames().Count == 0,
+            () => !sellEnabled || sellAttempted || GetSellableStarterClassNames().Count == 0,
+            () =>
+            {
+                sellAttempted = true;
+                if (!sellEnabled)
+                    return;
+
+                List<string> toSell = GetSellableStarterClassNames();
+                if (toSell.Count == 0)
+                    return;
+
+                LeaveCombatRoomForEquipmentChange();
+                foreach (string className in toSell)
+                {
+                    if (Bot.ShouldExit)
+                        return;
+
+                    UnbankIfOwned(className);
+                    if (core.CheckInventory(className, toInv: true))
+                    {
+                        core.Logger($"SellStarterClasses: selling superseded starter class \"{className}\".");
+                        core.SellItem(className);
+                    }
+                }
+            }
+        );
+    }
+
+    private bool AcquireOutfitPetStep(
+        string objectiveName,
+        string expectedPetName,
+        string activePetName,
+        string map,
+        string monster
+    )
+    {
+        CoreBots core = CoreBots.Instance;
+        bool IsDone() =>
+            !string.Equals(activePetName, expectedPetName, StringComparison.OrdinalIgnoreCase)
+            || core.CheckInventory(expectedPetName, toInv: false);
+
+        return RunCoordinatedCombatStep(
+            objectiveName,
+            IsDone,
+            IsDone,
+            monster,
+            ClassType.Solo,
+            () =>
+            {
+                if (IsDone())
+                    return;
+
+                core.Logger($"FarmerJoe Pet: hunting {monster} in /{map} for \"{expectedPetName}\".");
+                core.AddDrop(expectedPetName);
+                core.HuntMonster(map, monster, expectedPetName, isTemp: false, log: false);
+                Bot.Wait.ForPickup(expectedPetName);
+            }
+        );
+    }
+
+    /// <summary>
+    /// Handles the optional <c>OutFit</c>, <c>EquipOutfit</c>, and <c>PetChoice</c> objectives
+    /// at the end of progression while respecting gear preservation policies.
+    /// </summary>
+    public bool RunFarmerJoeOutfit()
+    {
+        CoreBots core = CoreBots.Instance;
+        ApplyArmyRoomSettings();
+
+        bool getOutfit = Bot.Config?.Get<bool>("OutFit") ?? false;
+        bool equipOutfit = Bot.Config?.Get<bool>("EquipOutfit") ?? false;
+        string petName = ResolveSelectedOutfitPetName();
+        bool hasPetSelection = !string.IsNullOrEmpty(petName);
+
+        bool NeedSynderesSouvenir() =>
+            getOutfit
+            && !core.CheckInventory("NO BOTS Armor", toInv: false)
+            && !core.CheckInventory("Synderes' Souvenir", toInv: false);
+
+        if (
+            !RunCoordinatedCombatStep(
+                "FARMERJOE_OUTFIT_SYNDERES_SOUVENIR",
+                () => !NeedSynderesSouvenir(),
+                () => !NeedSynderesSouvenir(),
+                "Evil Elemental",
+                ClassType.Farm,
+                () =>
+                {
+                    if (!NeedSynderesSouvenir())
+                        return;
+
+                    core.Logger("FarmerJoe Outfit: farming \"Synderes' Souvenir\" [4247] in /enemyforest.");
+                    core.AddDrop("Synderes' Souvenir");
+                    core.EnsureAccept(4247);
+                    core.HuntMonster("enemyforest", "Evil Elemental", "Forest Denizen Slain", 5, isTemp: true);
+                    LeaveCombatRoomForEquipmentChange();
+                    core.EnsureComplete(4247);
+                    Bot.Wait.ForPickup("Synderes' Souvenir");
+                }
+            )
+        )
+            return false;
+
+        bool buyAttempted = false;
+        bool NeedShirtOrHat() =>
+            getOutfit
+            && (
+                !core.CheckInventory("NO BOTS Armor", toInv: false)
+                || !core.CheckInventory("Scarecrow Hat", toInv: false)
+            );
+
+        if (
+            !RunCoordinatedTurnInStep(
+                "FARMERJOE_OUTFIT_SHIRT_AND_HAT",
+                () => !NeedShirtOrHat(),
+                () => buyAttempted || !NeedShirtOrHat(),
+                () =>
+                {
+                    buyAttempted = true;
+                    if (!NeedShirtOrHat())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    if (!core.CheckInventory("NO BOTS Armor", toInv: false))
+                    {
+                        UnbankIfOwned("Synderes' Souvenir");
+                        if (core.CheckInventory("Synderes' Souvenir", toInv: true) && Bot.Player.Gold >= 1000)
+                        {
+                            core.Logger("FarmerJoe Outfit: buying \"NO BOTS Armor\" in /enemyforest (Shop 332).");
+                            Adv.BuyItem("enemyforest", 332, "NO BOTS Armor");
+                            Bot.Wait.ForItemBuy();
+                        }
+                        else
+                        {
+                            core.Logger("FarmerJoe Outfit: skipping \"NO BOTS Armor\" purchase (missing souvenir or 1,000 Gold).");
+                        }
+                    }
+
+                    if (!core.CheckInventory("Scarecrow Hat", toInv: false))
+                    {
+                        if (Bot.Player.Gold >= 1000)
+                        {
+                            core.Logger("FarmerJoe Outfit: buying \"Scarecrow Hat\" in /yulgar (Shop 16).");
+                            Adv.BuyItem("yulgar", 16, "Scarecrow Hat");
+                            Bot.Wait.ForItemBuy();
+                        }
+                        else
+                        {
+                            core.Logger("FarmerJoe Outfit: skipping \"Scarecrow Hat\" purchase (requires 1,000 Gold).");
+                        }
+                    }
+                }
+            )
+        )
+            return false;
+
+        bool NeedServerIsDown() => getOutfit && !core.CheckInventory("The Server is Down", toInv: false);
+
+        if (
+            !RunCoordinatedCombatStep(
+                "FARMERJOE_OUTFIT_SERVERS_ARE_DOWN",
+                () => !NeedServerIsDown(),
+                () => !NeedServerIsDown(),
+                "Rabid Server Hamster",
+                ClassType.Solo,
+                () =>
+                {
+                    if (!NeedServerIsDown())
+                        return;
+
+                    core.Logger("FarmerJoe Outfit: hunting Rabid Server Hamster in /undergroundlabb for \"The Server is Down\".");
+                    core.AddDrop("The Server is Down");
+                    core.HuntMonster("undergroundlabb", "Rabid Server Hamster", "The Server is Down", isTemp: false, log: false);
+                    Bot.Wait.ForPickup("The Server is Down");
+                }
+            )
+        )
+            return false;
+
+        if (!AcquireOutfitPetStep("FARMERJOE_PET_HOT_MAMA", "Hot Mama", petName, "battleundere", "Hot Mama"))
+            return false;
+
+        if (!AcquireOutfitPetStep("FARMERJOE_PET_AKRILOTH", "Akriloth Pet", petName, "gravestrike", "Ultra Akriloth"))
+            return false;
+
+        bool equipAttempted = false;
+        bool wantAnyEquip = equipOutfit || hasPetSelection;
+
+        return RunCoordinatedTurnInStep(
+            "FARMERJOE_EQUIP_OUTFIT",
+            () => !wantAnyEquip,
+            () => !wantAnyEquip || equipAttempted,
+            () =>
+            {
+                equipAttempted = true;
+                if (!wantAnyEquip)
+                    return;
+
+                if (ShouldPreserveEquippedGear())
+                {
+                    core.Logger(
+                        "FarmerJoe Outfit: preserving pre-equipped gear/pet on this account per BoostGearPolicy / KeepEquippedGearPlayers / DisableBestGear."
+                    );
+                    return;
+                }
+
+                var itemsToEquip = new List<string>();
+                if (equipOutfit)
+                {
+                    string[] outfitCandidates =
+                    {
+                        "NO BOTS Armor",
+                        "Scarecrow Hat",
+                        "The Server is Down",
+                        "Hollowborn Reaper's Scythe",
+                    };
+                    foreach (string itemName in outfitCandidates)
+                    {
+                        if (core.CheckInventory(itemName, toInv: false))
+                            itemsToEquip.Add(itemName);
+                    }
+                }
+
+                if (hasPetSelection && core.CheckInventory(petName, toInv: false))
+                    itemsToEquip.Add(petName);
+
+                if (itemsToEquip.Count == 0)
+                    return;
+
+                LeaveCombatRoomForEquipmentChange();
+                UnbankIfOwned(itemsToEquip.ToArray());
+                string[] invItems = itemsToEquip
+                    .Where(itemName => core.CheckInventory(itemName, toInv: true))
+                    .ToArray();
+                if (invItems.Length > 0)
+                {
+                    core.Logger($"FarmerJoe Outfit: equipping {string.Join(", ", invItems)}.");
+                    core.Equip(invItems);
+                }
+
+                if (equipOutfit && !IsDisableAutoEnhanceEnabled())
+                {
+                    string currentClass = Bot.Player?.CurrentClass?.Name ?? string.Empty;
+                    EnhanceClassForArmyRespectingGearPolicy(currentClass, allowFullGearEnhance: true);
+                }
+            }
+        );
+    }
+    #endregion Farmer Joe Optional Cosmetics & Cleanup
 
     public bool RunCooperativeObjective(
         string objectiveName,

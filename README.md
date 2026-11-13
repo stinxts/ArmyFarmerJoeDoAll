@@ -28,11 +28,14 @@ A multi-account cooperative progression automation framework designed for synchr
 * **Smart Helper Support Hand-Off:**
   * During group class rank-up steps, the first account to reach Rank 10 temporarily switches to a backup Support role to heal and shield teammates still finishing.
   * Dedicated support accounts preserve their own support class while helping, and temporary helpers revert back to their normal role once the main supports take over.
-* **Safe Equipment Swapping & Inventory-Only Checks:**
-  * Checks owned classes directly from inventory without wasting time opening or searching the bank.
-  * Automatically steps into a safe non-combat room before swapping classes, buying items from shops, enhancing gear, or starting farm sessions, then applies each class's built-in skill rotation automatically.
-* **Mandatory Private Room Setup:**
+* **Safe Equipment Swapping, Boost Gear Policy & Inventory/Bank Awareness:**
+  * Active role switching (`SetClass`) selects classes directly from inventory while boost gear, daily/weekly reagents, and acquisition checks inspect both inventory and bank when needed.
+  * Configurable `BoostGearPolicy` (`UpgradeIfBetter` / `KeepEquippedGear`), `KeepEquippedGearPlayers` (by Army slot or username), and per-account Skua CBO `DisableBestGear` prevent overwriting superior pre-equipped endgame gear or Forge enhancements.
+  * Preserves classic Farmer Joe options (`OutFit`, `EquipOutfit`, `PetChoice`, and `SellStarterClasses`) with Army coordination and gear-preservation checks.
+  * Automatically steps into a safe non-combat room before swapping classes, turning in combat quests, buying shop items, enhancing gear, or starting farm sessions, then applies each class's built-in skill rotation automatically.
+* **Mandatory Private Room Setup & Subgroup Room Splitting:**
   * Defaults the shared room number to `"00000"` so every user must enter a valid private room number before starting, keeping the entire group in the same private instance.
+  * Automatically splits the Army into 3-player subgroup private instances on `/dragonkoiz` during the `Yokai` reputation grind so accounts beyond the 3-player map cap never collide.
 
 ---
 
@@ -45,18 +48,19 @@ A multi-account cooperative progression automation framework designed for synchr
    * Level 25 + coordinated prerequisite quests + `NIN` + Rank 10.
    * Starter AoE class (`MAG`) + Rank 10 + initial party role assignment.
 2. **Stage 2A (Bracket 30):**
-   * Daily reagent check and optional boost collection.
-   * Level 30 + full gear enhancement update.
-   * **Tier-1 Class Lineup:** Coordinated reputation grinds, prerequisite questlines, purchases, and Rank 10 for `MR` (AoE/Ranged), `DS` (Solo DPS), `IC` (Debuffer), `SHM` (Magic Amp), and `ES` (Sub-Support).
-   * **Early Enhancements:** Weapon special enhancement questline + reputation unlock, and base helm enhancement via profession rank and coordinated boss chain.
+   * Daily reagent check (`Elders' Blood`), approved Weeklies (`Read the Design Notes!`, `Wheel of Doom`), approved Daily (`Odd's 'n' Ends`), and optional boost collection (`GetBoosts`).
+   * Level 30 + post-level-up gear enhancement update.
+   * **Tier-1 Class Lineup:** Coordinated reputation grinds (with 3-player `/dragonkoiz` subgroup splitting for Yokai), prerequisite questlines, purchases, and Rank 10 for `MR` (AoE/Ranged), `DS` (Solo DPS), `IC` (Debuffer), `SHM` (Magic Amp), and `ES` (Sub-Support).
+   * **Early Enhancements & Boost Gear:** `Blade of Awe` reputation + `Awethur's Accoutrements` (static +25% CP/EXP/Gold/Rep boost gear sync via `BoostGearPolicy`) and base `Forge (Helm)` enhancement via profession rank and coordinated boss chain.
 3. **Stage 2B (Bracket 50):**
-   * Level 50 + gear enhancement update.
-   * Coordinated multi-boss storyline progression unlocking mid-game upgrades.
-   * **Tier-2 Upgrades:** Coordinated drop/upgrade questline for `SS` (Rank 10), gold/material farming for `DSG` (Rank 10), and a +15% all-damage boost weapon.
+   * Level 50 + post-level-up gear enhancement update.
+   * Coordinated multi-boss storyline progression (`ShatterGlassMaze` / `TowerOfMirrors`) unlocking mid-game upgrades.
+   * **Tier-2 Upgrades:** Coordinated drop/upgrade questline for `SS` (Rank 10), gold/material farming for `DSG` (Rank 10), and a +15% all-damage boost weapon (`Burning Blade`, paired with `Awethur's Accoutrements` or best owned static boost gear).
+   * **Approved Bracket 50 Dailies:** `Mine Crafting` (`[2091]` for DoomWood Rep + metals) and `ShadowScythe General` (`[3828]/[3827]` daily tokens & class unlock).
 4. **Stage 2C (Brackets 55, 60, and 65):**
-   * **Bracket 55:** Level 55 + gear updates, token-based prerequisite class & dual reputations for `BB` (Rank 10), coordinated tower storyline & daily tokens for `CRYO` (Rank 10 when unlocked), and coordinated war storyline + reputation for `ARA` (Rank 10).
-   * **Bracket 60:** Level 60 + gear updates, coordinated island storyline & boss tokens for `DSS` (Rank 10), and mid-game weapon proc enhancement unlocked through coordinated profession reputation rounds and boss drops.
-   * **Bracket 65:** Level 65 + gear updates, coordinated winter storyline & reputation for `GB` (acquired and ranked to Rank 10 when its seasonal shop is active).
+   * **Bracket 55:** Level 55 + post-level-up gear updates, token-based prerequisite class & dual reputations for `BB` (Rank 10), coordinated tower storyline & daily tokens for `CRYO` (Rank 10 when unlocked), coordinated war storyline + reputation for `ARA` (Rank 10), `Cape of Awe` (+25% CP/EXP/Gold/Rep from Binky in `/doomvault r5`), and approved Dailies (`Seal of Light` `[3826]` + `Seal of Darkness` `[3825]` toward `Bright Knight`).
+   * **Bracket 60:** Level 60 + post-level-up gear updates, coordinated island storyline & boss tokens for `DSS` (Rank 10), and `Lacerate` Forge weapon enhancement (`[8739]`) unlocked through coordinated `Blacksmithing` Rank 5 rounds (`[8736]`) and boss drops (`Black Knight Orb`).
+   * **Bracket 65:** Level 65 + post-level-up gear updates, coordinated winter storyline & reputation for `GB` (acquired and ranked to Rank 10 when its seasonal shop is active), plus approved Dailies (`Embrace Your Chaos` `[3596]` + the 10-day `Lord of Order` progression chain `[7156–7165]` & Rank 10), followed by optional `SellStarterClasses` cleanup and `OutFit` / `EquipOutfit` / `PetChoice` acquisition & equip.
 
 ---
 
@@ -71,7 +75,7 @@ A multi-account cooperative progression automation framework designed for synchr
 | **Stage 1 (Lv 1–30)** | `NIN` | `ORA` | `ROG` | `MAG` | `ORA` / `HLR` | `ORA` / `HLR` | `NIN` / `ORA` |
 | **Stage 2A (Bracket 30)** | `DS` | `ORA` | `IC` | `SHM` | `ES` | `MR` | `NIN` |
 | **Stage 2B (Bracket 50)** | `DSG` | `ORA` | `IC` | `SHM` | `ES` | `SS` | `NIN` |
-| **Stage 2C (Brackets 55–65)** | `CRYO` / `DSG` | `ORA` | `IC` | `ARA` | `GB` / `ES` | `SS` | `DSS` |
+| **Stage 2C (Brackets 55–65)** | `CRYO` / `DSG` | `ORA` | `IC` | `LoO` / `ARA` | `GB` / `ES` | `SS` | `DSS` |
 | **Target Endgame (Planned Lv 70–100)** | `KE` / `AI` / `CAV` / `VHL` / `DOT` | `SC` | `AP` | `LoO` | `VDK` / `GB` / `ES` | `AF` / `SS` | `YNR` / `DSS` |
 
 ---

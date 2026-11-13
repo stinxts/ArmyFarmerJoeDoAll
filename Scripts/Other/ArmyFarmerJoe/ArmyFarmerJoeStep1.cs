@@ -55,6 +55,12 @@ public class ArmyFarmerJoeStep1
             if (!Harness.RunBracket65())
                 return;
 
+            if (!Harness.RunSellStarterClasses())
+                return;
+
+            if (!Harness.RunFarmerJoeOutfit())
+                return;
+
             if (Harness.IsPlayer(1))
             {
                 if (Harness.StopArmySync("STEP2C_COMPLETE"))

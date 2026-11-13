@@ -6379,13 +6379,14 @@ public class CoreArmyFJ
         Bot.Wait.ForCombatExit(20);
 
         // 3. Ensure the class is enhanced before equipping (an unenhanced class has 0 stats and fails RankUp/Combat).
+        // Pass ForceEnh: true so CoreAdvanced enhances only the unenhanced class and returns before touching equipped Forge/Awe gear.
         if (
             Bot.Inventory.TryGetItem(targetClass, out InventoryItem? classItem)
             && classItem != null
             && classItem.EnhancementLevel <= 0
         )
         {
-            Adv.SmartEnhance(targetClass);
+            Adv.SmartEnhance(targetClass, ForceEnh: true);
         }
 
         // 4. Equip the class and start its Advanced Skills rotation.
