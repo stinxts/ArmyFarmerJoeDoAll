@@ -138,6 +138,8 @@ public class ArmyFarmerJoeDoAll
         return Army.StartArmySync(syncFileName, playerCount);
     }
 
+    private int _activeSubgroupMaxPlayers;
+
     private int GetLocalPlayerNumber()
     {
         if (Army.ArmyPlayerNumber > 0)
@@ -160,7 +162,7 @@ public class ArmyFarmerJoeDoAll
         return (GetLocalPlayerNumber() - 1) / maxPlayersPerRoom;
     }
 
-    private bool ApplyArmyRoomSettings(int roomOffset = 0)
+    private bool ApplyRoomSettingsWithOffset(int roomOffset)
     {
         const int MinRoom = 1001;
         const int MaxRoom = 99999;
@@ -182,8 +184,20 @@ public class ArmyFarmerJoeDoAll
         return true;
     }
 
-    private bool ApplySubgroupRoomSettings(int maxPlayersPerRoom) =>
-        ApplyArmyRoomSettings(GetSubgroupRoomIndex(maxPlayersPerRoom));
+    private bool ApplyArmyRoomSettings()
+    {
+        _activeSubgroupMaxPlayers = 0;
+        return ApplyRoomSettingsWithOffset(0);
+    }
+
+    private bool ApplySubgroupRoomSettings(int maxPlayersPerRoom)
+    {
+        _activeSubgroupMaxPlayers = Math.Max(0, maxPlayersPerRoom);
+        return ApplyCurrentArmyRoomSettings();
+    }
+
+    private bool ApplyCurrentArmyRoomSettings() =>
+        ApplyRoomSettingsWithOffset(GetSubgroupRoomIndex(_activeSubgroupMaxPlayers));
 
     public bool RunLevel1To30()
     {
@@ -1090,7 +1104,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         core.Logger(
-            $"Level 30: /dragonkoiz capped at {DragonkoiMaxPlayers} players; subgroup {GetSubgroupRoomIndex(DragonkoiMaxPlayers) + 1} using private room {core.PrivateRoomNumber}."
+            $"Level 30: /dragonkoiz capped at {DragonkoiMaxPlayers} players; Player {GetLocalPlayerNumber()} (subgroup {GetSubgroupRoomIndex(DragonkoiMaxPlayers) + 1}) using private room {core.PrivateRoomNumber}."
         );
 
         try
@@ -6067,7 +6081,7 @@ public class ArmyFarmerJoeDoAll
             core.ReadCBO();
             _cboInitialized = true;
         }
-        ApplyArmyRoomSettings();
+        ApplyCurrentArmyRoomSettings();
 
         // Always use the standard Base mode from Skua's Advanced Skills Set
         core.SoloUseMode = ClassUseMode.Base;
