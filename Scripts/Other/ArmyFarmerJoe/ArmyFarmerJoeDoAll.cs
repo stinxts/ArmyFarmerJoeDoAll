@@ -27,36 +27,6 @@ public class ArmyFarmerJoeDoAll
     private static readonly Lair Lair = new();
     private static readonly FreeBoosts Boosts = new();
 
-    private static readonly string[] HighTierSoloClasses =
-    {
-        "King's Echo",
-        "Chaos Avenger",
-        "Void Highlord",
-        "Dragon of Time",
-        "ArchPaladin",
-        "Lord of Order",
-        "Cryomancer",
-        "Dragonslayer General",
-        "Glacial Berserker",
-        "Dragonslayer",
-        "DragonSoul Shinobi",
-        "Rogue",
-        "Healer",
-    };
-
-    private static readonly string[] HighTierFarmClasses =
-    {
-        "ArchMage",
-        "Dragon of Time",
-        "Archfiend",
-        "Blaze Binder",
-        "Scarlet Sorceress",
-        "Pyromancer",
-        "Shaman",
-        "Imperial Chunin",
-        "Master Ranger",
-    };
-
     private const int Rank10ClassPoints = 302500;
 
     public enum PetChoice
@@ -204,27 +174,6 @@ public class ArmyFarmerJoeDoAll
 
     private bool RunBeginnerItems()
     {
-        bool hasHighTier =
-            CoreBots.Instance.CheckInventory(HighTierSoloClasses, any: true, toInv: false)
-            && CoreBots.Instance.CheckInventory(HighTierFarmClasses, any: true, toInv: false);
-
-        bool hasBothRank10Beginners =
-            CoreBots.Instance.CheckInventory(
-                new[] { "Assassin", "Ninja Warrior", "Ninja" },
-                any: true,
-                toInv: false
-            )
-            && HasRank10Class("Ninja")
-            && CoreBots.Instance.CheckInventory(
-                new[] { "Mage (Rare)", "Mage" },
-                any: true,
-                toInv: false
-            )
-            && HasRank10Class("Mage")
-            && Bot.Player.Level >= 30;
-
-        bool skipBeginnerItems = hasHighTier || hasBothRank10Beginners;
-
         if (
             !RunCooperativeObjective(
                 "BEGINNER_INITIAL_CHECK",
@@ -235,25 +184,16 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        if (skipBeginnerItems)
-        {
-            CoreBots.Instance.Logger(
-                "Account is level 30+ with beginner classes or has high-tier classes. Acting as helper for accounts still progressing."
-            );
-        }
-        else
-        {
-            CoreBots.Instance.Logger(
-                "Account is progressing beginner items; running with Army synchronization."
-            );
-        }
+        CoreBots.Instance.Logger(
+            "Running Step 1 (Level 1-30) with strict per-step verification on all accounts."
+        );
 
         // 1. Tutorial badges
         bool tutorialComplete = false;
         if (
             !RunCooperativeObjective(
                 "BEGINNER_TUTORIAL",
-                () => skipBeginnerItems || tutorialComplete,
+                () => tutorialComplete,
                 () =>
                 {
                     Tutorial.Badges();
@@ -339,7 +279,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BEGINNER_BASIC_EQUIPMENT",
-                () => skipBeginnerItems || basicEquipmentComplete,
+                () => basicEquipmentComplete,
                 equipBasicItems,
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -350,13 +290,46 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
+        // 2b. Oracle (free 0 AC Healer/Support class in /classhalla shop 299 — bought early so Player 2 can heal from Level 1!)
+        bool HasOracle() => CoreBots.Instance.CheckInventory("Oracle", toInv: false);
+        bool HasOracleRank10() => HasOracle() && HasRank10Class("Oracle");
+
+        if (
+            !RunCooperativeObjective(
+                "BEGINNER_ORACLE_BUY",
+                HasOracle,
+                () =>
+                {
+                    if (HasOracle())
+                        return;
+
+                    CoreBots.Instance.Logger("Getting Starter Support/Healer class (Oracle - 0 AC)");
+                    CoreBots.Instance.BuyItem("classhalla", 299, "Oracle");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        SetClass();
+
         // 3. Level 10
-        CoreBots.Instance.Logger("Starting out acc:\n\tGoals: Ninja class & Mage Class");
+        CoreBots.Instance.Logger("Starting out acc:\n\tGoals: Oracle, Ninja & Mage Classes");
         if (
             !RunCooperativeObjective(
                 "BEGINNER_LEVEL_10",
-                () => skipBeginnerItems || Bot.Player.Level >= 10,
-                () => Farm.Experience(10),
+                () => Bot.Player.Level >= 10,
+                () =>
+                {
+                    if (Bot.Player.Level >= 10)
+                        return;
+
+                    Farm.Experience(10);
+                },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
                     Army.CoordinateFollowAndCombat(targetPlayerName, "Bone Berserker");
@@ -364,6 +337,28 @@ public class ArmyFarmerJoeDoAll
             )
         )
             return false;
+
+        // 3b. Rank Oracle to 10 right after Level 10 so our Healer is full power for Rogue/Ninja/Mazumi
+        if (
+            !RunCooperativeObjective(
+                "BEGINNER_ORACLE_RANK_10",
+                HasOracleRank10,
+                () =>
+                {
+                    if (HasOracleRank10())
+                        return;
+
+                    RankUpClassForArmy("Oracle");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        SetClass();
 
         // 4. Rogue
         CoreBots.Instance.Logger("Getting Started: Beginner Levels/Equipment");
@@ -377,7 +372,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BEGINNER_ROGUE",
-                () => skipBeginnerItems || HasRogue(),
+                HasRogue,
                 () =>
                 {
                     if (HasRogue())
@@ -412,7 +407,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BEGINNER_NINJA_RANK_ROGUE",
-                () => skipBeginnerItems || HasNinja() || HasRank10Rogue(),
+                () => HasNinja() || HasRank10Rogue(),
                 () =>
                 {
                     if (HasNinja() || HasRank10Rogue())
@@ -422,7 +417,7 @@ public class ArmyFarmerJoeDoAll
                     string rogueClass = CoreBots.Instance.CheckInventory("Rogue (Rare)", toInv: false)
                         ? "Rogue (Rare)"
                         : "Rogue";
-                    Adv.RankUpClass(rogueClass);
+                    RankUpClassForArmy(rogueClass);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -436,10 +431,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BEGINNER_NINJA_LEVEL_25",
-                () => skipBeginnerItems || HasNinja() || Bot.Player.Level >= 25,
+                () => Bot.Player.Level >= 25,
                 () =>
                 {
-                    if (HasNinja())
+                    if (Bot.Player.Level >= 25)
                         return;
 
                     Farm.Experience(25);
@@ -454,14 +449,14 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 5c. Mazumi quests (coordinated quest by quest and monster by monster)
-        if (!RunCoordinatedMazumiQuests(() => skipBeginnerItems || HasNinja()))
+        if (!RunCoordinatedMazumiQuests(HasNinja))
             return false;
 
         // 5d. Buy Ninja
         if (
             !RunCooperativeObjective(
                 "BEGINNER_NINJA_BUY",
-                () => skipBeginnerItems || HasNinja(),
+                HasNinja,
                 () =>
                 {
                     if (HasNinja())
@@ -478,16 +473,24 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        // 5e. SetClass after Ninja (resolves Solo/Farm/Dodge and ranks Ninja to 10)
-        bool ninjaClassSetComplete = false;
+        // 5e. Rank Ninja to 10 (all accounts rank up Ninja; 1st to finish becomes Support Helper)
+        bool HasRank10Ninja() =>
+            HasRank10Class("Ninja") || HasRank10Class("Assassin") || HasRank10Class("Ninja Warrior");
+
         if (
             !RunCooperativeObjective(
-                "BEGINNER_NINJA_SET_CLASS",
-                () => skipBeginnerItems || ninjaClassSetComplete,
+                "BEGINNER_NINJA_RANK_10",
+                HasRank10Ninja,
                 () =>
                 {
-                    SetClass();
-                    ninjaClassSetComplete = !Bot.ShouldExit;
+                    if (HasRank10Ninja())
+                        return;
+
+                    string ninjaClass =
+                        CoreBots.Instance.CheckInventory("Assassin", toInv: false) ? "Assassin"
+                        : CoreBots.Instance.CheckInventory("Ninja Warrior", toInv: false) ? "Ninja Warrior"
+                        : "Ninja";
+                    RankUpClassForArmy(ninjaClass);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -497,6 +500,8 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
+        SetClass();
+
         // 6. Mage
         bool HasMage() =>
             CoreBots.Instance.CheckInventory(
@@ -505,10 +510,13 @@ public class ArmyFarmerJoeDoAll
                 toInv: false
             );
 
+        bool HasRank10Mage() =>
+            HasRank10Class("Mage") || HasRank10Class("Mage (Rare)");
+
         if (
             !RunCooperativeObjective(
                 "BEGINNER_MAGE",
-                () => skipBeginnerItems || HasMage(),
+                HasMage,
                 () =>
                 {
                     if (HasMage())
@@ -526,41 +534,20 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        // 7. Oracle (free 0 AC Healer/Support class for early Army composition)
-        bool HasOracle() => CoreBots.Instance.CheckInventory("Oracle", toInv: false);
-        bool HasOracleRank10() => HasOracle() && HasRank10Class("Oracle");
-
+        // 6b. Rank Mage to 10 (all accounts rank up Mage; 1st to finish becomes Support Helper)
         if (
             !RunCooperativeObjective(
-                "BEGINNER_ORACLE_BUY",
-                () => skipBeginnerItems || HasOracle(),
+                "BEGINNER_MAGE_RANK_10",
+                HasRank10Mage,
                 () =>
                 {
-                    if (HasOracle())
+                    if (HasRank10Mage())
                         return;
 
-                    CoreBots.Instance.Logger("Getting Starter Support/Healer class (Oracle - 0 AC)");
-                    CoreBots.Instance.BuyItem("classhalla", 299, "Oracle");
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Bot.Sleep(1000);
-                },
-                maxWorkAttempts: 3
-            )
-        )
-            return false;
-
-        if (
-            !RunCooperativeObjective(
-                "BEGINNER_ORACLE_RANK_10",
-                () => skipBeginnerItems || HasOracleRank10(),
-                () =>
-                {
-                    if (HasOracleRank10())
-                        return;
-
-                    Adv.RankUpClass("Oracle");
+                    string mageClass = CoreBots.Instance.CheckInventory("Mage (Rare)", toInv: false)
+                        ? "Mage (Rare)"
+                        : "Mage";
+                    RankUpClassForArmy(mageClass);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -575,10 +562,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BEGINNER_FINAL_SET_CLASS",
-                () => skipBeginnerItems || finalClassSetComplete,
+                () => finalClassSetComplete,
                 () =>
                 {
-                    SetClass();
+                    SetClass(rankUpIfNeeded: true);
                     finalClassSetComplete = !Bot.ShouldExit;
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -926,8 +913,7 @@ public class ArmyFarmerJoeDoAll
                     if (HasMasterRangerRank10())
                         return;
 
-                    Adv.RankUpClass("Master Ranger");
-                    SetClass();
+                    RankUpClassForArmy("Master Ranger");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -936,6 +922,7 @@ public class ArmyFarmerJoeDoAll
             )
         )
             return false;
+        SetClass();
 
         // 5. Dragonslayer (Galanoth 4 quests coordinated 1 by 1 -> Buy -> Rank 10)
         bool HasDragonslayer() => core.CheckInventory("Dragonslayer", toInv: false);
@@ -1013,8 +1000,7 @@ public class ArmyFarmerJoeDoAll
                     if (HasDragonslayerRank10())
                         return;
 
-                    Adv.RankUpClass("Dragonslayer");
-                    SetClass();
+                    RankUpClassForArmy("Dragonslayer");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1023,6 +1009,7 @@ public class ArmyFarmerJoeDoAll
             )
         )
             return false;
+        SetClass();
 
         // 5d. Imperial Chunin (Yokai Rep 10 in /dragonkoiz — No boss, Pockey Chew only ~1k HP, gives Boss Hit-Chance Debuffer for Player 3)
         bool HasImperialChunin() => core.CheckInventory("Imperial Chunin", toInv: false);
@@ -1080,8 +1067,7 @@ public class ArmyFarmerJoeDoAll
                     if (HasImperialChuninRank10())
                         return;
 
-                    Adv.RankUpClass("Imperial Chunin");
-                    SetClass();
+                    RankUpClassForArmy("Imperial Chunin");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1090,6 +1076,7 @@ public class ArmyFarmerJoeDoAll
             )
         )
             return false;
+        SetClass();
 
         // 5e. Shaman & Evolved Shaman (Arcangrove Rep 10 in /arcangrove — No boss, Gorillaphant & Seed Spitter ~2k HP, unlocks 2 unique classes for Player 4 & Player 5 from the same Rep!)
         bool HasShaman() => core.CheckInventory("Shaman", toInv: false);
@@ -1154,8 +1141,7 @@ public class ArmyFarmerJoeDoAll
                     if (HasShamanRank10())
                         return;
 
-                    Adv.RankUpClass("Shaman");
-                    SetClass();
+                    RankUpClassForArmy("Shaman");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1164,6 +1150,7 @@ public class ArmyFarmerJoeDoAll
             )
         )
             return false;
+        SetClass();
 
         if (
             !RunCooperativeObjective(
@@ -1195,8 +1182,7 @@ public class ArmyFarmerJoeDoAll
                     if (HasEvolvedShamanRank10())
                         return;
 
-                    Adv.RankUpClass("Evolved Shaman");
-                    SetClass();
+                    RankUpClassForArmy("Evolved Shaman");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1205,6 +1191,7 @@ public class ArmyFarmerJoeDoAll
             )
         )
             return false;
+        SetClass();
 
         // 6. Blade of Awe Progression (5 UnlockBoA quests coordinated 1 by 1 -> BoA Rep 10 -> Awethur's Accoutrements)
         core.Logger("Level 30: Farming Blade of Awe Rep for enhancements & sword");
@@ -1516,8 +1503,10 @@ public class ArmyFarmerJoeDoAll
     private static readonly string[] Player1SoloClasses =
     {
         "King's Echo",
+        "Arcana Invoker",
         "Chaos Avenger",
         "Void Highlord",
+        "Verus DoomKnight",
         "Dragon of Time",
         "Cryomancer",
         "Dragonslayer General",
@@ -1541,6 +1530,7 @@ public class ArmyFarmerJoeDoAll
     // Player 3: Boss Hit-Chance Debuffer / Defense Shredder (Rogue at Step 1 -> Imperial Chunin at Lv 30)
     private static readonly string[] Player3DebuffClasses =
     {
+        "Verus DoomKnight",
         "ArchPaladin",
         "StoneCrusher",
         "Imperial Chunin",
@@ -1594,6 +1584,7 @@ public class ArmyFarmerJoeDoAll
     private static readonly string[] FarmClasses =
     {
         "ArchMage",
+        "Arcana Invoker",
         "Dragon of Time",
         "Archfiend",
         "Blaze Binder",
@@ -1633,6 +1624,16 @@ public class ArmyFarmerJoeDoAll
         return Player1SoloClasses;
     }
 
+    private string[] GetRoleFarmPool()
+    {
+        // Keep Player 2 on Healer/Support even during Farm mode so progressing accounts
+        // (e.g., ranking Ninja/Rogue in /icestormarena or /icestormunder) always have active heals & shields!
+        if (IsPlayer(2))
+            return Player2SupportClasses;
+
+        return FarmClasses;
+    }
+
     private string GetPartyRoleLabel()
     {
         if (IsPlayer(2))
@@ -1650,15 +1651,12 @@ public class ArmyFarmerJoeDoAll
         return "P1-MainDPS";
     }
 
-    private static readonly HashSet<string> UpgradeHintsShown =
-        new(StringComparer.OrdinalIgnoreCase);
-
     private string? _lastSolo;
     private string? _lastFarm;
     private string? _lastDodge;
     private int _setClassBusy;
 
-    public void SetClass()
+    public void SetClass(bool rankUpIfNeeded = false)
     {
         if (System.Threading.Interlocked.Exchange(ref _setClassBusy, 1) == 1)
         {
@@ -1668,7 +1666,7 @@ public class ArmyFarmerJoeDoAll
 
         try
         {
-            SetClassInner();
+            SetClassInner(rankUpIfNeeded);
         }
         finally
         {
@@ -1676,19 +1674,25 @@ public class ArmyFarmerJoeDoAll
         }
     }
 
-    private void SetClassInner()
+    private void SetClassInner(bool rankUpIfNeeded)
     {
         CoreBots core = CoreBots.Instance;
-        core.SoloClass = core.FarmClass = core.DodgeClass = "Generic";
         core.ReadCBO();
         ApplyArmyRoomSettings();
 
-        string[] soloPool = GetRoleSoloPool();
-        string roleLabel = GetPartyRoleLabel();
+        // Always use the standard Base mode from Skua's Advanced Skills Set
+        core.SoloUseMode = ClassUseMode.Base;
+        core.FarmUseMode = ClassUseMode.Base;
+        core.DodgeUseMode = ClassUseMode.Base;
+        core.BossUseMode = ClassUseMode.Base;
 
-        core.SoloClass = ResolveClass(core.SoloClass, soloPool, $"Solo ({roleLabel})") ?? core.SoloClass;
-        core.FarmClass = ResolveClass(core.FarmClass, FarmClasses, "Farm") ?? core.FarmClass;
-        core.DodgeClass = ResolveClass(core.DodgeClass, DodgeClasses, "Dodge") ?? core.DodgeClass;
+        string[] soloPool = GetRoleSoloPool();
+        string[] farmPool = GetRoleFarmPool();
+
+        // Always enforce the Army's ideal role composition (ignoring any leftover class in CBO)
+        core.SoloClass = ResolveClass(soloPool);
+        core.FarmClass = ResolveClass(farmPool);
+        core.DodgeClass = ResolveClass(DodgeClasses);
 
         static bool Settled(string? className) =>
             CoreBots.IsGenericClass(className)
@@ -1699,20 +1703,44 @@ public class ArmyFarmerJoeDoAll
             );
 
         if (
-            string.Equals(_lastSolo, core.SoloClass, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(_lastFarm, core.FarmClass, StringComparison.OrdinalIgnoreCase)
-            && string.Equals(_lastDodge, core.DodgeClass, StringComparison.OrdinalIgnoreCase)
-            && Settled(core.SoloClass)
-            && Settled(core.FarmClass)
-            && Settled(core.DodgeClass)
+            !rankUpIfNeeded
+            || (
+                string.Equals(_lastSolo, core.SoloClass, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_lastFarm, core.FarmClass, StringComparison.OrdinalIgnoreCase)
+                && string.Equals(_lastDodge, core.DodgeClass, StringComparison.OrdinalIgnoreCase)
+                && Settled(core.SoloClass)
+                && Settled(core.FarmClass)
+                && Settled(core.DodgeClass)
+            )
         )
+        {
+            if (
+                !CoreBots.IsGenericClass(core.SoloClass)
+                && !string.Equals(Bot.Player.CurrentClass?.Name, core.SoloClass, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                LeaveCombatRoomForEquipmentChange();
+                core.EquipClass(ClassType.Solo);
+            }
+            else if (!Bot.Skills.TimerRunning)
+            {
+                Bot.Skills.StartAdvanced(Bot.Player.CurrentClass?.Name ?? core.SoloClass, false, ClassUseMode.Base);
+            }
             return;
+        }
 
         RankIfNeeded(core.SoloClass, "SoloClass");
         RankIfNeeded(core.FarmClass, "FarmClass");
         RankIfNeeded(core.DodgeClass, "DodgeClass");
 
         Bot.Sleep(500);
+        if (
+            !CoreBots.IsGenericClass(core.SoloClass)
+            && !string.Equals(Bot.Player.CurrentClass?.Name, core.SoloClass, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            LeaveCombatRoomForEquipmentChange();
+        }
         core.EquipClass(ClassType.Solo);
 
         _lastSolo = core.SoloClass;
@@ -1720,36 +1748,82 @@ public class ArmyFarmerJoeDoAll
         _lastDodge = core.DodgeClass;
     }
 
-    private static string? ResolveClass(string? current, string[] pool, string slot)
+    private void RankUpClassForArmy(string className)
     {
-        CoreBots core = CoreBots.Instance;
-        bool userChoice =
-            !CoreBots.IsGenericClass(current) && core.CheckInventory(current, toInv: false);
+        if (string.IsNullOrWhiteSpace(className) || Bot.ShouldExit)
+            return;
 
-        if (!userChoice)
-            return pool.FirstOrDefault(className => core.CheckInventory(className)) ?? current;
-
-        int currentRank = Array.FindIndex(
-            pool,
-            className => className.Equals(current, StringComparison.OrdinalIgnoreCase)
-        );
-        if (currentRank > 0)
+        // If the class is not yet equipped, step out to /whitemap first so SmartEnhance and Equip
+        // cannot be blocked by monster aggro, kill-credit, or party buffs in the room.
+        if (!string.Equals(Bot.Player.CurrentClass?.Name, className, StringComparison.OrdinalIgnoreCase))
         {
-            string? better = pool.Take(currentRank)
-                .FirstOrDefault(className => core.CheckInventory(className, toInv: false));
-            if (better != null && UpgradeHintsShown.Add($"{slot}:{current}>{better}"))
-                core.Logger(
-                    $"{slot} class is set to \"{current}\" in CBO, but you own \"{better}\". "
-                        + $"Set the {slot} class to Generic in CBO to let FarmerJoe pick the best class automatically."
-                );
+            LeaveCombatRoomForEquipmentChange();
+            Adv.SmartEnhance(className);
+            CoreBots.Instance.Equip(className);
+            Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped(className), 20);
         }
-        return current;
+
+        // Start Skua's Advanced Skills Set rotation for the class being ranked up!
+        // (Adv.RankUpClass only calls Core.Equip, which does not start Bot.Skills.StartAdvanced!)
+        Bot.Skills.StartAdvanced(className, false, ClassUseMode.Base);
+
+        // Pass gearRestore: false so that when this account hits Rank 10 in /icestormarena while other
+        // accounts are still fighting, it doesn't try to restore/re-enhance old gear inside the active combat room!
+        Adv.RankUpClass(className, gearRestore: false);
     }
 
-    private static void RankIfNeeded(string? className, string label)
+    private void LeaveCombatRoomForEquipmentChange()
+    {
+        try
+        {
+            Bot.Skills.Stop();
+        }
+        catch
+        {
+            // Ignore if skill timer is not active
+        }
+
+        if (Bot.Player.HasTarget)
+            Bot.Combat.CancelTarget();
+
+        Bot.Options.AttackWithoutTarget = false;
+        Bot.Options.AggroAllMonsters = false;
+        Bot.Options.AggroMonsters = false;
+
+        string currentMap = Bot.Map?.Name ?? string.Empty;
+        if (
+            !string.Equals(currentMap, "whitemap", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(currentMap, "battleon", StringComparison.OrdinalIgnoreCase)
+            && (Bot.Player.InCombat || Bot.Monsters.MapMonsters.Count > 0)
+        )
+        {
+            CoreBots.Instance.Join("whitemap");
+            Bot.Wait.ForMapLoad("whitemap");
+        }
+
+        CoreBots.Instance.JumpWait();
+        Bot.Wait.ForCombatExit(20);
+    }
+
+    private string ResolveClass(string[] pool)
     {
         CoreBots core = CoreBots.Instance;
-        if (string.IsNullOrEmpty(className))
+        // Prefer the highest-priority class in the pool that is already Rank 10,
+        // falling back to the highest-priority owned class.
+        string? bestRank10 = pool.FirstOrDefault(className =>
+            HasRank10Class(className) && core.CheckInventory(className, toInv: true)
+        );
+        if (!string.IsNullOrEmpty(bestRank10))
+            return bestRank10;
+
+        return pool.FirstOrDefault(className => core.CheckInventory(className, toInv: true))
+            ?? "Generic";
+    }
+
+    private void RankIfNeeded(string? className, string label)
+    {
+        CoreBots core = CoreBots.Instance;
+        if (string.IsNullOrEmpty(className) || CoreBots.IsGenericClass(className))
             return;
 
         if (!core.CheckInventory(className))
@@ -1762,7 +1836,7 @@ public class ArmyFarmerJoeDoAll
             return;
 
         core.Logger($"{label} resolved -> {className}");
-        Adv.RankUpClass(className);
+        RankUpClassForArmy(className);
     }
     #endregion SetClass
 

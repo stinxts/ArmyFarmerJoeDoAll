@@ -29,6 +29,12 @@ public class CoreArmyFJ
 
     private IScriptInterface Bot => IScriptInterface.Instance;
     private CoreBots Core => CoreBots.Instance;
+    private static CoreAdvanced Adv
+    {
+        get => _Adv ??= new CoreAdvanced();
+        set => _Adv = value;
+    }
+    private static CoreAdvanced? _Adv;
 
     // Fixed skill-worker polling; Gunslinger retains its faster firing cadence.
     private const int SkillPollDelay = 100;
@@ -6121,10 +6127,23 @@ public class CoreArmyFJ
                 int helperIndex = Math.Max(0, helperPlayers.IndexOf(localPlayerNumber));
                 int targetPlayerNumber = pendingPlayers[helperIndex % pendingPlayers.Count];
                 string targetPlayerName = armyPlayers[targetPlayerNumber - 1];
+
+                // Option 1 (First-Helper-To-Support):
+                // While all accounts are working on an objective (e.g., ranking a class to 10),
+                // everyone equips the required class. As soon as the 1st account finishes and enters
+                // Helper mode (helperIndex == 0), it equips a Support class (Oracle / StoneCrusher /
+                // ArchPaladin / Lord of Order) to heal the remaining accounts. Once Player 2 (the
+                // dedicated Support) finishes, Player 2 takes over the Support role and the temporary
+                // support helper returns to its own SoloClass!
+                actAsSupportHelper =
+                    localPlayerNumber == 2
+                    || (!helperPlayers.Contains(2) && helperIndex == 0);
+
                 help(targetPlayerNumber, targetPlayerName);
             }
             else
             {
+                actAsSupportHelper = false;
                 if (maxWorkAttempts > 0 && workAttempts >= maxWorkAttempts)
                 {
                     Core.Logger(
@@ -6145,6 +6164,18 @@ public class CoreArmyFJ
         return false;
     }
 
+    private static readonly string[] SupportHelperPriority =
+    {
+        "Lord of Order",
+        "ArchPaladin",
+        "StoneCrusher",
+        "Oracle",
+        "Healer",
+    };
+
+    private bool actAsSupportHelper;
+    private string lastSkillRotationClass = string.Empty;
+
     public void CoordinateFollowAndCombat(
         string targetPlayerName,
         string monster = "*",
@@ -6158,6 +6189,8 @@ public class CoreArmyFJ
         string normalizedTarget = NormalizeArmyUsername(targetPlayerName);
         if (string.Equals(normalizedTarget, armyUsername, StringComparison.OrdinalIgnoreCase))
             return;
+
+        EnsureHelperRoleClassEquipped();
 
         bool inSameCell = false;
         if (Bot.Map.TryGetPlayer(normalizedTarget, out var targetPlayer) && targetPlayer != null)
@@ -6194,6 +6227,9 @@ public class CoreArmyFJ
 
         if (!Bot.Combat.StopAttacking)
         {
+            string currentClassName = Bot.Player.CurrentClass?.Name ?? string.Empty;
+            bool isSupportHelper = IsSupportClassName(currentClassName);
+
             var aliveInCell = Bot.Monsters.CurrentMonsters.Where(m => m.Alive).ToList();
             string mapName = Bot.Map.Name?.ToLowerInvariant() ?? string.Empty;
 
@@ -6231,18 +6267,6 @@ public class CoreArmyFJ
             if (targetMonster != null)
             {
                 Bot.Combat.Attack(targetMonster);
-
-                if (useSkillRotations && Bot.Player.HasTarget)
-                {
-                    for (int skill = 2; skill <= 4; skill++)
-                    {
-                        if (Bot.Skills.CanUseSkill(skill))
-                        {
-                            Bot.Skills.UseSkill(skill);
-                            break;
-                        }
-                    }
-                }
             }
             else
             {
@@ -6254,27 +6278,115 @@ public class CoreArmyFJ
         }
     }
 
+    private void EnsureHelperRoleClassEquipped()
+    {
+        string currentClass = Bot.Player.CurrentClass?.Name ?? string.Empty;
+
+        if (actAsSupportHelper)
+        {
+            string? bestSupport = SupportHelperPriority.FirstOrDefault(className =>
+                Core.CheckInventory(className, toInv: true)
+            );
+
+            if (
+                !string.IsNullOrEmpty(bestSupport)
+                && !string.Equals(currentClass, bestSupport, StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                SwitchClassOutsideCombatRoom(bestSupport);
+            }
+            return;
+        }
+
+        // Not the active support helper: if we were temporarily wearing a support class (or a rank-up class)
+        // and our configured SoloClass is ready, restore SoloClass.
+        if (
+            !CoreBots.IsGenericClass(Core.SoloClass)
+            && !string.Equals(currentClass, Core.SoloClass, StringComparison.OrdinalIgnoreCase)
+            && Core.CheckInventory(Core.SoloClass, toInv: true)
+        )
+        {
+            SwitchClassOutsideCombatRoom(Core.SoloClass);
+        }
+    }
+
+    private void SwitchClassOutsideCombatRoom(string targetClass)
+    {
+        if (string.IsNullOrWhiteSpace(targetClass) || Bot.ShouldExit)
+            return;
+
+        // 1. Stop skills, cancel target, and disable aggro immediately so we stop generating combat actions.
+        try
+        {
+            Bot.Skills.Stop();
+        }
+        catch
+        {
+            // Ignore if skill timer is not active
+        }
+
+        if (Bot.Player.HasTarget)
+            Bot.Combat.CancelTarget();
+
+        Bot.Options.AttackWithoutTarget = false;
+        Bot.Options.AggroAllMonsters = false;
+        Bot.Options.AggroMonsters = false;
+
+        // 2. Step out to /whitemap so no monster aggro, kill-credit from allies, or party-buff combat locks
+        //    in the active combat room can block equipping or enhancing the class!
+        if (!string.Equals(Bot.Map?.Name, "whitemap", StringComparison.OrdinalIgnoreCase))
+        {
+            Core.Join("whitemap");
+            Bot.Wait.ForMapLoad("whitemap");
+        }
+
+        Core.JumpWait();
+        Bot.Wait.ForCombatExit(20);
+
+        // 3. Ensure the class is enhanced before equipping (an unenhanced class has 0 stats and fails RankUp/Combat).
+        if (
+            Bot.Inventory.TryGetItem(targetClass, out InventoryItem? classItem)
+            && classItem != null
+            && classItem.EnhancementLevel <= 0
+        )
+        {
+            Adv.SmartEnhance(targetClass);
+        }
+
+        // 4. Equip the class and start its Advanced Skills rotation.
+        Core.Equip(targetClass);
+        Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped(targetClass), 20);
+
+        Bot.Skills.StartAdvanced(targetClass, false, ClassUseMode.Base);
+        lastSkillRotationClass = targetClass;
+    }
+
+    private static bool IsSupportClassName(string? className)
+    {
+        if (string.IsNullOrWhiteSpace(className))
+            return false;
+
+        return className.Equals("Oracle", StringComparison.OrdinalIgnoreCase)
+            || className.Equals("Healer", StringComparison.OrdinalIgnoreCase)
+            || className.Equals("Healer (Rare)", StringComparison.OrdinalIgnoreCase)
+            || className.Equals("Evolved Shaman", StringComparison.OrdinalIgnoreCase)
+            || className.Equals("StoneCrusher", StringComparison.OrdinalIgnoreCase)
+            || className.Equals("ArchPaladin", StringComparison.OrdinalIgnoreCase)
+            || className.Equals("Lord of Order", StringComparison.OrdinalIgnoreCase);
+    }
+
     public void EnsureSkillRotationActive()
     {
         try
         {
-            if (!Bot.Skills.TimerRunning)
+            string currentClassName = Bot.Player.CurrentClass?.Name ?? "generic";
+            if (
+                !Bot.Skills.TimerRunning
+                || !string.Equals(lastSkillRotationClass, currentClassName, StringComparison.OrdinalIgnoreCase)
+            )
             {
-                string currentClassName = Bot.Player.CurrentClass?.Name ?? "generic";
-                bool isSupportClass =
-                    currentClassName.Equals("Oracle", StringComparison.OrdinalIgnoreCase)
-                    || currentClassName.Equals("Healer", StringComparison.OrdinalIgnoreCase)
-                    || currentClassName.Equals("Healer (Rare)", StringComparison.OrdinalIgnoreCase)
-                    || currentClassName.Equals("Evolved Shaman", StringComparison.OrdinalIgnoreCase)
-                    || currentClassName.Equals("StoneCrusher", StringComparison.OrdinalIgnoreCase)
-                    || currentClassName.Equals("ArchPaladin", StringComparison.OrdinalIgnoreCase)
-                    || currentClassName.Equals("Lord of Order", StringComparison.OrdinalIgnoreCase);
-
-                Bot.Skills.StartAdvanced(
-                    currentClassName,
-                    false,
-                    isSupportClass ? ClassUseMode.Supp : ClassUseMode.Base
-                );
+                Bot.Skills.StartAdvanced(currentClassName, false, ClassUseMode.Base);
+                lastSkillRotationClass = currentClassName;
             }
         }
         catch
