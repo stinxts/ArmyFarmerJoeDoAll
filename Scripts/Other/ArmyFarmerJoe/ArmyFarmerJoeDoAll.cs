@@ -333,14 +333,16 @@ public class ArmyFarmerJoeDoAll
                     if (Bot.Player.Level >= 10)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    CoreBots.Instance.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.Experience(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Bone Berserker");
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        "Bone Berserker",
+                        compositionType: ClassType.Farm
+                    );
                 }
             )
         )
@@ -437,15 +439,15 @@ public class ArmyFarmerJoeDoAll
                     if (Bot.Player.Level >= 25)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    CoreBots.Instance.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.Experience(25);
-                    SetClass();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        compositionType: ClassType.Farm
+                    );
                 }
             )
         )
@@ -679,8 +681,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsQuest92Done() || core.CheckInventory("Breken the Vile's Sword", 1))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(92);
                     core.HuntMonster("greenguardwest", "Breken the Vile", "Breken the Vile's Sword", 1);
                 },
@@ -701,8 +702,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsQuest92Done() || core.CheckInventory("Ogug Stoneaxe's Helmet", 1))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(92);
                     core.HuntMonster("greenguardwest", "Ogug Stoneaxe", "Ogug Stoneaxe's Helmet", 1);
                 },
@@ -782,12 +782,17 @@ public class ArmyFarmerJoeDoAll
                         && Daily.CheckDailyv2(802, true, true, "Elders' Blood")
                     )
                     {
+                        SetClass(ClassType.Farm);
                         Daily.EldersBlood();
                     }
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Gorillaphant");
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        "Gorillaphant",
+                        compositionType: ClassType.Farm
+                    );
                 },
                 maxWorkAttempts: 2
             )
@@ -809,6 +814,7 @@ public class ArmyFarmerJoeDoAll
                         return;
                     }
 
+                    SetClass(ClassType.Farm);
                     Farm.GetBoost("REP", 10, true);
                     Farm.GetBoost("XP", Bot.Player.Level >= 100 ? 0 : 10, true);
                     Boosts.GetBoostsSelect(10, 10, 0);
@@ -816,7 +822,10 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        compositionType: ClassType.Farm
+                    );
                 }
             )
         )
@@ -830,18 +839,20 @@ public class ArmyFarmerJoeDoAll
                 () => Bot.Player.Level >= 30 && enhancedBracket30,
                 () =>
                 {
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
 
+                    string? currentClass = Bot.Player.CurrentClass?.Name;
                     if (
                         !enhancedBracket30
                         || Bot.Inventory.Items.Any(x =>
-                            x != null && x.EnhancementLevel < Bot.Player.Level
+                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
                         )
                     )
                     {
-                        Adv.SmartEnhance(Bot.Player.CurrentClass?.Name ?? string.Empty);
+                        LeaveCombatRoomForEquipmentChange();
+                        Adv.SmartEnhance(currentClass ?? string.Empty);
+                        if (!string.IsNullOrWhiteSpace(currentClass))
+                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
                         enhancedBracket30 = true;
                     }
 
@@ -849,7 +860,10 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        compositionType: ClassType.Farm
+                    );
                 }
             )
         )
@@ -873,14 +887,12 @@ public class ArmyFarmerJoeDoAll
                         core.SellItem("Venom Head");
 
                     core.Logger("Level 30: Farming Sandsea Rep 10 for Master Ranger");
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.SandseaREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1038,14 +1050,12 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 30: Farming Yokai Rep 10 for Imperial Chunin");
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.YokaiREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Pockey Chew");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Pockey Chew", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1116,14 +1126,12 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.Logger("Level 30: Farming Arcangrove Rep 10 for Shaman & Evolved Shaman");
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.ArcangroveREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1228,8 +1236,7 @@ public class ArmyFarmerJoeDoAll
                     if (core.isCompletedBefore(2937) || core.isCompletedBefore(2933))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(2933);
                     core.HuntMonster("j6", "Sketchy Dragon", "Stonewrit Found!", isTemp: false);
                     core.EnsureComplete(2933);
@@ -1252,8 +1259,7 @@ public class ArmyFarmerJoeDoAll
                     if (core.isCompletedBefore(2937) || core.isCompletedBefore(2934))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(2934);
                     core.HuntMonster("gilead", "Fire Elemental", "Handle Found!", isTemp: false);
                     core.EnsureComplete(2934);
@@ -1276,15 +1282,14 @@ public class ArmyFarmerJoeDoAll
                     if (core.isCompletedBefore(2937) || core.isCompletedBefore(2935))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(2935);
                     core.HuntMonster("castleundead", "Skeletal Viking", "Hilt Found!", isTemp: false);
                     core.EnsureComplete(2935);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Skeletal Viking");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Skeletal Viking", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1300,15 +1305,14 @@ public class ArmyFarmerJoeDoAll
                     if (core.isCompletedBefore(2937) || core.isCompletedBefore(2936))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(2936);
                     core.HuntMonster("hydra", "Hydra Head", "Blade Found!", isTemp: false);
                     core.EnsureComplete(2936);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Hydra Head");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Hydra Head", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1324,9 +1328,8 @@ public class ArmyFarmerJoeDoAll
                     if (core.isCompletedBefore(2937))
                         return;
 
-                    SetClass();
+                    SetClass(ClassType.Solo);
                     core.ResetQuest(2937);
-                    core.EquipClass(ClassType.Solo);
                     core.EnsureAccept(2937);
                     core.KillEscherion("Runes Found!");
                     core.EnsureComplete(2937);
@@ -1346,14 +1349,12 @@ public class ArmyFarmerJoeDoAll
                 () => Farm.FactionRank("Blade of Awe") >= 10 && core.CheckInventory(17585, toInv: false),
                 () =>
                 {
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.BladeofAweREP(10, farmBoA: true);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Skeletal Viking");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Skeletal Viking", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1395,14 +1396,12 @@ public class ArmyFarmerJoeDoAll
                     if (IsForgeHelmDone() || Farm.FactionRank("Blacksmithing") >= 4)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.BlacksmithingREP(4, false);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1418,8 +1417,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsForgeHelmDone() || core.CheckInventory("1st Lord Of Chaos Staff", 1))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(8828);
                     core.KillEscherion("1st Lord Of Chaos Staff");
                 },
@@ -1441,8 +1439,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsForgeHelmDone() || core.CheckInventory("Chaos Dragonlord Axe", 1))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(8828);
                     core.KillVath("Chaos Dragonlord Axe");
                 },
@@ -1464,8 +1461,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsForgeHelmDone() || core.CheckInventory("Hanzamune Dragon Koi Blade", 1))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(8828);
                     core.KillKitsune("Hanzamune Dragon Koi Blade");
                 },
@@ -1487,8 +1483,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsForgeHelmDone() || core.CheckInventory("Wrath of the Werepyre", 1))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(8828);
                     core.HuntMonster("wolfwing", "Wolfwing", "Wrath of the Werepyre", isTemp: false);
                 },
@@ -1544,18 +1539,20 @@ public class ArmyFarmerJoeDoAll
                 () => Bot.Player.Level >= 50 && enhancedBracket50,
                 () =>
                 {
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
 
+                    string? currentClass = Bot.Player.CurrentClass?.Name;
                     if (
                         !enhancedBracket50
                         || Bot.Inventory.Items.Any(x =>
-                            x != null && x.EnhancementLevel < Bot.Player.Level
+                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
                         )
                     )
                     {
-                        Adv.SmartEnhance(Bot.Player.CurrentClass?.Name ?? string.Empty);
+                        LeaveCombatRoomForEquipmentChange();
+                        Adv.SmartEnhance(currentClass ?? string.Empty);
+                        if (!string.IsNullOrWhiteSpace(currentClass))
+                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
                         enhancedBracket50 = true;
                     }
 
@@ -1563,7 +1560,10 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        compositionType: ClassType.Farm
+                    );
                 }
             )
         )
@@ -1594,8 +1594,7 @@ public class ArmyFarmerJoeDoAll
 
                     core.Logger("Level 50: Farming Blood Sorceress drop from Scarletta");
                     core.AddDrop(36298, 42992);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.KillMonster(
                         "towerofmirrors",
                         "r16",
@@ -1639,10 +1638,19 @@ public class ArmyFarmerJoeDoAll
                         core.Logger(
                             "Level 50: Getting 1 Class Point on Blood Sorceress for Quest 6236"
                         );
-                        LeaveCombatRoomForEquipmentChange();
-                        Adv.SmartEnhance("Blood Sorceress");
-                        core.Equip("Blood Sorceress");
-                        Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped("Blood Sorceress"), 20);
+                        if (
+                            !string.Equals(
+                                Bot.Player.CurrentClass?.Name,
+                                "Blood Sorceress",
+                                StringComparison.OrdinalIgnoreCase
+                            )
+                        )
+                        {
+                            LeaveCombatRoomForEquipmentChange();
+                            Adv.SmartEnhance("Blood Sorceress");
+                            core.Equip("Blood Sorceress");
+                            Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped("Blood Sorceress"), 20);
+                        }
                         Bot.Skills.StartAdvanced("Blood Sorceress", false, ClassUseMode.Base);
                         core.KillMonster("towerofmirrors", "r2", "Left", "*", log: false);
                     }
@@ -1657,7 +1665,6 @@ public class ArmyFarmerJoeDoAll
                         )
                     )
                     {
-                        LeaveCombatRoomForEquipmentChange();
                         SetClass();
                         if (
                             string.Equals(
@@ -1672,7 +1679,10 @@ public class ArmyFarmerJoeDoAll
                                     .FirstOrDefault(HasClassInInventory)
                                 ?? string.Empty;
                             if (!string.IsNullOrEmpty(fallbackClass))
+                            {
+                                LeaveCombatRoomForEquipmentChange();
                                 core.Equip(fallbackClass);
+                            }
                         }
                     }
 
@@ -1725,14 +1735,12 @@ public class ArmyFarmerJoeDoAll
                     if (HasDSG() || Bot.Player.Gold >= 30000)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.Gold(30000);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1764,9 +1772,7 @@ public class ArmyFarmerJoeDoAll
                         "Level 50: Farming Enchanted Scale (75) & Dragon Claw (100) for Dragonslayer General"
                     );
                     core.AddDrop("Enchanted Scale", "Dragon Claw");
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.RegisterQuests(5294);
                     while (
                         !Bot.ShouldExit
@@ -1788,7 +1794,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tempest Dracolich");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tempest Dracolich", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1855,8 +1861,7 @@ public class ArmyFarmerJoeDoAll
 
                     core.Logger("Level 50: Farming Burning Blade (+15% All Damage) from Diabolical Warlord");
                     core.AddDrop("Burning Blade");
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.KillMonster(
                         "lostruinswar",
                         "r7",
@@ -1927,8 +1932,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5298))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5298);
                     core.GetMapItem(4678, 1, "hedgemaze");
                     core.HuntMonster(
@@ -1941,7 +1945,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Knight's Reflection");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Knight's Reflection", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1957,8 +1961,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5299))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5299);
                     core.HuntMonster("hedgemaze", "Mirrored Shard", "Mirror Shard Slain", 4);
                     core.HuntMonsterMapID("hedgemaze", 48, "Hedge Goblin Slain", 4);
@@ -1967,7 +1970,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
                 }
             )
         )
@@ -1983,13 +1986,12 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5300))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(5300, "hedgemaze", "Knight's Reflection");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Knight's Reflection");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Knight's Reflection", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2026,13 +2028,12 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5302))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(5302, "hedgemaze", "Hedge Goblin");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Hedge Goblin");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Hedge Goblin", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2069,13 +2070,12 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5304))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(5304, "hedgemaze", "Mirrored Shard");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Mirrored Shard");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Mirrored Shard", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2112,8 +2112,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5306))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(5306, "hedgemaze", "Minotaur Prime");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -2160,15 +2159,14 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5310))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5310);
                     core.KillMonster("hedgemaze", "r21", "Right", "*", "Maze Monster Killed", 8);
                     core.EnsureComplete(5310);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2205,8 +2203,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5312))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(5312, "hedgemaze", "Shattered Knight");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -2227,8 +2224,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsHedgeQuestDone(5313))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(5313, "hedgemaze", "Resurrected Minotaur");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -2262,8 +2258,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5314))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5314);
                     core.HuntMonster("towerofmirrors", "Glassgoyle", "Glass Powder", 8);
                     core.HuntMonster("towerofmirrors", "Glass Serpent", "Reflective Venom", 4);
@@ -2271,7 +2266,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2287,8 +2282,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5315))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5315);
                     core.GetMapItems(new[] { (4691, 1), (4692, 1) }, "towerofmirrors");
                     core.HuntMonster("towerofmirrors", "Silver Elemental", "Mirror Key", 1);
@@ -2296,7 +2290,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2312,8 +2306,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5316))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5316);
                     core.HuntMonster("towerofmirrors", "Phans", "Mosh Past the Phans", 8);
                     core.HuntMonster("towerofmirrors", "Phans", "Backstage Pass", 1);
@@ -2321,7 +2314,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Phans");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Phans", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2337,8 +2330,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5317))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(5317);
                     core.HuntMonsterMapID(
                         "towerofmirrors",
@@ -2365,8 +2357,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5318))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5318);
                     core.GetMapItems(new[] { (4687, 1), (4693, 1) }, "towerofmirrors");
                     core.HuntMonster("towerofmirrors", "Silver Elemental", "Andres' Mirror Key", 1);
@@ -2374,7 +2365,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2390,8 +2381,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5319))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5319);
                     core.HuntMonster("towerofmirrors", "Runway Wraith", "Runway Wraith Defeated", 6);
                     core.HuntMonster("towerofmirrors", "Runway Wraith", "Avant-Garde Footwear", 1);
@@ -2406,7 +2396,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Runway Wraith");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Runway Wraith", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2422,8 +2412,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5320))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(5320);
                     core.HuntMonsterMapID("towerofmirrors", 40, "Lukrisio the Buffed Defeated");
                     core.EnsureComplete(5320);
@@ -2446,8 +2435,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5321))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5321);
                     core.GetMapItems(new[] { (4688, 1), (4694, 1) }, "towerofmirrors");
                     core.HuntMonster(
@@ -2460,7 +2448,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2476,8 +2464,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5322))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5322);
                     core.HuntMonster("towerofmirrors", "Pageant Mom", "Pageant Mom Defeated", 8);
                     core.HuntMonster("towerofmirrors", "Pageant Mom", "Pageant Sash", 1);
@@ -2485,7 +2472,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Pageant Mom");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Pageant Mom", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2501,8 +2488,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5323))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(5323);
                     core.HuntMonsterMapID("towerofmirrors", 45, "Mendeskar the Smudged Defeated");
                     core.EnsureComplete(5323);
@@ -2525,8 +2511,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5324))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5324);
                     core.GetMapItems(new[] { (4689, 1), (4695, 1) }, "towerofmirrors");
                     core.HuntMonster(
@@ -2539,7 +2524,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2555,8 +2540,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5325))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5325);
                     core.HuntMonster("towerofmirrors", "Stage Tech", "Stage Tech Defeated", 9);
                     core.HuntMonster("towerofmirrors", "Stage Tech", "Rope Ladder");
@@ -2564,7 +2548,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Stage Tech");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Stage Tech", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2580,8 +2564,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5326))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(5326);
                     core.HuntMonsterMapID("towerofmirrors", 49, "Atticus the Warped Defeated");
                     core.EnsureComplete(5326);
@@ -2604,8 +2587,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5327))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5327);
                     core.GetMapItems(new[] { (4690, 1), (4696, 1) }, "towerofmirrors");
                     core.HuntMonster("towerofmirrors", "Silver Elemental", "Dora's Mirror Key", 1);
@@ -2613,7 +2595,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Silver Elemental", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2629,8 +2611,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5328))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5328);
                     core.HuntMonster("towerofmirrors", "Sasquatch", "Sasquatches Defeated", 10);
                     core.HuntMonster("towerofmirrors", "Sasquatch", "Tracking Tag", 5);
@@ -2638,7 +2619,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Sasquatch");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Sasquatch", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2654,8 +2635,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5329))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(5329);
                     core.HuntMonsterMapID("towerofmirrors", 52, "Leofire the Shattered Defeated");
                     core.EnsureComplete(5329);
@@ -2678,13 +2658,12 @@ public class ArmyFarmerJoeDoAll
                     if (IsTowerQuestDone(5330))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(5330, "towerofmirrors", "Fervent Suitor");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Fervent Suitor");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Fervent Suitor", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2728,8 +2707,7 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.AddDrop("Blood Sorceress");
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(5332);
                     core.HuntMonsterMapID("towerofmirrors", 32, "Defeat the Groglurk");
                     core.EnsureComplete(5332);
@@ -2775,19 +2753,30 @@ public class ArmyFarmerJoeDoAll
                     if (Bot.Player.Level >= 55)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
 
                     string? currentClass = Bot.Player.CurrentClass?.Name;
-                    if (!string.IsNullOrWhiteSpace(currentClass))
+                    if (
+                        !string.IsNullOrWhiteSpace(currentClass)
+                        && Bot.Inventory.Items.Any(x =>
+                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
+                        )
+                    )
+                    {
+                        LeaveCombatRoomForEquipmentChange();
                         Adv.SmartEnhance(currentClass);
+                        Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+                    }
 
                     Farm.Experience(55);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        "*",
+                        compositionType: ClassType.Farm
+                    );
                 }
             )
         )
@@ -2821,8 +2810,7 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.AddDrop("Shurpu Blaze Token");
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.KillMonster(
                         "xancave",
                         "r9",
@@ -2876,12 +2864,14 @@ public class ArmyFarmerJoeDoAll
                     if (HasPyro1CP())
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    core.Equip("Pyromancer");
-                    Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped("Pyromancer"), 20);
+                    if (!Bot.Inventory.IsEquipped("Pyromancer"))
+                    {
+                        LeaveCombatRoomForEquipmentChange();
+                        core.Equip("Pyromancer");
+                        Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped("Pyromancer"), 20);
+                    }
                     Bot.Skills.StartAdvanced("Pyromancer", false, ClassUseMode.Base);
                     core.KillMonster("noobshire", "Enter", "Spawn", "*", log: false);
-                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -2902,14 +2892,12 @@ public class ArmyFarmerJoeDoAll
                     if (HasBB() || Farm.FactionRank("DoomWood") >= 10)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.DoomWoodREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2925,14 +2913,12 @@ public class ArmyFarmerJoeDoAll
                     if (HasBB() || Farm.FactionRank("Embersea") >= 10)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.EmberseaREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -2951,8 +2937,7 @@ public class ArmyFarmerJoeDoAll
                     LeaveCombatRoomForEquipmentChange();
                     if (Bot.Inventory.IsEquipped("Pyromancer"))
                     {
-                        SetClass();
-                        core.EquipClass(ClassType.Solo);
+                        SetClass(ClassType.Solo);
                     }
 
                     Adv.BuyItem("fireforge", 1142, "Darkness Sigil");
@@ -3015,14 +3000,12 @@ public class ArmyFarmerJoeDoAll
                     if (IsCryoDailyDone())
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Daily.Cryomancer();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -3068,14 +3051,12 @@ public class ArmyFarmerJoeDoAll
                     if (HasArach() || Farm.FactionRank("Ravenloss") >= 10)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.RavenlossREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "ChaosWeaver Mage");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "ChaosWeaver Mage", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -3156,19 +3137,30 @@ public class ArmyFarmerJoeDoAll
                     if (Bot.Player.Level >= 60)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
 
                     string? currentClass = Bot.Player.CurrentClass?.Name;
-                    if (!string.IsNullOrWhiteSpace(currentClass))
+                    if (
+                        !string.IsNullOrWhiteSpace(currentClass)
+                        && Bot.Inventory.Items.Any(x =>
+                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
+                        )
+                    )
+                    {
+                        LeaveCombatRoomForEquipmentChange();
                         Adv.SmartEnhance(currentClass);
+                        Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+                    }
 
                     Farm.Experience(60);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        "*",
+                        compositionType: ClassType.Farm
+                    );
                 }
             )
         )
@@ -3193,8 +3185,7 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.AddDrop(20561);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.FarmingLogger("Dragon Shinobi Token", 300);
                     core.RegisterQuests(7924);
                     while (!Bot.ShouldExit && !core.CheckInventory(20561, 300))
@@ -3245,7 +3236,6 @@ public class ArmyFarmerJoeDoAll
                     if (!HasDSSRank10())
                         RankUpClassForArmy("DragonSoul Shinobi");
 
-                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3270,8 +3260,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsLacerateDone() || Bot.Quests.IsUnlocked(8739) || core.isCompletedBefore(92))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     if (!Bot.Quests.IsUnlocked(92))
                     {
                         if (!Bot.Quests.IsUnlocked(91))
@@ -3314,14 +3303,12 @@ public class ArmyFarmerJoeDoAll
                     if (HasBlacksmithRank5() || Farm.FactionRank("Blacksmithing") >= 4)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.BlacksmithingREP(4, false);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -3345,8 +3332,7 @@ public class ArmyFarmerJoeDoAll
 
                         core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
                         core.EnsureAccept(8736);
-                        SetClass();
-                        core.EquipClass(ClassType.Solo);
+                        SetClass(ClassType.Solo);
                         core.HuntMonster(
                             "hydrachallenge",
                             "Hydra Head 25",
@@ -3375,8 +3361,7 @@ public class ArmyFarmerJoeDoAll
 
                         core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
                         core.EnsureAccept(8736);
-                        SetClass();
-                        core.EquipClass(ClassType.Solo);
+                        SetClass(ClassType.Solo);
                         core.HuntMonster(
                             "maul",
                             "Creature Creation",
@@ -3405,8 +3390,7 @@ public class ArmyFarmerJoeDoAll
 
                         core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
                         core.EnsureAccept(8736);
-                        SetClass();
-                        core.EquipClass(ClassType.Solo);
+                        SetClass(ClassType.Solo);
                         core.HuntMonster(
                             "towerofdoom",
                             "Dread Klunk",
@@ -3440,8 +3424,7 @@ public class ArmyFarmerJoeDoAll
 
                     core.AddDrop("Undead Plague Spear");
                     core.EnsureAccept(8739);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.HuntMonster("graveyard", "Big Jack Sprat", "Undead Plague Spear", isTemp: false);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3464,8 +3447,7 @@ public class ArmyFarmerJoeDoAll
 
                     core.AddDrop("Kuro's Wrath");
                     core.EnsureAccept(8739);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.HuntMonster("river", "Kuro", "Kuro's Wrath", isTemp: false);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3489,8 +3471,7 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Massive Horc Cleaver");
                     core.EnsureAccept(8739);
                     core.EnsureAccept(279);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.HuntMonster("warhorc", "Horc Master", "Boss Prize");
                     core.EnsureComplete(279);
                     Bot.Wait.ForPickup("Massive Horc Cleaver");
@@ -3516,8 +3497,7 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Sword in the Stone");
                     core.EnsureAccept(8739);
                     core.EnsureAccept(316);
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.GetMapItem(54, 7, "greenguardeast");
                     core.HuntMonster("greenguardeast", "Spider", "Tiny Sword");
                     core.EnsureComplete(316);
@@ -3525,7 +3505,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Spider");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Spider", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -3544,8 +3524,7 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Forest Axe");
                     core.EnsureAccept(8739);
                     core.EnsureAccept(301);
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.GetMapItem(55, 4, "farm");
                     core.HuntMonster("farm", "Mosquito", "Mosquito Juice");
                     core.EnsureComplete(301);
@@ -3553,7 +3532,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Mosquito");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Mosquito", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -3574,8 +3553,7 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Black Knight Orb");
                     core.EnsureAccept(8739);
                     core.EnsureAccept(318);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.HuntMonster("well", "Gell Oh No", "Black Knight Leg Piece");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3598,8 +3576,7 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Black Knight Orb");
                     core.EnsureAccept(8739);
                     core.EnsureAccept(318);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.HuntMonster("greendragon", "Greenguard Dragon", "Black Knight Chest Piece");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3622,8 +3599,7 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Black Knight Orb");
                     core.EnsureAccept(8739);
                     core.EnsureAccept(318);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.HuntMonster("deathgazer", "Deathgazer", "Black Knight Shoulder Piece");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3646,8 +3622,7 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Black Knight Orb");
                     core.EnsureAccept(8739);
                     core.EnsureAccept(318);
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.HuntMonster("trunk", "GreenGuard Basilisk", "Black Knight Arm Piece");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3732,19 +3707,30 @@ public class ArmyFarmerJoeDoAll
                     if (Bot.Player.Level >= 65)
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
 
                     string? currentClass = Bot.Player.CurrentClass?.Name;
-                    if (!string.IsNullOrWhiteSpace(currentClass))
+                    if (
+                        !string.IsNullOrWhiteSpace(currentClass)
+                        && Bot.Inventory.Items.Any(x =>
+                            x != null && x.Equipped && x.EnhancementLevel < Bot.Player.Level
+                        )
+                    )
+                    {
+                        LeaveCombatRoomForEquipmentChange();
                         Adv.SmartEnhance(currentClass);
+                        Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+                    }
 
                     Farm.Experience(65);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        "*",
+                        compositionType: ClassType.Farm
+                    );
                 }
             )
         )
@@ -3773,14 +3759,12 @@ public class ArmyFarmerJoeDoAll
                     if (IsGlaceraRepDone())
                         return;
 
-                    LeaveCombatRoomForEquipmentChange();
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Farm.GlaceraREP(10);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
                 }
             )
         )
@@ -3824,7 +3808,6 @@ public class ArmyFarmerJoeDoAll
                     if (!HasGBRank10())
                         RankUpClassForArmy("Glacial Berserker");
 
-                    LeaveCombatRoomForEquipmentChange();
                     SetClass();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3877,12 +3860,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3908))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3908, "frozentower", "Polar Elemental");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -3930,14 +3912,13 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3911))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3911);
                     core.HuntMonster("frozentower", "Frostwyrm", "Refugee Saved", 7);
                     core.EnsureComplete(3911);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -3951,8 +3932,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3912))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(3912, "frozentower", "FrostDeep Dweller");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -3987,12 +3967,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3914))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3914, "frozentower", "Twisted Ice");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Twisted Ice")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Twisted Ice", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4023,12 +4002,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3916))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3916, "frozentower", "Polar Elemental");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4076,15 +4054,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3919))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3919);
                     core.GetMapItem(3008, 6, "frozentower");
                     core.HuntMonster("frozentower", "Polar Elemental", "Ice Sample", 6);
                     core.EnsureComplete(3919);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4098,8 +4075,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3920))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3920);
                     core.GetMapItem(3020, 1, "frozentower");
                     core.HuntMonster("frozentower", "Polar Elemental", "Polar Elemental Guard Defeated", 4);
@@ -4107,7 +4083,7 @@ public class ArmyFarmerJoeDoAll
                     core.EnsureComplete(3920);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4121,8 +4097,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3921))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(3921);
                     core.GetMapItem(3017, 6, "frozentower");
                     core.HuntMonster("frozentower", "FrostDeep Dweller", "FrostDeep Venom", 1);
@@ -4143,12 +4118,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3922))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3922, "frozentower", "Polar Elemental");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4162,12 +4136,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3923))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3923, "frozentower", "Frostwyrm");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4198,8 +4171,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3925))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3925);
                     core.GetMapItem(3012, 4, "frozentower");
                     core.GetMapItem(3011, 4, "frozentower");
@@ -4208,7 +4180,7 @@ public class ArmyFarmerJoeDoAll
                     core.EnsureComplete(3925);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4256,12 +4228,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3928))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3928, "frozentower", "Arctic Eel");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Arctic Eel")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Arctic Eel", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4275,12 +4246,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3929))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3929, "frozentower", "Polar Elemental");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Elemental", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4294,12 +4264,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3930))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3930, "frozentower", "Twisted Ice");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Twisted Ice")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Twisted Ice", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4313,12 +4282,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3931))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3931, "frozentower", "Frostwyrm");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frostwyrm", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4349,12 +4317,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3933))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3933, "frozentower", "Ice Wolf");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Ice Wolf")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Ice Wolf", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4368,8 +4335,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3934))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(3934, "frozentower", "Rotten Ice");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -4387,15 +4353,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3935))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3935);
                     core.GetMapItem(3018, 13, "frozentower");
                     core.HuntMonster("frozentower", "Ice Wolf", "Blood of the Ice Wolf", 1);
                     core.EnsureComplete(3935);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Ice Wolf")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Ice Wolf", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4409,14 +4374,13 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3936))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3936);
                     core.HuntMonster("frozentower", "Frost Invader", "FrostSpawn Invader defeated", 10);
                     core.EnsureComplete(3936);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4430,14 +4394,13 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsFTQuestDone(3937))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3937);
                     core.HuntMonster("frozentower", "Frost Fangbeast", "Fangbeasts defeated", 15);
                     core.EnsureComplete(3937);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4499,15 +4462,14 @@ public class ArmyFarmerJoeDoAll
                         if (IsWWQuestDone(wq.QuestId))
                             return;
 
-                        SetClass();
-                        core.EquipClass(ClassType.Farm);
+                        SetClass(ClassType.Farm);
                         core.EnsureAccept(wq.QuestId);
                         core.GetMapItem(wq.MapItemId, 1, "weaverwar");
                         core.KillMonster("weaverwar", wq.Cell, "Spawn", wq.Monster, wq.TempItem, wq.Quant);
                         core.EnsureComplete(wq.QuestId);
                     },
                     (targetPlayerNumber, targetPlayerName) =>
-                        Army.CoordinateFollowAndCombat(targetPlayerName, wq.Monster)
+                        Army.CoordinateFollowAndCombat(targetPlayerName, wq.Monster, compositionType: ClassType.Farm)
                 )
             )
                 return false;
@@ -4523,8 +4485,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsWWQuestDone(3439))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(3439, "twilightedge", "ChaosWeaver Warrior");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -4571,14 +4532,13 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShogunDone(6450))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6450);
                     core.HuntMonster("shogunwar", "Shadow Samurai", "Shadow Medallions", 5);
                     core.EnsureComplete(6450);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4591,15 +4551,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShogunDone(6451))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6451);
                     core.HuntMonsterMapID("shogunwar", 8, "Kijimuna Pollen", 4);
                     core.HuntMonsterMapID("shogunwar", 7, "Reishi Spores", 4);
                     core.EnsureComplete(6451);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4628,12 +4587,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShogunDone(6453))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6453, "shogunwar", "Shadow Samurai");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4646,12 +4604,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShogunDone(6454))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6454, "shogunwar", "Bamboo Treeant");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Bamboo Treeant")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Bamboo Treeant", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4664,12 +4621,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShogunDone(6455))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6455, "shogunwar", "Shadow Samurai");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4698,12 +4654,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShogunDone(6457))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6457, "shogunwar", "Reishi");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Reishi")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Reishi", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4716,12 +4671,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShogunDone(6458))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6458, "shogunwar", "Bamboo Treeant");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Bamboo Treeant")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Bamboo Treeant", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4735,8 +4689,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShogunDone(6459))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(6459);
                     core.HuntMonsterMapID("shogunwar", 25, "Orochi Defeated");
                     core.EnsureComplete(6459);
@@ -4756,8 +4709,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6462))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(6462);
                     core.HuntMonster("shinringrove", "Kame", "Kame Defeated");
                     core.EnsureComplete(6462);
@@ -4776,15 +4728,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6463))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6463);
                     core.HuntMonster("shinringrove", "Reishi", "Reishi Caps", 6);
                     core.HuntMonster("shinringrove", "Tsurubebi", "Tsurubebi Flame", 3);
                     core.EnsureComplete(6463);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4798,8 +4749,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6464))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(6464);
                     core.GetMapItem(5962, 1, "shinringrove");
                     core.Sleep();
@@ -4820,15 +4770,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6465))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6465);
                     core.GetMapItem(5964, 5, "greenshell");
                     core.HuntMonster("greenshell", "Tsurubebi", "Tsurubebi Extinguished", 5);
                     core.EnsureComplete(6465);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tsurubebi")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tsurubebi", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4841,12 +4790,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6466))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6466, "greenshell", "Tsukumogami");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tsukumogami")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Tsukumogami", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4859,12 +4807,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6467))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6467, "shinringrove", "Kodama");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kodama")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kodama", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4877,12 +4824,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6468))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6468, "shinringrove", "Moglinberry Bush");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Moglinberry Bush")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Moglinberry Bush", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4895,15 +4841,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6469))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6469);
                     core.GetMapItem(5965, 8, "greenshell");
                     core.HuntMonster("shinringrove", "Reishi", "Luminous Spores", 6);
                     core.EnsureComplete(6469);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Reishi")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Reishi", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4916,15 +4861,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6470))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6470);
                     core.GetMapItem(5966, 1, "greenshell");
                     core.HuntMonster("greenshell", "Merdraconian", "Merdraconians Slain", 3);
                     core.EnsureComplete(6470);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Merdraconian")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Merdraconian", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4954,8 +4898,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShinrinDone(6472))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(6472);
                     core.HuntMonster("greenshell", "Nagami", "Nagami Defeated");
                     core.EnsureComplete(6472);
@@ -4975,12 +4918,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6474))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6474, "heiwavalley", "Abumi Guchi");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Abumi Guchi")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Abumi Guchi", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -4993,15 +4935,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6475))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6475);
                     core.HuntMonster("heiwavalley", "Shadow Samurai", "Pilfered Armor", 5);
                     core.HuntMonster("heiwavalley", "Shadow Samurai", "Stolen Sword", 5);
                     core.EnsureComplete(6475);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5014,15 +4955,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6476))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6476);
                     core.GetMapItem(5968, 6, "heiwavalley");
                     core.HuntMonster("heiwavalley", "Kosenjobi", "Kosenjobi Flame", 6);
                     core.EnsureComplete(6476);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kosenjobi")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kosenjobi", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5035,12 +4975,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6477))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6477, "heiwavalley", "Goryo");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Goryo")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Goryo", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5053,14 +4992,13 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6478))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6478);
                     core.HuntMonster("heiwavalley", "Kosenjobi", "Spectral Heat", 5);
                     Story.BuyQuest(6478, "heiwavalley", 1608, "Wasabi");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kosenjobi")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Kosenjobi", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5073,12 +5011,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6479))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6479, "heiwavalley", "Abumi Guchi");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Abumi Guchi")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Abumi Guchi", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5091,12 +5028,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6480))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6480, "heiwavalley", "Inugami");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Inugami")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Inugami", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5109,14 +5045,13 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6481))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6481);
                     core.HuntMonster("heiwavalley", "Inugami", "Spirit Eyes", 4);
                     Story.MapItemQuest(6481, "heiwavalley", 5970, 8);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Inugami")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Inugami", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5147,8 +5082,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6483))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(6483);
                     core.HuntMonsterMapID("heiwavalley", 15, "Onryo Slain");
                     core.EnsureComplete(6483);
@@ -5168,12 +5102,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6485))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6485, "shadowfortress", "Restless Spirit");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Restless Spirit")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Restless Spirit", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5187,12 +5120,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6486))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6486, "shadowfortress", "Shadow Samurai");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5223,15 +5155,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6488))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6488);
                     core.GetMapItem(5974, 1, "shadowfortress");
                     core.HuntMonster("shadowfortress", "Living Shadow", "Shadow Essence", 7);
                     core.EnsureComplete(6488);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Living Shadow")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Living Shadow", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5245,12 +5176,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6489))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(6489, "shadowfortress", "Shadow Samurai");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shadow Samurai", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5264,15 +5194,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6490))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(6490);
                     core.GetMapItem(5975, 7, "shadowfortress");
                     core.HuntMonster("shadowfortress", "Creeping Shadow", "Shadows Slain", 7);
                     core.EnsureComplete(6490);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Creeping Shadow")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Creeping Shadow", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5286,8 +5215,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsShadowFortressDone(6491))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(6491, "shadowfortress", "7th Head of Orochi");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -5335,8 +5263,7 @@ public class ArmyFarmerJoeDoAll
                         if (IsShadowFortressDone(6493) || Bot.TempInv.Contains(head.TempDrop))
                             return;
 
-                        SetClass();
-                        core.EquipClass(ClassType.Solo);
+                        SetClass(ClassType.Solo);
                         core.EnsureAccept(6493);
                         core.HuntMonster("shadowfortress", head.Monster, head.TempDrop);
                     },
@@ -5375,8 +5302,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsShadowFortressDone(6494))
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     core.EnsureAccept(6494);
                     core.HuntMonsterMapID("shadowfortress", 31, "Jaaku Defeated");
                     core.EnsureComplete(6494);
@@ -5419,12 +5345,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsRuinsQuestDone(3941))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3941, "frozenruins", "Frost Fangbeast");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5440,12 +5365,11 @@ public class ArmyFarmerJoeDoAll
                     {
                         if (IsRuinsQuestDone(currentQuest))
                             return;
-                        SetClass();
-                        core.EquipClass(ClassType.Farm);
+                        SetClass(ClassType.Farm);
                         Story.KillQuest(currentQuest, "frozenruins", "Frost Reaper");
                     },
                     (targetPlayerNumber, targetPlayerName) =>
-                        Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper")
+                        Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper", compositionType: ClassType.Farm)
                 )
             )
                 return false;
@@ -5460,15 +5384,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsRuinsQuestDone(3945))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3945);
                     core.GetMapItem(3050, 10, "frozenruins");
                     core.HuntMonster("frozenruins", "Frozen Moglinster", "Frostbreath Weed", 5);
                     core.EnsureComplete(3945);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frozen Moglinster")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frozen Moglinster", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5482,15 +5405,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsRuinsQuestDone(3946))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3946);
                     if (!core.CheckInventory(27357))
                         core.HuntMonster("frozenruins", "Frost Reaper", "Mercury");
                     core.EnsureComplete(3946);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5526,12 +5448,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsRuinsQuestDone(3948))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3948, "glacera", "Frost Invader");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5579,14 +5500,13 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsRuinsQuestDone(3951))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(3951);
                     core.HuntMonster("frozenruins", "Frost Invader", "Ice Beast Destroyed", 10);
                     core.EnsureComplete(3951);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5600,12 +5520,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsRuinsQuestDone(3952))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3952, "frozenruins", "Frost Fangbeast");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Fangbeast", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5619,12 +5538,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsRuinsQuestDone(3953))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(3953, "frozenruins", "Frost Reaper");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Reaper", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5638,8 +5556,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsRuinsQuestDone(3954))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(3954, "frozenruins", "Frost General");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -5673,12 +5590,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsIceWindQuestDone(5588))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(5588, "icewindpass", "Glacial Elemental");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Glacial Elemental")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Glacial Elemental", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5691,15 +5607,14 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsIceWindQuestDone(5589))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAccept(5589);
                     core.GetMapItem(5075, 5, "icewindpass");
                     core.HuntMonster("icewindpass", "Glacial Elemental", "Iced Mana", 9);
                     core.EnsureComplete(5589);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Glacial Elemental")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Glacial Elemental", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5712,12 +5627,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsIceWindQuestDone(5590))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(5590, "icewindpass", "Polar Golem");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Golem")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Polar Golem", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5730,12 +5644,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsIceWindQuestDone(5591))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(5591, "icewindpass", "Frost Invader");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5749,8 +5662,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsIceWindQuestDone(5592))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(5592, "icewindpass", "Frostspawn Symbiote");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -5767,12 +5679,11 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsIceWindQuestDone(5593))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     Story.KillQuest(5593, "icewindpass", "Frost Invader");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5786,8 +5697,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsIceWindQuestDone(5594))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(5594, "icewindpass", "Frostspawn Horror");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -5807,8 +5717,7 @@ public class ArmyFarmerJoeDoAll
                     if (IsIceWindQuestDone(5597) || warMedalsDone)
                         return;
 
-                    SetClass();
-                    core.EquipClass(ClassType.Farm);
+                    SetClass(ClassType.Farm);
                     core.EnsureAcceptmultiple(new[] { 5597, 5598, 5599, 5600 });
                     core.HuntMonster("icewindwar", "Glaceran Defender", "FrostSpawn Medal", 10);
                     core.HuntMonster("icewindwar", "Glaceran Defender", "Mega Frostspawn Medal", 5);
@@ -5818,7 +5727,7 @@ public class ArmyFarmerJoeDoAll
                     warMedalsDone = true;
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*")
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -5832,8 +5741,7 @@ public class ArmyFarmerJoeDoAll
                 {
                     if (IsIceWindQuestDone(5601))
                         return;
-                    SetClass();
-                    core.EquipClass(ClassType.Solo);
+                    SetClass(ClassType.Solo);
                     Story.KillQuest(5601, "icewindwar", "Soricomorpha");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -6011,8 +5919,13 @@ public class ArmyFarmerJoeDoAll
     private string? _lastSolo;
     private string? _lastFarm;
     private int _setClassBusy;
+    private bool _cboInitialized;
+    private ClassType _syncedClassType = ClassType.None;
 
-    public void SetClass(bool rankUpIfNeeded = false)
+    public void SetClass(bool rankUpIfNeeded = false) =>
+        SetClass(ClassType.Solo, rankUpIfNeeded);
+
+    public void SetClass(ClassType targetType, bool rankUpIfNeeded = false)
     {
         if (System.Threading.Interlocked.Exchange(ref _setClassBusy, 1) == 1)
         {
@@ -6022,7 +5935,7 @@ public class ArmyFarmerJoeDoAll
 
         try
         {
-            SetClassInner(rankUpIfNeeded);
+            SetClassInner(targetType, rankUpIfNeeded);
         }
         finally
         {
@@ -6030,10 +5943,34 @@ public class ArmyFarmerJoeDoAll
         }
     }
 
-    private void SetClassInner(bool rankUpIfNeeded)
+    private string ResolveDesiredClass(CoreBots core, ClassType targetType, out ClassType effectiveType)
+    {
+        if (
+            targetType == ClassType.Farm
+            && !CoreBots.IsGenericClass(core.FarmClass)
+            && !string.IsNullOrWhiteSpace(core.FarmClass)
+            && HasClassInInventory(core.FarmClass)
+        )
+        {
+            effectiveType = ClassType.Farm;
+            return core.FarmClass;
+        }
+
+        effectiveType = targetType == ClassType.Farm
+            && !string.Equals(core.FarmClass, core.SoloClass, StringComparison.OrdinalIgnoreCase)
+            ? ClassType.Solo
+            : targetType;
+        return core.SoloClass;
+    }
+
+    private void SetClassInner(ClassType targetType, bool rankUpIfNeeded)
     {
         CoreBots core = CoreBots.Instance;
-        core.ReadCBO();
+        if (!_cboInitialized || rankUpIfNeeded)
+        {
+            core.ReadCBO();
+            _cboInitialized = true;
+        }
         ApplyArmyRoomSettings();
 
         // Always use the standard Base mode from Skua's Advanced Skills Set
@@ -6048,55 +5985,91 @@ public class ArmyFarmerJoeDoAll
         // Two unified compositions:
         // 1. Boss Composition (used for SoloClass, DodgeClass, and BossClass)
         // 2. Farm Composition (AoE farmers + dedicated Supports on P2 and P5)
-        core.SoloClass = ResolveClass(bossPool);
-        core.DodgeClass = core.SoloClass;
-        core.BossClass = core.SoloClass;
-        core.FarmClass = ResolveClass(farmPool);
+        string resolvedSolo = ResolveClass(bossPool);
+        string resolvedFarm = ResolveClass(farmPool);
+
+        core.SoloClass = resolvedSolo;
+        core.DodgeClass = resolvedSolo;
+        core.BossClass = resolvedSolo;
+        core.FarmClass = resolvedFarm;
+
+        if (
+            !string.Equals(_lastSolo, resolvedSolo, StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(_lastFarm, resolvedFarm, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            _syncedClassType = ClassType.None;
+        }
 
         bool Settled(string? className) =>
             CoreBots.IsGenericClass(className)
             || (!string.IsNullOrWhiteSpace(className) && HasRank10Class(className));
 
         if (
-            !rankUpIfNeeded
-            || (
-                string.Equals(_lastSolo, core.SoloClass, StringComparison.OrdinalIgnoreCase)
-                && string.Equals(_lastFarm, core.FarmClass, StringComparison.OrdinalIgnoreCase)
-                && Settled(core.SoloClass)
-                && Settled(core.FarmClass)
+            rankUpIfNeeded
+            && (
+                !string.Equals(_lastSolo, resolvedSolo, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(_lastFarm, resolvedFarm, StringComparison.OrdinalIgnoreCase)
+                || !Settled(resolvedSolo)
+                || !Settled(resolvedFarm)
             )
         )
         {
-            if (
-                !CoreBots.IsGenericClass(core.SoloClass)
-                && !string.Equals(Bot.Player.CurrentClass?.Name, core.SoloClass, StringComparison.OrdinalIgnoreCase)
-            )
+            RankIfNeeded(resolvedSolo, "BossComposition");
+            RankIfNeeded(resolvedFarm, "FarmComposition");
+            Bot.Sleep(500);
+            _lastSolo = resolvedSolo;
+            _lastFarm = resolvedFarm;
+        }
+        else if (string.IsNullOrEmpty(_lastSolo) && string.IsNullOrEmpty(_lastFarm))
+        {
+            _lastSolo = resolvedSolo;
+            _lastFarm = resolvedFarm;
+        }
+
+        string desiredClass = ResolveDesiredClass(core, targetType, out ClassType effectiveType);
+        string currentClass = Bot.Player.CurrentClass?.Name ?? string.Empty;
+        bool alreadyWearingDesired =
+            !CoreBots.IsGenericClass(desiredClass)
+            && string.Equals(currentClass, desiredClass, StringComparison.OrdinalIgnoreCase);
+
+        if (alreadyWearingDesired)
+        {
+            if (!Bot.Skills.TimerRunning)
+                Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+            _syncedClassType = effectiveType;
+            return;
+        }
+
+        if (CoreBots.IsGenericClass(desiredClass))
+        {
+            if (_syncedClassType != effectiveType)
             {
                 LeaveCombatRoomForEquipmentChange();
-                core.EquipClass(ClassType.Solo);
+                core.EquipClass(effectiveType);
+                _syncedClassType = effectiveType;
             }
             else if (!Bot.Skills.TimerRunning)
             {
-                Bot.Skills.StartAdvanced(Bot.Player.CurrentClass?.Name ?? core.SoloClass, false, ClassUseMode.Base);
+                Bot.Skills.StartAdvanced(
+                    string.IsNullOrWhiteSpace(currentClass) ? desiredClass : currentClass,
+                    false,
+                    ClassUseMode.Base
+                );
             }
             return;
         }
 
-        RankIfNeeded(core.SoloClass, "BossComposition");
-        RankIfNeeded(core.FarmClass, "FarmComposition");
-
-        Bot.Sleep(500);
-        if (
-            !CoreBots.IsGenericClass(core.SoloClass)
-            && !string.Equals(Bot.Player.CurrentClass?.Name, core.SoloClass, StringComparison.OrdinalIgnoreCase)
-        )
+        if (HasClassInInventory(desiredClass))
         {
             LeaveCombatRoomForEquipmentChange();
+            core.EquipClass(effectiveType);
+            _syncedClassType = effectiveType;
         }
-        core.EquipClass(ClassType.Solo);
-
-        _lastSolo = core.SoloClass;
-        _lastFarm = core.FarmClass;
+        else if (!Bot.Skills.TimerRunning && !string.IsNullOrWhiteSpace(currentClass))
+        {
+            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+        }
     }
 
     private void RankUpClassForArmy(string className)
@@ -6119,6 +6092,8 @@ public class ArmyFarmerJoeDoAll
             CoreBots.Instance.Equip(className);
             Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped(className), 20);
         }
+
+        _syncedClassType = ClassType.None;
 
         // Start Skua's Advanced Skills Set rotation for the class being ranked up!
         // (Adv.RankUpClass only calls Core.Equip, which does not start Bot.Skills.StartAdvanced!)

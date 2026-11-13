@@ -6138,7 +6138,8 @@ public class CoreArmyFJ
         string targetPlayerName,
         string monster = "*",
         bool useSkillRotations = true,
-        bool waitForFirstHit = true
+        bool waitForFirstHit = true,
+        ClassType compositionType = ClassType.Solo
     )
     {
         if (string.IsNullOrWhiteSpace(targetPlayerName) || Bot.ShouldExit)
@@ -6148,7 +6149,7 @@ public class CoreArmyFJ
         if (string.Equals(normalizedTarget, armyUsername, StringComparison.OrdinalIgnoreCase))
             return;
 
-        EnsureHelperRoleClassEquipped();
+        EnsureHelperRoleClassEquipped(compositionType);
 
         bool inSameCell = false;
         if (Bot.Map.TryGetPlayer(normalizedTarget, out var targetPlayer) && targetPlayer != null)
@@ -6236,47 +6237,82 @@ public class CoreArmyFJ
         }
     }
 
-    private void EnsureHelperRoleClassEquipped()
+    private string? ResolveCompositionHelperClass(ClassType compositionType)
     {
-        string currentClass = Bot.Player.CurrentClass?.Name ?? string.Empty;
-
-        // If this account's designated boss role IS already a support class
-        // (e.g., P2=StoneCrusher, P3=ArchPaladin, P4=Lord of Order), keep it equipped.
-        bool soloIsSupport =
-            !CoreBots.IsGenericClass(Core.SoloClass)
-            && IsSupportClassName(Core.SoloClass)
-            && HasClassInInventory(Core.SoloClass);
-
-        if (actAsSupportHelper && !soloIsSupport)
+        if (compositionType == ClassType.Farm)
         {
-            string? bestSupport = SupportHelperPriority.FirstOrDefault(HasClassInInventory);
-
             if (
-                !string.IsNullOrEmpty(bestSupport)
-                && !string.Equals(currentClass, bestSupport, StringComparison.OrdinalIgnoreCase)
+                !string.IsNullOrWhiteSpace(Core.FarmClass)
+                && !CoreBots.IsGenericClass(Core.FarmClass)
+                && HasClassInInventory(Core.FarmClass)
             )
             {
-                SwitchClassOutsideCombatRoom(bestSupport);
+                return Core.FarmClass;
             }
-            return;
         }
 
-        // Not acting as temporary fallback support (or already owns a support SoloClass):
-        // restore configured SoloClass from inventory when ready.
         if (
-            !CoreBots.IsGenericClass(Core.SoloClass)
-            && !string.Equals(currentClass, Core.SoloClass, StringComparison.OrdinalIgnoreCase)
+            !string.IsNullOrWhiteSpace(Core.SoloClass)
+            && !CoreBots.IsGenericClass(Core.SoloClass)
             && HasClassInInventory(Core.SoloClass)
         )
         {
-            SwitchClassOutsideCombatRoom(Core.SoloClass);
+            return Core.SoloClass;
         }
+
+        return null;
+    }
+
+    private void EnsureHelperRoleClassEquipped(ClassType compositionType)
+    {
+        string currentClass = Bot.Player.CurrentClass?.Name ?? string.Empty;
+        string? baseRoleClass = ResolveCompositionHelperClass(compositionType);
+
+        // If this account's designated role is already a support class
+        // (e.g., P2=StoneCrusher, P3=ArchPaladin, P4=Lord of Order), keep it equipped.
+        // During Farm objectives, finished helpers stay on their Farm composition class
+        // (AoE / dedicated Farm support) instead of pinging to Solo/Support and back.
+        bool roleIsSupport =
+            !string.IsNullOrEmpty(baseRoleClass) && IsSupportClassName(baseRoleClass);
+
+        string? expectedClass =
+            compositionType != ClassType.Farm && actAsSupportHelper && !roleIsSupport
+                ? SupportHelperPriority.FirstOrDefault(HasClassInInventory) ?? baseRoleClass
+                : baseRoleClass;
+
+        if (
+            string.IsNullOrWhiteSpace(expectedClass)
+            || CoreBots.IsGenericClass(expectedClass)
+            || string.Equals(currentClass, expectedClass, StringComparison.OrdinalIgnoreCase)
+        )
+        {
+            return;
+        }
+
+        SwitchClassOutsideCombatRoom(expectedClass);
     }
 
     private void SwitchClassOutsideCombatRoom(string targetClass)
     {
-        if (string.IsNullOrWhiteSpace(targetClass) || Bot.ShouldExit)
+        if (
+            string.IsNullOrWhiteSpace(targetClass)
+            || CoreBots.IsGenericClass(targetClass)
+            || Bot.ShouldExit
+        )
             return;
+
+        string currentClass = Bot.Player.CurrentClass?.Name ?? string.Empty;
+        if (string.Equals(currentClass, targetClass, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        if (!HasClassInInventory(targetClass))
+        {
+            Core.Logger(
+                $"Skipping class switch to '{targetClass}' because it is not in inventory.",
+                "CoreArmyFJ"
+            );
+            return;
+        }
 
         // 1. Stop skills, cancel target, and disable aggro immediately so we stop generating combat actions.
         try
@@ -6296,8 +6332,13 @@ public class CoreArmyFJ
         Bot.Options.AggroMonsters = false;
 
         // 2. Step out to /whitemap so no monster aggro, kill-credit from allies, or party-buff combat locks
-        //    in the active combat room can block equipping or enhancing the class!
-        if (!string.Equals(Bot.Map?.Name, "whitemap", StringComparison.OrdinalIgnoreCase))
+        //    in the active combat room can block equipping or enhancing the class.
+        string currentMap = Bot.Map?.Name ?? string.Empty;
+        if (
+            !string.Equals(currentMap, "whitemap", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(currentMap, "battleon", StringComparison.OrdinalIgnoreCase)
+            && (Bot.Player.InCombat || Bot.Monsters.MapMonsters.Count > 0)
+        )
         {
             Core.Join("whitemap");
             Bot.Wait.ForMapLoad("whitemap");
