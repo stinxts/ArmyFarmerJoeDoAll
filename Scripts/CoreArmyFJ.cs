@@ -6261,7 +6261,20 @@ public class CoreArmyFJ
             if (!Bot.Skills.TimerRunning)
             {
                 string currentClassName = Bot.Player.CurrentClass?.Name ?? "generic";
-                Bot.Skills.StartAdvanced(currentClassName, false, ClassUseMode.Base);
+                bool isSupportClass =
+                    currentClassName.Equals("Oracle", StringComparison.OrdinalIgnoreCase)
+                    || currentClassName.Equals("Healer", StringComparison.OrdinalIgnoreCase)
+                    || currentClassName.Equals("Healer (Rare)", StringComparison.OrdinalIgnoreCase)
+                    || currentClassName.Equals("Evolved Shaman", StringComparison.OrdinalIgnoreCase)
+                    || currentClassName.Equals("StoneCrusher", StringComparison.OrdinalIgnoreCase)
+                    || currentClassName.Equals("ArchPaladin", StringComparison.OrdinalIgnoreCase)
+                    || currentClassName.Equals("Lord of Order", StringComparison.OrdinalIgnoreCase);
+
+                Bot.Skills.StartAdvanced(
+                    currentClassName,
+                    false,
+                    isSupportClass ? ClassUseMode.Supp : ClassUseMode.Base
+                );
             }
         }
         catch

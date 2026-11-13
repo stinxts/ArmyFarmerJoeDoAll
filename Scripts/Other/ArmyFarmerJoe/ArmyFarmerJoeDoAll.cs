@@ -59,6 +59,8 @@ public class ArmyFarmerJoeDoAll
         "Blaze Binder",
         "Scarlet Sorceress",
         "Pyromancer",
+        "Shaman",
+        "Imperial Chunin",
         "Master Ranger",
     };
 
@@ -84,6 +86,12 @@ public class ArmyFarmerJoeDoAll
         Army.player5,
         Army.player6,
         Army.player7,
+        new Option<int>(
+            "RoomNumber",
+            "Army Private Room Number",
+            "Shared private room number (1001-99999) so all Army accounts join the exact same map instance.",
+            91827
+        ),
         new Option<bool>(
             "OutFit",
             "Get a Pre-Made Outfit, Curtious of the Community",
@@ -160,7 +168,26 @@ public class ArmyFarmerJoeDoAll
             return false;
         }
 
+        if (!ApplyArmyRoomSettings())
+            return false;
+
         return Army.StartArmySync(syncFileName, playerCount);
+    }
+
+    private bool ApplyArmyRoomSettings()
+    {
+        int roomNumber = Bot.Config?.Get<int>("RoomNumber") ?? 91827;
+        if (roomNumber <= 0)
+            roomNumber = 91827;
+
+        if (!Army.ValidatePrivateRoomNumber(roomNumber))
+            return false;
+
+        CoreBots core = CoreBots.Instance;
+        core.PrivateRooms = true;
+        core.PrivateRoomNumber = roomNumber;
+        core.PublicDifficult = false;
+        return true;
     }
 
     public bool RunLevel1To30()
@@ -168,6 +195,7 @@ public class ArmyFarmerJoeDoAll
         if (!Army.SyncArmy("STEP1_START"))
             return false;
 
+        ApplyArmyRoomSettings();
         CoreBots.Instance.Logger("Army FarmerJoe: starting level 1-30 on all accounts.");
         if (!RunBeginnerItems())
             return false;
@@ -505,8 +533,51 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        // 6b. Final SetClass (original: SetClass() after the Mage block).
-        // Mage becomes the Farm class and is ranked to 10.
+        // 7. Oracle (free 0 AC Healer/Support class for early Army composition)
+        bool HasOracle() => CoreBots.Instance.CheckInventory("Oracle", toInv: false);
+        bool HasOracleRank10() => HasOracle() && HasRank10Class("Oracle");
+
+        if (
+            !RunCooperativeObjective(
+                "BEGINNER_ORACLE_BUY",
+                () => skipBeginnerItems || HasOracle(),
+                () =>
+                {
+                    if (HasOracle())
+                        return;
+
+                    CoreBots.Instance.Logger("Getting Starter Support/Healer class (Oracle - 0 AC)");
+                    CoreBots.Instance.BuyItem("classhalla", 299, "Oracle");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BEGINNER_ORACLE_RANK_10",
+                () => skipBeginnerItems || HasOracleRank10(),
+                () =>
+                {
+                    if (HasOracleRank10())
+                        return;
+
+                    Adv.RankUpClass("Oracle");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // 8. Final SetClass (resolves party role Solo/Support/Debuff + Farm + Dodge and ranks to 10)
         bool finalClassSetComplete = false;
         if (
             !RunCooperativeObjective(
@@ -690,6 +761,7 @@ public class ArmyFarmerJoeDoAll
         if (!Army.SyncArmy("STEP2A_START"))
             return false;
 
+        ApplyArmyRoomSettings();
         CoreBots core = CoreBots.Instance;
         core.Logger("Army FarmerJoe: starting Step 2A (Bracket 30) on all accounts.");
 
@@ -949,6 +1021,188 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     Adv.RankUpClass("Dragonslayer");
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // 5d. Imperial Chunin (Yokai Rep 10 in /dragonkoiz — No boss, Pockey Chew only ~1k HP, gives Boss Hit-Chance Debuffer for Player 3)
+        bool HasImperialChunin() => core.CheckInventory("Imperial Chunin", toInv: false);
+        bool HasImperialChuninRank10() =>
+            HasImperialChunin() && HasRank10Class("Imperial Chunin");
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_CHUNIN_YOKAI_REP",
+                () => HasImperialChunin() || Farm.FactionRank("Yokai") >= 10,
+                () =>
+                {
+                    if (HasImperialChunin() || Farm.FactionRank("Yokai") >= 10)
+                        return;
+
+                    core.Logger("Level 30: Farming Yokai Rep 10 for Imperial Chunin");
+                    SetClass();
+                    Farm.YokaiREP(10);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Pockey Chew");
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_CHUNIN_BUY",
+                HasImperialChunin,
+                () =>
+                {
+                    if (HasImperialChunin())
+                        return;
+
+                    core.Logger("Level 30: Buying Imperial Chunin");
+                    Adv.BuyItem("dragonkoiz", 95, "Imperial Chunin");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_CHUNIN_RANK_10",
+                HasImperialChuninRank10,
+                () =>
+                {
+                    if (HasImperialChuninRank10())
+                        return;
+
+                    Adv.RankUpClass("Imperial Chunin");
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // 5e. Shaman & Evolved Shaman (Arcangrove Rep 10 in /arcangrove — No boss, Gorillaphant & Seed Spitter ~2k HP, unlocks 2 unique classes for Player 4 & Player 5 from the same Rep!)
+        bool HasShaman() => core.CheckInventory("Shaman", toInv: false);
+        bool HasShamanRank10() => HasShaman() && HasRank10Class("Shaman");
+        bool HasEvolvedShaman() => core.CheckInventory("Evolved Shaman", toInv: false);
+        bool HasEvolvedShamanRank10() =>
+            HasEvolvedShaman() && HasRank10Class("Evolved Shaman");
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_SHAMAN_ARCANGROVE_REP",
+                () =>
+                    (HasShaman() && HasEvolvedShaman())
+                    || Farm.FactionRank("Arcangrove") >= 10,
+                () =>
+                {
+                    if (
+                        (HasShaman() && HasEvolvedShaman())
+                        || Farm.FactionRank("Arcangrove") >= 10
+                    )
+                        return;
+
+                    core.Logger("Level 30: Farming Arcangrove Rep 10 for Shaman & Evolved Shaman");
+                    SetClass();
+                    Farm.ArcangroveREP(10);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_SHAMAN_BUY",
+                HasShaman,
+                () =>
+                {
+                    if (HasShaman())
+                        return;
+
+                    core.Logger("Level 30: Buying Shaman");
+                    Adv.BuyItem("arcangrove", 214, 5765, shopItemID: 4799);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_SHAMAN_RANK_10",
+                HasShamanRank10,
+                () =>
+                {
+                    if (HasShamanRank10())
+                        return;
+
+                    Adv.RankUpClass("Shaman");
+                    SetClass();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_EVOLVED_SHAMAN_BUY",
+                HasEvolvedShaman,
+                () =>
+                {
+                    if (HasEvolvedShaman())
+                        return;
+
+                    core.Logger("Level 30: Buying Evolved Shaman (same Arcangrove Rep 10)");
+                    Adv.BuyItem("arcangrove", 214, "Evolved Shaman", shopItemID: 6396);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_EVOLVED_SHAMAN_RANK_10",
+                HasEvolvedShamanRank10,
+                () =>
+                {
+                    if (HasEvolvedShamanRank10())
+                        return;
+
+                    Adv.RankUpClass("Evolved Shaman");
                     SetClass();
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -1264,8 +1518,9 @@ public class ArmyFarmerJoeDoAll
     }
     #endregion Step 2A: Bracket 30
 
-    #region SetClass (port of CoreFarmerJoe BTS)
-    private static readonly string[] SoloClasses =
+    #region SetClass (Party Role Composition & CBO Resolution)
+    // Player 1: Main Solo DPS (never overlaps with Players 2-7 at the same milestone)
+    private static readonly string[] Player1SoloClasses =
     {
         "King's Echo",
         "Chaos Avenger",
@@ -1273,8 +1528,6 @@ public class ArmyFarmerJoeDoAll
         "Void Highlord (IoDA)",
         "Legion Revenant",
         "Dragon of Time",
-        "ArchPaladin",
-        "Lord of Order",
         "Cryomancer",
         "Dragonslayer General",
         "Glacial Berserker",
@@ -1287,7 +1540,72 @@ public class ArmyFarmerJoeDoAll
         "Ninja (Rare)",
         "Rogue (Rare)",
         "Rogue",
+    };
+
+    // Player 2 (and Player 7 fallback in 7-player armies): Dedicated Healer / Support Buffer
+    private static readonly string[] Player2SupportClasses =
+    {
+        "Lord of Order",
+        "ArchPaladin",
+        "StoneCrusher",
+        "Oracle",
         "Healer (Rare)",
+        "Healer",
+    };
+
+    // Player 3: Boss Hit-Chance Debuffer / Defense Shredder (Rogue at Step 1 -> Imperial Chunin at Lv 30)
+    private static readonly string[] Player3DebuffClasses =
+    {
+        "ArchPaladin",
+        "StoneCrusher",
+        "Legion Revenant",
+        "Imperial Chunin",
+        "Rogue (Rare)",
+        "Rogue",
+        "Ninja",
+    };
+
+    // Player 4: Magic Damage Amplifier & Evasion Suppressor (Mage at Step 1 -> Shaman at Lv 30)
+    private static readonly string[] Player4AmpClasses =
+    {
+        "Archfiend",
+        "StoneCrusher",
+        "Arachnomancer",
+        "Shaman",
+        "Mage (Rare)",
+        "Mage",
+        "Oracle",
+    };
+
+    // Player 5: Ranged / Secondary Debuff & Heal (Oracle at Step 1 -> Evolved Shaman at Lv 30)
+    private static readonly string[] Player5FlexClasses =
+    {
+        "Dragon of Time",
+        "Glacial Berserker",
+        "Evolved Shaman",
+        "Master Ranger",
+        "Oracle",
+        "Healer",
+    };
+
+    // Player 6: Ranged Physical DPS / Secondary Support (Master Ranger at Lv 30, or Support fallback)
+    private static readonly string[] Player6FlexClasses =
+    {
+        "Void Highlord",
+        "ArchPaladin",
+        "StoneCrusher",
+        "Master Ranger",
+        "Oracle",
+        "Healer",
+    };
+
+    // Player 7: Stealth / Dodge DPS or Secondary Healer
+    private static readonly string[] Player7FlexClasses =
+    {
+        "Yami No Ronin",
+        "DragonSoul Shinobi",
+        "Ninja",
+        "Oracle",
         "Healer",
     };
 
@@ -1300,6 +1618,8 @@ public class ArmyFarmerJoeDoAll
         "Blaze Binder",
         "Scarlet Sorceress",
         "Pyromancer",
+        "Shaman",
+        "Imperial Chunin",
         "Master Ranger",
         "Mage (Rare)",
         "Mage",
@@ -1311,14 +1631,51 @@ public class ArmyFarmerJoeDoAll
         "Yami No Ronin",
         "Chrono Assassin",
         "Horc Evader",
+        "Imperial Chunin",
         "Assassin",
         "Ninja Warrior",
         "Classic Ninja",
         "Ninja",
         "Ninja (Rare)",
+        "Oracle",
         "Rogue (Rare)",
         "Rogue",
     };
+
+    private string[] GetRoleSoloPool()
+    {
+        if (IsPlayer(2))
+            return Player2SupportClasses;
+        if (IsPlayer(3))
+            return Player3DebuffClasses;
+        if (IsPlayer(4))
+            return Player4AmpClasses;
+        if (IsPlayer(5))
+            return Player5FlexClasses;
+        if (IsPlayer(6))
+            return Player6FlexClasses;
+        if (IsPlayer(7))
+            return Player7FlexClasses;
+
+        return Player1SoloClasses;
+    }
+
+    private string GetPartyRoleLabel()
+    {
+        if (IsPlayer(2))
+            return "P2-Healer/Support";
+        if (IsPlayer(3))
+            return "P3-Debuffer";
+        if (IsPlayer(4))
+            return "P4-MagicAmp";
+        if (IsPlayer(5))
+            return "P5-SubHealer/Debuff";
+        if (IsPlayer(6))
+            return "P6-RangedDPS/Support";
+        if (IsPlayer(7))
+            return "P7-DodgeDPS/Support";
+        return "P1-MainDPS";
+    }
 
     private static readonly HashSet<string> UpgradeHintsShown =
         new(StringComparer.OrdinalIgnoreCase);
@@ -1351,8 +1708,12 @@ public class ArmyFarmerJoeDoAll
         CoreBots core = CoreBots.Instance;
         core.SoloClass = core.FarmClass = core.DodgeClass = "Generic";
         core.ReadCBO();
+        ApplyArmyRoomSettings();
 
-        core.SoloClass = ResolveClass(core.SoloClass, SoloClasses, "Solo") ?? core.SoloClass;
+        string[] soloPool = GetRoleSoloPool();
+        string roleLabel = GetPartyRoleLabel();
+
+        core.SoloClass = ResolveClass(core.SoloClass, soloPool, $"Solo ({roleLabel})") ?? core.SoloClass;
         core.FarmClass = ResolveClass(core.FarmClass, FarmClasses, "Farm") ?? core.FarmClass;
         core.DodgeClass = ResolveClass(core.DodgeClass, DodgeClasses, "Dodge") ?? core.DodgeClass;
 
