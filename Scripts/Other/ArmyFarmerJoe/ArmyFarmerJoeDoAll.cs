@@ -32,8 +32,6 @@ public class ArmyFarmerJoeDoAll
         "King's Echo",
         "Chaos Avenger",
         "Void Highlord",
-        "Void Highlord (IoDA)",
-        "Legion Revenant",
         "Dragon of Time",
         "ArchPaladin",
         "Lord of Order",
@@ -42,17 +40,12 @@ public class ArmyFarmerJoeDoAll
         "Glacial Berserker",
         "Dragonslayer",
         "DragonSoul Shinobi",
-        "Classic Ninja",
-        "Ninja (Rare)",
-        "Rogue (Rare)",
         "Rogue",
-        "Healer (Rare)",
         "Healer",
     };
 
     private static readonly string[] HighTierFarmClasses =
     {
-        "Legion Revenant",
         "ArchMage",
         "Dragon of Time",
         "Archfiend",
@@ -1518,27 +1511,20 @@ public class ArmyFarmerJoeDoAll
     }
     #endregion Step 2A: Bracket 30
 
-    #region SetClass (Party Role Composition & CBO Resolution)
+    #region SetClass (Party Role Composition & CBO Resolution — 100% Free-to-Play Classes Only)
     // Player 1: Main Solo DPS (never overlaps with Players 2-7 at the same milestone)
     private static readonly string[] Player1SoloClasses =
     {
         "King's Echo",
         "Chaos Avenger",
         "Void Highlord",
-        "Void Highlord (IoDA)",
-        "Legion Revenant",
         "Dragon of Time",
         "Cryomancer",
         "Dragonslayer General",
         "Glacial Berserker",
         "Dragonslayer",
         "DragonSoul Shinobi",
-        "Assassin",
-        "Ninja Warrior",
-        "Classic Ninja",
         "Ninja",
-        "Ninja (Rare)",
-        "Rogue (Rare)",
         "Rogue",
     };
 
@@ -1549,7 +1535,6 @@ public class ArmyFarmerJoeDoAll
         "ArchPaladin",
         "StoneCrusher",
         "Oracle",
-        "Healer (Rare)",
         "Healer",
     };
 
@@ -1558,9 +1543,7 @@ public class ArmyFarmerJoeDoAll
     {
         "ArchPaladin",
         "StoneCrusher",
-        "Legion Revenant",
         "Imperial Chunin",
-        "Rogue (Rare)",
         "Rogue",
         "Ninja",
     };
@@ -1572,7 +1555,6 @@ public class ArmyFarmerJoeDoAll
         "StoneCrusher",
         "Arachnomancer",
         "Shaman",
-        "Mage (Rare)",
         "Mage",
         "Oracle",
     };
@@ -1611,7 +1593,6 @@ public class ArmyFarmerJoeDoAll
 
     private static readonly string[] FarmClasses =
     {
-        "Legion Revenant",
         "ArchMage",
         "Dragon of Time",
         "Archfiend",
@@ -1621,24 +1602,16 @@ public class ArmyFarmerJoeDoAll
         "Shaman",
         "Imperial Chunin",
         "Master Ranger",
-        "Mage (Rare)",
         "Mage",
     };
 
     private static readonly string[] DodgeClasses =
     {
-        "Great Thief",
         "Yami No Ronin",
-        "Chrono Assassin",
         "Horc Evader",
         "Imperial Chunin",
-        "Assassin",
-        "Ninja Warrior",
-        "Classic Ninja",
         "Ninja",
-        "Ninja (Rare)",
         "Oracle",
-        "Rogue (Rare)",
         "Rogue",
     };
 
