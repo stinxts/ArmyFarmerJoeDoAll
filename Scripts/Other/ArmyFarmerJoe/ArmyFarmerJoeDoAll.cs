@@ -10,6 +10,7 @@
 //cs_include Scripts/Other/FreeBoosts/FreeBoostsQuest(10mns)[Rng].cs
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using Skua.Core.Interfaces;
 using Skua.Core.Models.Items;
@@ -35,6 +36,12 @@ public class ArmyFarmerJoeDoAll
         None,
         HotMama,
         Akriloth,
+    }
+
+    public enum BoostGearPolicy
+    {
+        UpgradeIfBetter,
+        KeepEquippedGear,
     }
 
     private static IScriptInterface Bot => IScriptInterface.Instance;
@@ -85,6 +92,20 @@ public class ArmyFarmerJoeDoAll
             "Choose Your Pet",
             "Extra stuff to choose",
             PetChoice.None
+        ),
+        new Option<BoostGearPolicy>(
+            "BoostGearPolicy",
+            "Boost Gear Policy",
+            "UpgradeIfBetter: equips higher-boost Weapon/Armor/Cape/Helm (never downgrades superior equipped items, respects AQW Show/Wearing, treats EXP weight as 0 at Lv 100).\n"
+                + "KeepEquippedGear: keeps each player's already-equipped Weapon/Armor/Cape/Helm untouched during Army progression.",
+            BoostGearPolicy.UpgradeIfBetter
+        ),
+        new Option<string>(
+            "KeepEquippedGearPlayers",
+            "Keep Equipped Gear Players",
+            "Comma-separated Army player numbers (e.g. \"1\") or exact usernames that should always keep their currently equipped Weapon/Armor/Cape/Helm (e.g. a full endgame main).\n"
+                + "Per-account Skua CBO 'DisableBestGear' is also respected automatically.",
+            string.Empty
         ),
         CoreBots.Instance.SkipOptions,
     };
@@ -268,7 +289,7 @@ public class ArmyFarmerJoeDoAll
                 switch (category)
                 {
                     case ItemCategory.Helm:
-                        if (equippedItem == null)
+                        if (equippedItem == null && !ShouldPreserveEquippedGear())
                         {
                             CoreBots.Instance.BuyItem("classhalla", 299, "Battle Oracle Hood");
                             Bot.Wait.ForItemBuy();
@@ -277,7 +298,7 @@ public class ArmyFarmerJoeDoAll
                         break;
 
                     case ItemCategory.Cape:
-                        if (equippedItem == null)
+                        if (equippedItem == null && !ShouldPreserveEquippedGear())
                         {
                             CoreBots.Instance.BuyItem("classhalla", 299, "Battle Oracle Wings");
                             Bot.Wait.ForItemBuy();
@@ -297,12 +318,17 @@ public class ArmyFarmerJoeDoAll
                     case ItemCategory.Wand:
                     case ItemCategory.Mace:
                     case ItemCategory.Polearm:
+                        InventoryItem? equippedWeapon = Bot.Inventory.Items.Find(item =>
+                            item.Equipped && string.Equals(item.ItemGroup, "Weapon", StringComparison.OrdinalIgnoreCase)
+                        );
                         ItemBase? defaultWeapon = Bot.Inventory.Items.Find(item =>
                             item.Name.StartsWith("Default")
                         );
 
                         if (
-                            defaultWeapon != null
+                            !ShouldPreserveEquippedGear()
+                            && (equippedWeapon == null || equippedWeapon.Name.StartsWith("Default"))
+                            && defaultWeapon != null
                             && CoreBots.Instance.CheckInventory(defaultWeapon.ID)
                         )
                         {
@@ -323,6 +349,7 @@ public class ArmyFarmerJoeDoAll
                 }
             }
 
+            EnsureBestStaticBoostGearEquipped();
             basicEquipmentComplete = !Bot.ShouldExit;
         };
 
@@ -803,6 +830,7 @@ public class ArmyFarmerJoeDoAll
                 () =>
                 {
                     SetClass();
+                    EnsureBestStaticBoostGearEquipped();
                     initialSetupDone = !Bot.ShouldExit;
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -1481,6 +1509,10 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
+        // 6d. Equip best available static boost gear (Awethur's Accoutrements / Blade of Awe unless superior gear is owned)
+        if (!SyncBoostGearForArmy("BRACKET30_BOOST_GEAR_EQUIP"))
+            return false;
+
         // 7. Unlock Forge Helm Enhancement (Quest 8828 coordinated boss by boss)
         bool IsForgeHelmDone() => core.isCompletedBefore(8828);
 
@@ -1628,6 +1660,7 @@ public class ArmyFarmerJoeDoAll
         ApplyArmyRoomSettings();
         CoreBots core = CoreBots.Instance;
         core.Logger("Army FarmerJoe: starting Step 2B (Bracket 50) on all accounts.");
+        EnsureBestStaticBoostGearEquipped();
 
         // 1. Level 50 + SmartEnhance
         bool enhancedBracket50 = Bot.Player.Level > 75;
@@ -1944,17 +1977,15 @@ public class ArmyFarmerJoeDoAll
         SetClass();
 
         // 4. Burning Blade (+15% All Damage weapon from Diabolical Warlord in /lostruinswar)
-        bool HasBurningBlade() =>
-            core.CheckInventory("Burning Blade", toInv: false)
-            || core.CheckInventory("Burning Blade of Abezeth", toInv: false);
+        bool HasBurningBladeOrBetter() => HasOwnedBoostWeaponAtLeast(0.15);
 
         if (
             !RunCooperativeObjective(
                 "BRACKET50_BURNING_BLADE",
-                HasBurningBlade,
+                HasBurningBladeOrBetter,
                 () =>
                 {
-                    if (HasBurningBlade())
+                    if (HasBurningBladeOrBetter())
                         return;
 
                     core.Logger("Level 50: Farming Burning Blade (+15% All Damage) from Diabolical Warlord");
@@ -1977,33 +2008,7 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        if (
-            !RunCooperativeObjective(
-                "BRACKET50_BURNING_BLADE_EQUIP",
-                () =>
-                    core.CheckInventory("Burning Blade of Abezeth", toInv: false)
-                    || !core.CheckInventory("Burning Blade", toInv: true)
-                    || Bot.Inventory.IsEquipped("Burning Blade"),
-                () =>
-                {
-                    if (
-                        core.CheckInventory("Burning Blade of Abezeth", toInv: false)
-                        || !core.CheckInventory("Burning Blade", toInv: true)
-                        || Bot.Inventory.IsEquipped("Burning Blade")
-                    )
-                        return;
-
-                    LeaveCombatRoomForEquipmentChange();
-                    core.Equip("Burning Blade");
-                    Adv.SmartEnhance(Bot.Player.CurrentClass?.Name ?? string.Empty);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Bot.Sleep(1000);
-                },
-                maxWorkAttempts: 2
-            )
-        )
+        if (!SyncBoostGearForArmy("BRACKET50_BURNING_BLADE_EQUIP"))
             return false;
 
         // 8. Approved Bracket 50 Dailies (Unlock "A Loyal Follower" 2084 -> Mine Crafting 2091 -> ShadowScythe General 3828/3827)
@@ -2833,6 +2838,8 @@ public class ArmyFarmerJoeDoAll
     /// 2. Blaze Binder (Pyromancer -> 1 CP -> DoomWood REP 10 -> Embersea REP 10 -> Blaze Binder Rank 10)
     /// 3. Cryomancer (Coordinated /frozentower 3907-3937 -> Daily 3966/3965 -> Buy & Rank 10 if 84x tokens reached)
     /// 4. Arachnomancer (Coordinated /twilightedge 3428 + /weaverwar 3429-3439 -> Ravenloss REP 10 -> Buy & Rank 10)
+    /// 5. Cape of Awe (+25% CP/EXP/Gold/Rep from Binky in /doomvault)
+    /// 6. Approved Bracket 55 Dailies (Seal of Light 3826 & Seal of Darkness 3825)
     /// </summary>
     public bool RunBracket55()
     {
@@ -2844,6 +2851,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         SetClass(rankUpIfNeeded: true);
+        EnsureBestStaticBoostGearEquipped();
 
         // 1. Level 55 + SmartEnhance
         if (
@@ -3208,7 +3216,11 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        // 5. Approved Bracket 55 Dailies (Seal of Light 3826 & Seal of Darkness 3825)
+        // 5. Cape of Awe (+25% CP/EXP/Gold/Rep from Binky in /doomvault r5)
+        if (!RunBracket55CapeOfAwe())
+            return false;
+
+        // 6. Approved Bracket 55 Dailies (Seal of Light 3826 & Seal of Darkness 3825)
         if (!RunBracket55ApprovedDailies())
             return false;
 
@@ -3232,6 +3244,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         SetClass(rankUpIfNeeded: true);
+        EnsureBestStaticBoostGearEquipped();
 
         // 1. Level 60 + SmartEnhance
         if (
@@ -3802,6 +3815,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         SetClass(rankUpIfNeeded: true);
+        EnsureBestStaticBoostGearEquipped();
 
         // 1. Level 65 + SmartEnhance
         if (
@@ -6245,6 +6259,752 @@ public class ArmyFarmerJoeDoAll
 
         CoreBots.Instance.JumpWait();
         Bot.Wait.ForCombatExit(20);
+    }
+
+    private readonly HashSet<int> _unequippableBoostItemIds = new();
+
+    private readonly struct BoostProfile
+    {
+        public double DmgAll { get; init; }
+        public double Chaos { get; init; }
+        public double Dragonkin { get; init; }
+        public double Elemental { get; init; }
+        public double Human { get; init; }
+        public double Undead { get; init; }
+        public double Cp { get; init; }
+        public double Exp { get; init; }
+        public double Gold { get; init; }
+        public double Rep { get; init; }
+
+        public bool HasAnyBoost =>
+            DmgAll > 0
+            || Chaos > 0
+            || Dragonkin > 0
+            || Elemental > 0
+            || Human > 0
+            || Undead > 0
+            || Cp > 0
+            || Exp > 0
+            || Gold > 0
+            || Rep > 0;
+    }
+
+    private static double ParseBoostFraction(string rawValue)
+    {
+        if (string.IsNullOrWhiteSpace(rawValue))
+            return 0;
+
+        string cleaned = rawValue.Trim();
+        bool hasPercent = cleaned.EndsWith("%", StringComparison.Ordinal);
+        if (hasPercent)
+            cleaned = cleaned.Substring(0, cleaned.Length - 1).Trim();
+        if (cleaned.StartsWith("+", StringComparison.Ordinal))
+            cleaned = cleaned.Substring(1).Trim();
+
+        if (!double.TryParse(cleaned, NumberStyles.Float, CultureInfo.InvariantCulture, out double value))
+            return 0;
+        if (!double.IsFinite(value) || value <= 0)
+            return 0;
+
+        double bonus = hasPercent || value >= 5.0
+            ? value / 100.0
+            : value >= 1.0
+                ? value - 1.0
+                : value;
+
+        return Math.Max(0, bonus);
+    }
+
+    private static BoostProfile ParseBoostProfile(ItemBase? item)
+    {
+        string? meta = item?.Meta;
+        if (string.IsNullOrWhiteSpace(meta))
+            return default;
+
+        double dmgAll = 0;
+        double chaos = 0;
+        double dragonkin = 0;
+        double elemental = 0;
+        double human = 0;
+        double undead = 0;
+        double cp = 0;
+        double exp = 0;
+        double gold = 0;
+        double rep = 0;
+
+        string[] entries = meta.Split(new[] { ',', ';' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (string entry in entries)
+        {
+            int sepIndex = entry.IndexOf(':');
+            if (sepIndex < 0)
+                sepIndex = entry.IndexOf('=');
+            if (sepIndex <= 0 || sepIndex >= entry.Length - 1)
+                continue;
+
+            string key = entry.Substring(0, sepIndex).Trim().ToLowerInvariant();
+            double fraction = ParseBoostFraction(entry.Substring(sepIndex + 1));
+            if (fraction <= 0)
+                continue;
+
+            switch (key)
+            {
+                case "dmgall":
+                case "alldmg":
+                case "all":
+                    dmgAll = Math.Max(dmgAll, fraction);
+                    break;
+                case "chaos":
+                    chaos = Math.Max(chaos, fraction);
+                    break;
+                case "dragonkin":
+                case "dragon":
+                    dragonkin = Math.Max(dragonkin, fraction);
+                    break;
+                case "elemental":
+                    elemental = Math.Max(elemental, fraction);
+                    break;
+                case "human":
+                    human = Math.Max(human, fraction);
+                    break;
+                case "undead":
+                    undead = Math.Max(undead, fraction);
+                    break;
+                case "cp":
+                case "classpoints":
+                    cp = Math.Max(cp, fraction);
+                    break;
+                case "exp":
+                case "xp":
+                    exp = Math.Max(exp, fraction);
+                    break;
+                case "gold":
+                    gold = Math.Max(gold, fraction);
+                    break;
+                case "rep":
+                case "reputation":
+                    rep = Math.Max(rep, fraction);
+                    break;
+            }
+        }
+
+        return new BoostProfile
+        {
+            DmgAll = dmgAll,
+            Chaos = chaos,
+            Dragonkin = dragonkin,
+            Elemental = elemental,
+            Human = human,
+            Undead = undead,
+            Cp = cp,
+            Exp = exp,
+            Gold = gold,
+            Rep = rep,
+        };
+    }
+
+    private static bool Dominates(in BoostProfile a, in BoostProfile b)
+    {
+        const double eps = 1e-6;
+        return a.DmgAll >= b.DmgAll - eps
+            && a.Chaos >= b.Chaos - eps
+            && a.Dragonkin >= b.Dragonkin - eps
+            && a.Elemental >= b.Elemental - eps
+            && a.Human >= b.Human - eps
+            && a.Undead >= b.Undead - eps
+            && a.Cp >= b.Cp - eps
+            && a.Exp >= b.Exp - eps
+            && a.Gold >= b.Gold - eps
+            && a.Rep >= b.Rep - eps;
+    }
+
+    private static double Max4(double v1, double v2, double v3, double v4) =>
+        Math.Max(Math.Max(v1, v2), Math.Max(v3, v4));
+
+    private static double ScoreStaticLoadout(
+        in BoostProfile w,
+        in BoostProfile a,
+        in BoostProfile c,
+        in BoostProfile h,
+        int playerLevel
+    )
+    {
+        double dmgAll = Max4(w.DmgAll, a.DmgAll, c.DmgAll, h.DmgAll);
+        double chaos = Max4(w.Chaos, a.Chaos, c.Chaos, h.Chaos);
+        double dragonkin = Max4(w.Dragonkin, a.Dragonkin, c.Dragonkin, h.Dragonkin);
+        double elemental = Max4(w.Elemental, a.Elemental, c.Elemental, h.Elemental);
+        double human = Max4(w.Human, a.Human, c.Human, h.Human);
+        double undead = Max4(w.Undead, a.Undead, c.Undead, h.Undead);
+        double cp = Max4(w.Cp, a.Cp, c.Cp, h.Cp);
+        double exp = Max4(w.Exp, a.Exp, c.Exp, h.Exp);
+        double gold = Max4(w.Gold, a.Gold, c.Gold, h.Gold);
+        double rep = Max4(w.Rep, a.Rep, c.Rep, h.Rep);
+
+        double dmgFactorChaos = (1.0 + dmgAll) * (1.0 + chaos) - 1.0;
+        double dmgFactorDragon = (1.0 + dmgAll) * (1.0 + dragonkin) - 1.0;
+        double dmgFactorElem = (1.0 + dmgAll) * (1.0 + elemental) - 1.0;
+        double dmgFactorHuman = (1.0 + dmgAll) * (1.0 + human) - 1.0;
+        double dmgFactorUndead = (1.0 + dmgAll) * (1.0 + undead) - 1.0;
+
+        double combatFactor =
+            0.25 * dmgAll
+            + 0.15 * (dmgFactorChaos + dmgFactorDragon + dmgFactorElem + dmgFactorHuman + dmgFactorUndead);
+
+        double expWeight = playerLevel >= 100 ? 0.0 : 120.0;
+        return combatFactor * 1000.0 + cp * 120.0 + exp * expWeight + rep * 100.0 + gold * 80.0;
+    }
+
+    private sealed class BoostCandidate
+    {
+        public BoostCandidate(InventoryItem? item, BoostProfile profile, bool isBankItem)
+        {
+            Item = item;
+            Profile = profile;
+            IsBankItem = isBankItem;
+        }
+
+        public InventoryItem? Item { get; }
+        public BoostProfile Profile { get; }
+        public bool IsBankItem { get; }
+        public bool IsEquipped => Item?.Equipped == true;
+    }
+
+    private bool ShouldPreserveEquippedGear()
+    {
+        CoreBots core = CoreBots.Instance;
+        if (core.CBOBool("DisableBestGear", out bool disableBestGear) && disableBestGear)
+            return true;
+
+        if (Bot.Config == null)
+            return false;
+
+        BoostGearPolicy policy = Bot.Config.Get<BoostGearPolicy>("BoostGearPolicy");
+        if (policy == BoostGearPolicy.KeepEquippedGear)
+            return true;
+
+        string? keepPlayers = Bot.Config.Get<string>("KeepEquippedGearPlayers");
+        if (string.IsNullOrWhiteSpace(keepPlayers))
+            return false;
+
+        int localPlayerNumber = GetLocalPlayerNumber();
+        string localUsername = Bot.Player?.Username?.Trim() ?? string.Empty;
+        string[] tokens = keepPlayers.Split(new[] { ',', ';', '\n', '\r' }, StringSplitOptions.RemoveEmptyEntries);
+        foreach (string rawToken in tokens)
+        {
+            string token = rawToken.Trim();
+            if (string.IsNullOrEmpty(token))
+                continue;
+
+            if (int.TryParse(token, NumberStyles.Integer, CultureInfo.InvariantCulture, out int playerNumber) && playerNumber == localPlayerNumber)
+                return true;
+
+            if (!string.IsNullOrEmpty(localUsername) && string.Equals(token, localUsername, StringComparison.OrdinalIgnoreCase))
+                return true;
+        }
+
+        return false;
+    }
+
+    private List<InventoryItem> EnumerateOwnedInventoryAndBankItems()
+    {
+        var byId = new Dictionary<int, InventoryItem>();
+
+        if (Bot.Inventory?.Items != null)
+        {
+            foreach (InventoryItem item in Bot.Inventory.Items)
+            {
+                if (item != null && item.ID > 0 && !byId.ContainsKey(item.ID))
+                    byId[item.ID] = item;
+            }
+        }
+
+        if (Bot.Bank?.Items != null)
+        {
+            foreach (InventoryItem item in Bot.Bank.Items)
+            {
+                if (item != null && item.ID > 0 && !byId.ContainsKey(item.ID))
+                    byId[item.ID] = item;
+            }
+        }
+
+        return byId.Values.ToList();
+    }
+
+    private static bool MatchesBoostSlot(InventoryItem item, string slotKey) =>
+        slotKey switch
+        {
+            "Weapon" => string.Equals(item.ItemGroup, "Weapon", StringComparison.OrdinalIgnoreCase),
+            "Armor" => item.Category == ItemCategory.Armor,
+            "Cape" => item.Category == ItemCategory.Cape,
+            "Helm" => item.Category == ItemCategory.Helm,
+            _ => false,
+        };
+
+    private List<BoostCandidate> GetPrunedSlotCandidates(
+        List<InventoryItem> ownedItems,
+        string slotKey,
+        int playerLevel,
+        bool isMember,
+        out BoostCandidate currentCandidate
+    )
+    {
+        InventoryItem? equippedItem = null;
+        var rawBoostCandidates = new List<BoostCandidate>();
+
+        foreach (InventoryItem item in ownedItems)
+        {
+            if (item == null || item.Temp || !MatchesBoostSlot(item, slotKey))
+                continue;
+
+            if (item.Equipped)
+                equippedItem = item;
+
+            if (!item.Equipped)
+            {
+                if (_unequippableBoostItemIds.Contains(item.ID))
+                    continue;
+                if (item.Upgrade && !isMember)
+                    continue;
+            }
+
+            BoostProfile profile = ParseBoostProfile(item);
+            if (!item.Equipped && !profile.HasAnyBoost)
+                continue;
+
+            bool isBankOnly = !Bot.Inventory!.Contains(item.ID);
+            rawBoostCandidates.Add(new BoostCandidate(item, profile, isBankOnly));
+        }
+
+        currentCandidate =
+            rawBoostCandidates.FirstOrDefault(c => c.IsEquipped)
+            ?? new BoostCandidate(equippedItem, ParseBoostProfile(equippedItem), false);
+
+        var pruned = new List<BoostCandidate> { currentCandidate };
+        BoostProfile zero = default;
+
+        // Sort higher-value single-slot items first so dominance filtering converges immediately.
+        foreach (
+            BoostCandidate candidate in rawBoostCandidates
+                .Where(c => !c.IsEquipped)
+                .OrderByDescending(c => ScoreStaticLoadout(c.Profile, zero, zero, zero, playerLevel))
+                .ThenBy(c => c.IsBankItem ? 1 : 0)
+                .ThenBy(c => c.Item?.ID ?? 0)
+        )
+        {
+            bool dominated = pruned.Any(existing =>
+                Dominates(existing.Profile, candidate.Profile)
+                && (
+                    !Dominates(candidate.Profile, existing.Profile)
+                    || existing.IsEquipped
+                    || !existing.IsBankItem && candidate.IsBankItem
+                )
+            );
+
+            if (!dominated)
+            {
+                pruned.Add(candidate);
+                if (pruned.Count >= 9)
+                    break;
+            }
+        }
+
+        return pruned;
+    }
+
+    private List<InventoryItem> ResolveBestStaticBoostSwaps()
+    {
+        var swaps = new List<InventoryItem>();
+        if (ShouldPreserveEquippedGear() || Bot.Inventory == null)
+            return swaps;
+
+        int playerLevel = Bot.Player.Level;
+        bool isMember = CoreBots.Instance.IsMember;
+        List<InventoryItem> owned = EnumerateOwnedInventoryAndBankItems();
+
+        List<BoostCandidate> weapons = GetPrunedSlotCandidates(owned, "Weapon", playerLevel, isMember, out BoostCandidate curW);
+        List<BoostCandidate> armors = GetPrunedSlotCandidates(owned, "Armor", playerLevel, isMember, out BoostCandidate curA);
+        List<BoostCandidate> capes = GetPrunedSlotCandidates(owned, "Cape", playerLevel, isMember, out BoostCandidate curC);
+        List<BoostCandidate> helms = GetPrunedSlotCandidates(owned, "Helm", playerLevel, isMember, out BoostCandidate curH);
+
+        double currentScore = ScoreStaticLoadout(curW.Profile, curA.Profile, curC.Profile, curH.Profile, playerLevel);
+        double bestScore = currentScore;
+        int bestEquippedCount =
+            (curW.IsEquipped ? 1 : 0)
+            + (curA.IsEquipped ? 1 : 0)
+            + (curC.IsEquipped ? 1 : 0)
+            + (curH.IsEquipped ? 1 : 0);
+
+        BoostCandidate bestW = curW;
+        BoostCandidate bestA = curA;
+        BoostCandidate bestC = curC;
+        BoostCandidate bestH = curH;
+
+        foreach (BoostCandidate w in weapons)
+        foreach (BoostCandidate a in armors)
+        foreach (BoostCandidate c in capes)
+        foreach (BoostCandidate h in helms)
+        {
+            double score = ScoreStaticLoadout(w.Profile, a.Profile, c.Profile, h.Profile, playerLevel);
+            int equippedCount =
+                (w.IsEquipped ? 1 : 0)
+                + (a.IsEquipped ? 1 : 0)
+                + (c.IsEquipped ? 1 : 0)
+                + (h.IsEquipped ? 1 : 0);
+
+            if (
+                score > bestScore + 1e-4
+                || (Math.Abs(score - bestScore) <= 1e-4 && equippedCount > bestEquippedCount)
+            )
+            {
+                bestScore = score;
+                bestEquippedCount = equippedCount;
+                bestW = w;
+                bestA = a;
+                bestC = c;
+                bestH = h;
+            }
+        }
+
+        if (bestScore <= currentScore + 1e-4)
+            return swaps;
+
+        if (bestW.Item != null && !bestW.IsEquipped)
+            swaps.Add(bestW.Item);
+        if (bestA.Item != null && !bestA.IsEquipped)
+            swaps.Add(bestA.Item);
+        if (bestC.Item != null && !bestC.IsEquipped)
+            swaps.Add(bestC.Item);
+        if (bestH.Item != null && !bestH.IsEquipped)
+            swaps.Add(bestH.Item);
+
+        return swaps;
+    }
+
+    private bool HasPendingBoostGearUpgrade() => ResolveBestStaticBoostSwaps().Count > 0;
+
+    private bool HasOwnedBoostWeaponAtLeast(double minDmgAll)
+    {
+        bool isMember = CoreBots.Instance.IsMember;
+        foreach (InventoryItem item in EnumerateOwnedInventoryAndBankItems())
+        {
+            if (item == null || item.Temp || !MatchesBoostSlot(item, "Weapon"))
+                continue;
+            if ((item.Upgrade && !isMember) || _unequippableBoostItemIds.Contains(item.ID))
+                continue;
+
+            BoostProfile profile = ParseBoostProfile(item);
+            if (profile.DmgAll >= minDmgAll - 1e-6)
+                return true;
+
+            string trimmedName = item.Name?.Trim() ?? string.Empty;
+            if (
+                minDmgAll <= 0.15 + 1e-6
+                && (
+                    string.Equals(trimmedName, "Burning Blade", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(trimmedName, "Burning Blade of Abezeth", StringComparison.OrdinalIgnoreCase)
+                )
+            )
+                return true;
+            if (
+                minDmgAll <= 0.30 + 1e-6
+                && string.Equals(trimmedName, "Burning Blade of Abezeth", StringComparison.OrdinalIgnoreCase)
+            )
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool HasOwnedCapeOfAweOrBetter()
+    {
+        CoreBots core = CoreBots.Instance;
+        if (core.CheckInventory("Cape of Awe", toInv: false))
+            return true;
+
+        bool isMember = core.IsMember;
+        int playerLevel = Bot.Player.Level;
+        bool isMaxLevel = playerLevel >= 100;
+
+        foreach (InventoryItem item in EnumerateOwnedInventoryAndBankItems())
+        {
+            if (item == null || item.Temp || !MatchesBoostSlot(item, "Cape"))
+                continue;
+            if ((item.Upgrade && !isMember) || _unequippableBoostItemIds.Contains(item.ID))
+                continue;
+
+            BoostProfile profile = ParseBoostProfile(item);
+            bool coversResources =
+                profile.Cp >= 0.25 - 1e-6
+                && profile.Gold >= 0.25 - 1e-6
+                && profile.Rep >= 0.25 - 1e-6
+                && (isMaxLevel || profile.Exp >= 0.25 - 1e-6);
+
+            if (coversResources)
+                return true;
+        }
+
+        return false;
+    }
+
+    private void EnsureBestStaticBoostGearEquipped()
+    {
+        if (Bot.ShouldExit || ShouldPreserveEquippedGear())
+            return;
+
+        List<InventoryItem> swaps = ResolveBestStaticBoostSwaps();
+        if (swaps.Count == 0)
+            return;
+
+        CoreBots core = CoreBots.Instance;
+        LeaveCombatRoomForEquipmentChange();
+
+        int[] bankIds = swaps
+            .Where(item => !Bot.Inventory!.Contains(item.ID))
+            .Select(item => item.ID)
+            .Distinct()
+            .ToArray();
+        if (bankIds.Length > 0)
+            core.Unbank(bankIds);
+
+        bool needEnhance = false;
+        foreach (InventoryItem target in swaps)
+        {
+            if (Bot.ShouldExit)
+                break;
+
+            if (!Bot.Inventory!.Contains(target.ID))
+            {
+                core.Logger($"BoostGear: could not unbank '{target.Name}' ({target.ID}); skipping.");
+                _unequippableBoostItemIds.Add(target.ID);
+                continue;
+            }
+
+            if (!Bot.Inventory.IsEquipped(target.ID))
+            {
+                core.Logger($"BoostGear: equipping '{target.Name}' ({target.Category}, Meta='{target.Meta}').");
+                core.Equip(target.ID);
+                Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped(target.ID), 20);
+            }
+
+            if (!Bot.Inventory.IsEquipped(target.ID))
+            {
+                core.Logger($"BoostGear: '{target.Name}' ({target.ID}) failed to equip; marking skipped.");
+                _unequippableBoostItemIds.Add(target.ID);
+                continue;
+            }
+
+            if (target.Category != ItemCategory.Armor)
+            {
+                InventoryItem? equippedNow = Bot.Inventory.Items.FirstOrDefault(x => x != null && x.ID == target.ID);
+                if (
+                    equippedNow != null
+                    && (equippedNow.EnhancementLevel <= 0 || equippedNow.EnhancementLevel < Math.Min(Bot.Player.Level, 100))
+                )
+                    needEnhance = true;
+            }
+        }
+
+        if (needEnhance && !Bot.ShouldExit)
+        {
+            string? currentClass = Bot.Player.CurrentClass?.Name;
+            Adv.SmartEnhance(currentClass ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(currentClass) && !Bot.Skills.TimerRunning)
+                Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+        }
+    }
+
+    private bool SyncBoostGearForArmy(string objectiveName)
+    {
+        return RunCooperativeObjective(
+            objectiveName,
+            () => ShouldPreserveEquippedGear() || !HasPendingBoostGearUpgrade(),
+            () =>
+            {
+                if (ShouldPreserveEquippedGear())
+                    return;
+
+                EnsureBestStaticBoostGearEquipped();
+            },
+            (targetPlayerNumber, targetPlayerName) =>
+            {
+                Bot.Sleep(1000);
+            },
+            maxWorkAttempts: 2
+        );
+    }
+
+    private bool IsAweGuardian()
+    {
+        try
+        {
+            return Bot.Flash.GetGameObject<int>("world.myAvatar.objData.intAQ") > 0;
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    private bool RunBracket55CapeOfAwe()
+    {
+        CoreBots core = CoreBots.Instance;
+
+        bool isGuardian = IsAweGuardian();
+        int questId = isGuardian ? 4179 : core.IsMember ? 4178 : 4180;
+        int passId = isGuardian ? 29403 : core.IsMember ? 29402 : 29404;
+        int passShopItemId = isGuardian ? 18569 : core.IsMember ? 18580 : 18579;
+        string passName = isGuardian
+            ? "Guardian Awe Pass"
+            : core.IsMember
+                ? "Legendary Awe Pass"
+                : "Armor of Awe Pass";
+        string passMap = isGuardian ? "tower" : "museum";
+        int passShopId = isGuardian ? 53 : 1130;
+        int minRep = isGuardian ? 5 : 10;
+
+        bool HasCapeMaterialOrDone() =>
+            HasOwnedCapeOfAweOrBetter()
+            || core.CheckInventory("Cape of Awe", toInv: false)
+            || core.CheckInventory("Cape Relic", toInv: false)
+            || core.CheckInventory("Cape Fragment", toInv: false)
+            || core.CheckInventory("Cape Shard", toInv: false);
+
+        // Ensure Blade of Awe prerequisite rank if an account entered Bracket 55 without it.
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_COA_REP",
+                () =>
+                    HasCapeMaterialOrDone()
+                    || (
+                        Farm.FactionRank("Blade of Awe") >= minRep
+                        && (isGuardian || core.CheckInventory(17585, toInv: false))
+                    ),
+                () =>
+                {
+                    bool needBladeOfAwe = !isGuardian && !core.CheckInventory(17585, toInv: false);
+                    if (
+                        HasCapeMaterialOrDone()
+                        || (Farm.FactionRank("Blade of Awe") >= minRep && !needBladeOfAwe)
+                    )
+                        return;
+
+                    SetClass(ClassType.Farm);
+                    Farm.BladeofAweREP(minRep, farmBoA: needBladeOfAwe);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Skeletal Viking", compositionType: ClassType.Farm);
+                }
+            )
+        )
+            return false;
+
+        // Prep: acquire Awe Pass & accept quest on all pending accounts before entering /doomvault r5.
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_COA_PREP",
+                () =>
+                    HasCapeMaterialOrDone()
+                    || (Bot.Quests.IsInProgress(questId) && core.CheckInventory(passId, toInv: true)),
+                () =>
+                {
+                    UnbankIfOwned(passName, "Cape Shard", "Cape Fragment", "Cape Relic", "Cape of Awe");
+                    if (HasCapeMaterialOrDone())
+                        return;
+
+                    if (!core.CheckInventory(passId, toInv: true))
+                    {
+                        LeaveCombatRoomForEquipmentChange();
+                        Adv.BuyItem(passMap, passShopId, passId, shopItemID: passShopItemId);
+                        Bot.Wait.ForItemBuy();
+                    }
+
+                    core.AddDrop("Cape Shard", "Cape Fragment", "Cape Relic", "Cape of Awe");
+                    core.EnsureAccept(questId);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // Coordinated Binky fight (/doomvault r5 Left -> Cape Shard).
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_COA_BINKY",
+                HasCapeMaterialOrDone,
+                () =>
+                {
+                    UnbankIfOwned(passName, "Cape Shard", "Cape Fragment", "Cape Relic", "Cape of Awe");
+                    if (HasCapeMaterialOrDone())
+                        return;
+
+                    core.Logger("Level 55: Farming Cape Shard from Binky in /doomvault (Cape of Awe)");
+                    core.AddDrop("Cape Shard", "Cape Fragment");
+                    core.EnsureAccept(questId);
+                    SetClass(ClassType.Solo);
+                    core.KillMonster("doomvault", "r5", "Left", "Binky", "Cape Shard", isTemp: false);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Binky", compositionType: ClassType.Solo);
+                }
+            )
+        )
+            return false;
+
+        // Turn in quest -> buy Cape Relic -> buy Cape of Awe -> bank pass.
+        if (
+            !RunCooperativeObjective(
+                "BRACKET55_COA_BUY",
+                HasOwnedCapeOfAweOrBetter,
+                () =>
+                {
+                    if (HasOwnedCapeOfAweOrBetter())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    UnbankIfOwned(passName, "Cape Shard", "Cape Fragment", "Cape Relic", "Cape of Awe");
+                    core.AddDrop("Cape Fragment", "Cape Relic", "Cape of Awe");
+
+                    if (!core.CheckInventory("Cape of Awe", toInv: false))
+                    {
+                        if (!core.CheckInventory("Cape Relic", toInv: false))
+                        {
+                            if (!core.CheckInventory("Cape Fragment", toInv: false) && core.CheckInventory("Cape Shard", toInv: false))
+                            {
+                                core.EnsureComplete(questId);
+                                Bot.Wait.ForPickup("Cape Fragment");
+                            }
+
+                            if (core.CheckInventory("Cape Fragment", toInv: false))
+                            {
+                                Adv.BuyItem("museum", 1129, "Cape Relic");
+                                Bot.Wait.ForItemBuy();
+                            }
+                        }
+
+                        if (core.CheckInventory("Cape Relic", toInv: false))
+                        {
+                            Adv.BuyItem("museum", 1129, "Cape of Awe");
+                            Bot.Wait.ForItemBuy();
+                        }
+                    }
+
+                    BankIfPresent("Legendary Awe Pass", "Guardian Awe Pass", "Armor of Awe Pass");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        return SyncBoostGearForArmy("BRACKET55_COA_EQUIP");
     }
 
     private string ResolveClass(string[] pool)
