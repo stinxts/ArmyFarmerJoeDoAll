@@ -61,6 +61,15 @@ A multi-account cooperative progression automation framework designed for synchr
    * **Bracket 55:** Level 55 + post-level-up gear updates, token-based prerequisite class & dual reputations for `BB` (Rank 10), coordinated tower storyline & daily tokens for `CRYO` (Rank 10 when unlocked), coordinated war storyline + reputation for `ARA` (Rank 10), `Cape of Awe` (+25% CP/EXP/Gold/Rep from Binky in `/doomvault r5`), and approved Dailies (`Seal of Light` `[3826]` + `Seal of Darkness` `[3825]` toward `Bright Knight`).
    * **Bracket 60:** Level 60 + post-level-up gear updates, coordinated island storyline & boss tokens for `DSS` (Rank 10), and `Lacerate` Forge weapon enhancement (`[8739]`) unlocked through coordinated `Blacksmithing` Rank 5 rounds (`[8736]`) and boss drops (`Black Knight Orb`).
    * **Bracket 65:** Level 65 + post-level-up gear updates, coordinated winter storyline & reputation for `GB` (acquired and ranked to Rank 10 when its seasonal shop is active), plus approved Dailies (`Embrace Your Chaos` `[3596]` + the 10-day `Lord of Order` progression chain `[7156–7165]` & Rank 10), followed by optional `SellStarterClasses` cleanup and `OutFit` / `EquipOutfit` / `PetChoice` acquisition & equip.
+5. **Stage 2D (Bracket 70):**
+   * Level 70 + post-level-up gear enhancement update.
+   * **Endgame Support & Debuff Core:** Coordinated `Brightoak` storyline + reputation (`Arcangrove`, `Mythsong`, and `Brightoak` Rank 10) for `SC` (Rank 10), plus `Good` / `SpellCrafting` prerequisites, `Xan` storyline (`volcano` / `xantown` / `xancave`), and full quest chain (`[5463–5467]`) for `AP` (Rank 10).
+   * **Forge Helm Enhancements:** Coordinated unlocks for `Vim` (`[8754]` via `Etherstorm` Rank 10 + `ROG` Rank 10 + `250x Eternity Flame`) and `Examen` (`[8755]` via `Etherstorm` Rank 10 + `HLR` Rank 10 + `250x Eternity Flame`).
+6. **Stage 3A (Level 75):**
+   * Level 75 + post-level-up gear enhancement update.
+   * **13 Lords of Chaos (`13LoC`):** Full coordinated 13-saga storyline (`Prologue`, `Escherion`, `Vath`, `Kitsune`, `Wolfwing`, `Ledgermayne`, `Tibicenas`, `Khasaanda`, `Iadoa`, `Lionfang`, `Xiang`, `Alteon`, and `Chaos Finale` `[3881]`).
+   * **Mid-Late Classes:** `SHM` + `ES` verification/Rank 10 and `Chaos` Rank 10 + `CS` (variant acquisition & Rank 10).
+   * **Forge Weapon Enhancements:** Coordinated unlocks for `Forge (Weapon)` (`[8738]`), `Lacerate` (`[8739]`), `Smite` (`[8740]` via `Blacksmithing` Rank 6 + `10x Death's Power` + `3x Chaotic Power`), and `Praxis` (`[8741]` via `Blacksmithing` Rank 6, `Dark Ally` storyline, `Binky`, `Yokai ( Boat )` Rank 10, and `Dragonbone Axe`), followed by post-stage `SellStarterClasses` cleanup and `OutFit` / `EquipOutfit` / `PetChoice` sync.
 
 ---
 
@@ -76,7 +85,8 @@ A multi-account cooperative progression automation framework designed for synchr
 | **Stage 2A (Bracket 30)** | `DS` | `ORA` | `IC` | `SHM` | `ES` | `MR` | `NIN` |
 | **Stage 2B (Bracket 50)** | `DSG` | `ORA` | `IC` | `SHM` | `ES` | `SS` | `NIN` |
 | **Stage 2C (Brackets 55–65)** | `CRYO` / `DSG` | `ORA` | `IC` | `LoO` / `ARA` | `GB` / `ES` | `SS` | `DSS` |
-| **Target Endgame (Planned Lv 70–100)** | `KE` / `AI` / `CAV` / `VHL` / `DOT` | `SC` | `AP` | `LoO` | `VDK` / `GB` / `ES` | `AF` / `SS` | `YNR` / `DSS` |
+| **Stage 2D–3A (Brackets 70–75)** | `CRYO` / `DSG` | `SC` | `AP` | `LoO` / `ARA` | `GB` / `ES` | `SS` | `DSS` |
+| **Target Endgame (Planned Lv 75–100)** | `KE` / `AI` / `CAV` / `VHL` / `DOT` | `SC` | `AP` | `LoO` | `VDK` / `GB` / `ES` | `AF` / `SS` | `YNR` / `DSS` |
 
 ---
 

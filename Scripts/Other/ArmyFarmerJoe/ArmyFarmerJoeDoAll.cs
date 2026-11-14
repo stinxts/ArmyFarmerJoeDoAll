@@ -1667,7 +1667,31 @@ public class ArmyFarmerJoeDoAll
         //    even though the Flash client sets bloodSorc.Quantity == 1 in memory upon pickup.
         //    Therefore, checking Quantity < 1 is a trap; we must check Quantity <= 1 (or fallback to Rank 10 if 1 CP turn-in is rejected).
         // 2) Blood Sorceress MUST be unequipped when turning in Quest 6236 (the quest consumes it).
-        bool triedOneCpTurnIn = false;
+        // 2d. Rank Blood Sorceress to Rank 10 when Scarlet Sorceress is not yet owned (Quest 6236 requires Rank 10 Blood Sorceress)
+        bool HasBloodSorceressReadyFor6236() =>
+            HasScarletSorceress() || (HasClassInInventory(36298) && HasRank10Class("Blood Sorceress"));
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET50_SS_BLOOD_RANK_10",
+                HasBloodSorceressReadyFor6236,
+                () =>
+                {
+                    if (HasBloodSorceressReadyFor6236() || !HasClassInInventory(36298))
+                        return;
+
+                    RankUpClassForArmy("Blood Sorceress");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+
+        // 2e. Upgrade Blood Sorceress (ID 36298) -> Scarlet Sorceress (ID 42992) via Quest 6236 (Drop the Blood Sorceress)
+        // Note: Quest 6236 consumes Blood Sorceress (36298) on turn-in, so Blood Sorceress MUST be unequipped first.
         if (
             !RunCooperativeObjective(
                 "BRACKET50_SS_UPGRADE_6236",
@@ -1682,50 +1706,8 @@ public class ArmyFarmerJoeDoAll
 
                     core.AddDrop(42992);
 
-                    InventoryItem? bloodSorc = Bot.Inventory.Items.FirstOrDefault(x =>
-                        x != null && x.ID == 36298
-                    );
-                    if (bloodSorc != null && bloodSorc.EnhancementLevel <= 0)
-                    {
-                        LeaveCombatRoomForEquipmentChange();
-                        EnhanceClassForArmyRespectingGearPolicy("Blood Sorceress", allowFullGearEnhance: false);
-                    }
-
-                    bloodSorc = Bot.Inventory.Items.FirstOrDefault(x =>
-                        x != null && x.ID == 36298
-                    );
-                    if (bloodSorc != null && bloodSorc.Quantity <= 1)
-                    {
-                        core.Logger(
-                            "Level 50: Getting Class Points on Blood Sorceress for Quest 6236"
-                        );
-                        if (
-                            !string.Equals(
-                                Bot.Player.CurrentClass?.Name,
-                                "Blood Sorceress",
-                                StringComparison.OrdinalIgnoreCase
-                            )
-                        )
-                        {
-                            LeaveCombatRoomForEquipmentChange();
-                            EnhanceClassForArmyRespectingGearPolicy("Blood Sorceress", allowFullGearEnhance: false);
-                            core.Equip("Blood Sorceress");
-                            Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped("Blood Sorceress"), 20);
-                        }
-                        Bot.Skills.StartAdvanced("Blood Sorceress", false, ClassUseMode.Base);
-                        core.KillMonster("towerofmirrors", "r2", "Left", "*", log: false);
-                    }
-                    else if (
-                        triedOneCpTurnIn
-                        && bloodSorc != null
-                        && bloodSorc.Quantity < Rank10ClassPoints
-                    )
-                    {
-                        core.Logger(
-                            "Level 50: Quest 6236 did not complete with >1 CP; ranking Blood Sorceress to Rank 10 as fallback"
-                        );
+                    if (!HasRank10Class("Blood Sorceress"))
                         RankUpClassForArmy("Blood Sorceress");
-                    }
 
                     // Ensure Blood Sorceress is UNEQUIPPED before turning in Quest 6236
                     if (
@@ -1760,7 +1742,6 @@ public class ArmyFarmerJoeDoAll
                         }
                     }
 
-                    triedOneCpTurnIn = true;
                     core.Logger("Level 50: Turning in Quest 6236 for Scarlet Sorceress");
                     core.EnsureAccept(6236);
                     core.EnsureComplete(6236);
@@ -1775,7 +1756,7 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        // 2e. Rank Scarlet Sorceress to 10 & SetClass
+        // 2f. Rank Scarlet Sorceress to 10 & SetClass
         if (
             !RunCooperativeObjective(
                 "BRACKET50_SS_RANK_10",

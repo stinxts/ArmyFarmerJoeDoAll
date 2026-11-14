@@ -6030,6 +6030,11 @@ public class CoreArmyFJ
         bool reportedDone = false;
         int workAttempts = 0;
 
+        unreachableHelperTargets.Clear();
+        attemptedBypassReloadCells.Clear();
+        failedGotoCounts.Clear();
+        loggedHelperSleepMode = false;
+
         while (!Bot.ShouldExit && !armyTransportFailed)
         {
             if (!CanContinueArmySync(ReadArmyLines()))
@@ -6093,31 +6098,51 @@ public class CoreArmyFJ
                 }
                 else
                 {
-                    List<int> scopedHelpers = useSubgroups
-                        ? helperPlayers
-                            .Where(p => (p - 1) / maxPlayersPerSubgroup == localSubgroup)
-                            .ToList()
-                        : helperPlayers;
+                    List<int> accessiblePending = scopedPending
+                        .Where(p => !unreachableHelperTargets.Contains(NormalizeArmyUsername(armyPlayers[p - 1])))
+                        .ToList();
 
-                    int helperIndex = Math.Max(0, scopedHelpers.IndexOf(localPlayerNumber));
-                    int targetPlayerNumber = scopedPending[helperIndex % scopedPending.Count];
-                    string targetPlayerName = armyPlayers[targetPlayerNumber - 1];
+                    if (accessiblePending.Count == 0)
+                    {
+                        actAsSupportHelper = false;
+                        if (!loggedHelperSleepMode)
+                        {
+                            Core.Logger(
+                                $"Army objective {name}: remaining teammate(s) are in higher-level or inaccessible rooms; waiting in sleep mode.",
+                                "CoreArmyFJ"
+                            );
+                            loggedHelperSleepMode = true;
+                        }
+                        Bot.Sleep(1000);
+                    }
+                    else
+                    {
+                        List<int> scopedHelpers = useSubgroups
+                            ? helperPlayers
+                                .Where(p => (p - 1) / maxPlayersPerSubgroup == localSubgroup)
+                                .ToList()
+                            : helperPlayers;
 
-                    // Option 1 (First-Helper-To-Support):
-                    // While all accounts are working on an objective (e.g., ranking a class to 10),
-                    // everyone equips the required class. As soon as the 1st account finishes and enters
-                    // Helper mode (helperIndex == 0), it equips a Support class (Oracle / StoneCrusher /
-                    // ArchPaladin / Lord of Order) to heal the remaining accounts. Once Player 2 (or the
-                    // subgroup's dedicated Support when split) finishes, that account takes over the
-                    // Support role and the temporary support helper returns to its own SoloClass!
-                    int supportPlayerNumber = useSubgroups
-                        ? localSubgroup * maxPlayersPerSubgroup + 2
-                        : 2;
-                    actAsSupportHelper =
-                        localPlayerNumber == supportPlayerNumber
-                        || (!scopedHelpers.Contains(supportPlayerNumber) && helperIndex == 0);
+                        int helperIndex = Math.Max(0, scopedHelpers.IndexOf(localPlayerNumber));
+                        int targetPlayerNumber = accessiblePending[helperIndex % accessiblePending.Count];
+                        string targetPlayerName = armyPlayers[targetPlayerNumber - 1];
 
-                    help(targetPlayerNumber, targetPlayerName);
+                        // Option 1 (First-Helper-To-Support):
+                        // While all accounts are working on an objective (e.g., ranking a class to 10),
+                        // everyone equips the required class. As soon as the 1st account finishes and enters
+                        // Helper mode (helperIndex == 0), it equips a Support class (Oracle / StoneCrusher /
+                        // ArchPaladin / Lord of Order) to heal the remaining accounts. Once Player 2 (or the
+                        // subgroup's dedicated Support when split) finishes, that account takes over the
+                        // Support role and the temporary support helper returns to its own SoloClass!
+                        int supportPlayerNumber = useSubgroups
+                            ? localSubgroup * maxPlayersPerSubgroup + 2
+                            : 2;
+                        actAsSupportHelper =
+                            localPlayerNumber == supportPlayerNumber
+                            || (!scopedHelpers.Contains(supportPlayerNumber) && helperIndex == 0);
+
+                        help(targetPlayerNumber, targetPlayerName);
+                    }
                 }
             }
             else
@@ -6165,6 +6190,26 @@ public class CoreArmyFJ
     private bool actAsSupportHelper;
     private string lastSkillRotationClass = string.Empty;
     private string lastSpecialEquippedMapRoom = string.Empty;
+    private readonly HashSet<string> unreachableHelperTargets = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> attemptedBypassReloadCells = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, int> failedGotoCounts = new(StringComparer.OrdinalIgnoreCase);
+    private bool loggedHelperSleepMode;
+
+    private static readonly HashSet<string> LevelBracketedMaps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "icestormarena",
+        "icestormunder",
+        "battlegrounde",
+        "icewing",
+        "voidxyfrag",
+        "voidnerfkitten",
+    };
+
+    private static bool IsLevelBracketedMap(string? mapName)
+    {
+        string? normalized = NormalizeMapKey(mapName);
+        return !string.IsNullOrEmpty(normalized) && LevelBracketedMaps.Contains(normalized);
+    }
 
     private static readonly HashSet<string> SoloOnlyMaps = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -6389,10 +6434,26 @@ public class CoreArmyFJ
         if (Bot.Player.Cell == targetCell)
             return true;
 
+        // Level-bracketed XP/CP grind maps (e.g. /icestormarena r16/r17, /icestormunder, /battlegrounde)
+        // lock higher-tier cells by player level. Reloading via /whitemap cannot unlock a level-gated cell,
+        // so mark this higher-level teammate as unreachable for this helper and enter sleep mode.
+        if (IsLevelBracketedMap(currentMap))
+        {
+            if (unreachableHelperTargets.Add(normalizedTarget))
+            {
+                Core.Logger(
+                    $"Map '{currentMap}' blocked cell jump to '{targetCell}' (higher-level room); putting helper in sleep mode for '{normalizedTarget}'.",
+                    "CoordinateFollowAndCombat"
+                );
+            }
+            return false;
+        }
+
         // If the client loaded a gated map SWF before quest-tree/achievement bypasses were
         // applied (e.g., /wolfwing Dracowerepyre gate or /doomvault cutscenes), reload via
-        // /whitemap with bypasses active before returning to the worker's exact room.
-        if (!string.IsNullOrEmpty(currentMap) && !IsSoloOnlyMap(currentMap))
+        // /whitemap with bypasses active at most once per target+cell before falling back to sleep mode.
+        string reloadKey = $"{normalizedTarget}:{currentMap}:{targetCell}";
+        if (!string.IsNullOrEmpty(currentMap) && !IsSoloOnlyMap(currentMap) && attemptedBypassReloadCells.Add(reloadKey))
         {
             Core.Logger(
                 $"Map '{currentMap}' blocked cell jump to '{targetCell}'; reloading via /whitemap with access bypass.",
@@ -6415,8 +6476,17 @@ public class CoreArmyFJ
                     Bot.Map.Jump(playerAfterReload.Cell, playerAfterReload.Pad);
                     Bot.Wait.ForCellChange(playerAfterReload.Cell);
                 }
-                return Bot.Player.Cell == playerAfterReload.Cell;
+                if (Bot.Player.Cell == playerAfterReload.Cell)
+                    return true;
             }
+        }
+
+        if (Bot.Player.Cell != targetCell && unreachableHelperTargets.Add(normalizedTarget))
+        {
+            Core.Logger(
+                $"Map '{currentMap}' cell '{targetCell}' remains inaccessible after bypass check; putting helper in sleep mode for '{normalizedTarget}'.",
+                "CoordinateFollowAndCombat"
+            );
         }
 
         return Bot.Player.Cell == targetCell;
@@ -6440,6 +6510,12 @@ public class CoreArmyFJ
         string normalizedTarget = NormalizeArmyUsername(targetPlayerName);
         if (string.Equals(normalizedTarget, armyUsername, StringComparison.OrdinalIgnoreCase))
             return;
+
+        if (unreachableHelperTargets.Contains(normalizedTarget))
+        {
+            Bot.Sleep(1000);
+            return;
+        }
 
         bool isDoomKittenFight =
             string.Equals(NormalizeMapKey(targetMap ?? Bot.Map?.Name), "doomkitten", StringComparison.OrdinalIgnoreCase)
@@ -6485,12 +6561,25 @@ public class CoreArmyFJ
             EnsureMapAccessBypass(loadedMap);
             if (Bot.Map.TryGetPlayer(normalizedTarget, out var playerAfterGoto) && playerAfterGoto != null)
             {
+                failedGotoCounts.Remove(normalizedTarget);
                 inSameCell = JumpToPlayerInSameMap(
                     normalizedTarget,
                     playerAfterGoto.Cell,
                     playerAfterGoto.Pad,
                     loadedMap
                 );
+            }
+            else
+            {
+                int fails = failedGotoCounts.TryGetValue(normalizedTarget, out int prev) ? prev + 1 : 1;
+                failedGotoCounts[normalizedTarget] = fails;
+                if (fails >= 2 && unreachableHelperTargets.Add(normalizedTarget))
+                {
+                    Core.Logger(
+                        $"Could not reach teammate '{normalizedTarget}' after {fails} Goto attempts (different level-locked map or private instance); putting helper in sleep mode for '{normalizedTarget}'.",
+                        "CoordinateFollowAndCombat"
+                    );
+                }
             }
         }
 
