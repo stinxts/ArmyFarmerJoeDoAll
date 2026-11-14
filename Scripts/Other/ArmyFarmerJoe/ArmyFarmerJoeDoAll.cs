@@ -660,16 +660,15 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedMazumiQuests(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
-        Story.PreLoad(Mazumi);
 
         // 5c-1. Quest 90: Ninja Grudge (Fishman Soldier in /pirates)
         if (
             !RunCooperativeObjective(
                 "BEGINNER_NINJA_MAZUMI_90",
-                () => skipCondition() || core.isCompletedBefore(92) || core.isCompletedBefore(90),
+                () => skipCondition() || core.isCompletedBefore(92, log: false) || core.isCompletedBefore(90, log: false),
                 () =>
                 {
-                    if (skipCondition() || core.isCompletedBefore(92) || core.isCompletedBefore(90))
+                    if (skipCondition() || core.isCompletedBefore(92, log: false) || core.isCompletedBefore(90, log: false))
                         return;
 
                     SetClass();
@@ -685,7 +684,7 @@ public class ArmyFarmerJoeDoAll
 
         // 5c-2. Quest 91: Without a Trace (5 targets in /greenguardwest)
         bool IsQuest91Done() =>
-            skipCondition() || core.isCompletedBefore(92) || core.isCompletedBefore(91);
+            skipCondition() || core.isCompletedBefore(92, log: false) || core.isCompletedBefore(91, log: false);
 
         (string Suffix, string Monster, string Item, int Quant, string? Cell, string? Pad)[] q91Targets =
         {
@@ -744,7 +743,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 5c-3. Quest 92: Hit Job (2 10k HP bosses in /greenguardwest)
-        bool IsQuest92Done() => skipCondition() || core.isCompletedBefore(92);
+        bool IsQuest92Done() => skipCondition() || core.isCompletedBefore(92, log: false);
 
         if (
             !RunCooperativeObjective(
@@ -1000,7 +999,6 @@ public class ArmyFarmerJoeDoAll
         bool HasDragonslayer() => HasClassInInventory("Dragonslayer");
         bool HasDragonslayerRank10() => HasDragonslayer() && HasRank10Class("Dragonslayer");
 
-        Story.PreLoad(Lair);
         (int QuestId, string Monster)[] galanothQuests =
         {
             (165, "Wyvern"),
@@ -1017,14 +1015,14 @@ public class ArmyFarmerJoeDoAll
                     $"BRACKET30_DS_QUEST_{gQuest.QuestId}",
                     () =>
                         HasDragonslayer()
-                        || core.isCompletedBefore(169)
-                        || core.isCompletedBefore(gQuest.QuestId),
+                        || core.isCompletedBefore(169, log: false)
+                        || core.isCompletedBefore(gQuest.QuestId, log: false),
                     () =>
                     {
                         if (
                             HasDragonslayer()
-                            || core.isCompletedBefore(169)
-                            || core.isCompletedBefore(gQuest.QuestId)
+                            || core.isCompletedBefore(169, log: false)
+                            || core.isCompletedBefore(gQuest.QuestId, log: false)
                         )
                             return;
 
@@ -1327,10 +1325,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET30_BOA_2933_STONEWRIT",
-                () => core.isCompletedBefore(2937) || core.isCompletedBefore(2933),
+                () => core.isCompletedBefore(2937, log: false) || core.isCompletedBefore(2933, log: false),
                 () =>
                 {
-                    if (core.isCompletedBefore(2937) || core.isCompletedBefore(2933))
+                    if (core.isCompletedBefore(2937, log: false) || core.isCompletedBefore(2933, log: false))
                         return;
 
                     SetClass(ClassType.Solo);
@@ -1350,10 +1348,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET30_BOA_2934_HANDLE",
-                () => core.isCompletedBefore(2937) || core.isCompletedBefore(2934),
+                () => core.isCompletedBefore(2937, log: false) || core.isCompletedBefore(2934, log: false),
                 () =>
                 {
-                    if (core.isCompletedBefore(2937) || core.isCompletedBefore(2934))
+                    if (core.isCompletedBefore(2937, log: false) || core.isCompletedBefore(2934, log: false))
                         return;
 
                     SetClass(ClassType.Solo);
@@ -1373,10 +1371,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET30_BOA_2935_HILT",
-                () => core.isCompletedBefore(2937) || core.isCompletedBefore(2935),
+                () => core.isCompletedBefore(2937, log: false) || core.isCompletedBefore(2935, log: false),
                 () =>
                 {
-                    if (core.isCompletedBefore(2937) || core.isCompletedBefore(2935))
+                    if (core.isCompletedBefore(2937, log: false) || core.isCompletedBefore(2935, log: false))
                         return;
 
                     SetClass(ClassType.Farm);
@@ -1396,10 +1394,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET30_BOA_2936_BLADE",
-                () => core.isCompletedBefore(2937) || core.isCompletedBefore(2936),
+                () => core.isCompletedBefore(2937, log: false) || core.isCompletedBefore(2936, log: false),
                 () =>
                 {
-                    if (core.isCompletedBefore(2937) || core.isCompletedBefore(2936))
+                    if (core.isCompletedBefore(2937, log: false) || core.isCompletedBefore(2936, log: false))
                         return;
 
                     SetClass(ClassType.Farm);
@@ -1419,10 +1417,10 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET30_BOA_2937_RUNES",
-                () => core.isCompletedBefore(2937),
+                () => core.isCompletedBefore(2937, log: false),
                 () =>
                 {
-                    if (core.isCompletedBefore(2937))
+                    if (core.isCompletedBefore(2937, log: false))
                         return;
 
                     SetClass(ClassType.Solo);
@@ -1433,7 +1431,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, targetMap: "escherion");
                 }
             )
         )
@@ -1485,27 +1483,10 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 7. Unlock Forge Helm Enhancement (Quest 8828 coordinated boss by boss)
-        bool IsForgeHelmDone() => core.isCompletedBefore(8828);
+        bool IsForgeHelmDone() => core.isCompletedBefore(8828, log: false);
 
         // 7a. Blacksmithing Rep 4
-        if (
-            !RunCooperativeObjective(
-                "BRACKET30_FORGE_BLACKSMITH_REP_4",
-                () => IsForgeHelmDone() || Farm.FactionRank("Blacksmithing") >= 4,
-                () =>
-                {
-                    if (IsForgeHelmDone() || Farm.FactionRank("Blacksmithing") >= 4)
-                        return;
-
-                    SetClass(ClassType.Farm);
-                    Farm.BlacksmithingREP(4, false);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
-                }
-            )
-        )
+        if (!RunBlacksmithingRank4Step("BRACKET30_FORGE_BLACKSMITH_REP_4", IsForgeHelmDone))
             return false;
 
         // 7b-1. Quest 8828 Boss 1: Escherion (1st Lord Of Chaos Staff)
@@ -1524,7 +1505,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, targetMap: "escherion");
                 }
             )
         )
@@ -1546,7 +1527,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, targetMap: "stalagbite");
                 }
             )
         )
@@ -1568,7 +1549,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                    Army.CoordinateFollowAndCombat(targetPlayerName, targetMap: "kitsune");
                 }
             )
         )
@@ -1590,7 +1571,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Wolfwing");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Wolfwing", targetMap: "wolfwing");
                 }
             )
         )
@@ -1841,24 +1822,30 @@ public class ArmyFarmerJoeDoAll
                     );
                     core.AddDrop("Enchanted Scale", "Dragon Claw");
                     SetClass(ClassType.Farm);
-                    core.RegisterQuests(5294);
-                    while (
-                        !Bot.ShouldExit
-                        && (
-                            !core.CheckInventory("Enchanted Scale", 75)
-                            || !core.CheckInventory("Dragon Claw", 100)
-                        )
-                    )
+                    try
                     {
-                        core.KillMonster(
-                            "dragontown",
-                            "r4",
-                            "Right",
-                            "Tempest Dracolich",
-                            log: false
-                        );
+                        core.RegisterQuests(5294);
+                        while (
+                            !Bot.ShouldExit
+                            && (
+                                !core.CheckInventory("Enchanted Scale", 75)
+                                || !core.CheckInventory("Dragon Claw", 100)
+                            )
+                        )
+                        {
+                            core.KillMonster(
+                                "dragontown",
+                                "r4",
+                                "Right",
+                                "Tempest Dracolich",
+                                log: false
+                            );
+                        }
                     }
-                    core.CancelRegisteredQuests();
+                    finally
+                    {
+                        core.CancelRegisteredQuests();
+                    }
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -1962,9 +1949,9 @@ public class ArmyFarmerJoeDoAll
 
         bool IsHedgeQuestDone(int questId) =>
             skipCondition()
-            || core.isCompletedBefore(5332)
-            || core.isCompletedBefore(5313)
-            || core.isCompletedBefore(questId);
+            || core.isCompletedBefore(5332, log: false)
+            || core.isCompletedBefore(5313, log: false)
+            || core.isCompletedBefore(questId, log: false);
 
         // Quest 5298: Find the Hedge Maze
         if (
@@ -2289,8 +2276,8 @@ public class ArmyFarmerJoeDoAll
 
         bool IsTowerQuestDone(int questId) =>
             skipCondition()
-            || core.isCompletedBefore(5332)
-            || core.isCompletedBefore(questId);
+            || core.isCompletedBefore(5332, log: false)
+            || core.isCompletedBefore(questId, log: false);
 
         // Quest 5314: Drink Me
         if (
@@ -2835,7 +2822,7 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shurpu Ring Guardian");
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "Shurpu Ring Guardian", targetMap: "xancave");
                 }
             )
         )
@@ -3079,7 +3066,7 @@ public class ArmyFarmerJoeDoAll
         bool HasArach() => HasClassInInventory("Arachnomancer");
         bool HasArachRank10() => HasArach() && HasRank10Class("Arachnomancer");
         bool IsWeaverWarDone() =>
-            HasArach() || Farm.FactionRank("Ravenloss") >= 10 || core.isCompletedBefore(3439);
+            HasArach() || Farm.FactionRank("Ravenloss") >= 10 || core.isCompletedBefore(3439, log: false);
 
         if (!RunCoordinatedWeaverWar(IsWeaverWarDone))
             return false;
@@ -3203,10 +3190,16 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop(20561);
                     SetClass(ClassType.Solo);
                     core.FarmingLogger("Dragon Shinobi Token", 300);
-                    core.RegisterQuests(7924);
-                    while (!Bot.ShouldExit && !core.CheckInventory(20561, 300))
-                        core.HuntMonster("shadowfortress", "1st Head of Orochi", log: false);
-                    core.CancelRegisteredQuests();
+                    try
+                    {
+                        core.RegisterQuests(7924);
+                        while (!Bot.ShouldExit && !core.CheckInventory(20561, 300))
+                            core.HuntMonster("shadowfortress", "1st Head of Orochi", log: false);
+                    }
+                    finally
+                    {
+                        core.CancelRegisteredQuests();
+                    }
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -3263,17 +3256,17 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 3. Unlock Forge Weapon Enhancement: Lacerate (Quest 8739)
-        bool IsLacerateDone() => core.isCompletedBefore(8739);
+        bool IsLacerateDone() => core.isCompletedBefore(8739, log: false);
         bool HasBlacksmithRank5() => IsLacerateDone() || Farm.FactionRank("Blacksmithing") >= 5;
 
         // 3a. Ensure Prerequisite Quest 92 (Mazumi) is completed
         if (
             !RunCooperativeObjective(
                 "BRACKET60_LACERATE_PREREQ_92",
-                () => IsLacerateDone() || Bot.Quests.IsUnlocked(8739) || core.isCompletedBefore(92),
+                () => IsLacerateDone() || Bot.Quests.IsUnlocked(8739) || core.isCompletedBefore(92, log: false),
                 () =>
                 {
-                    if (IsLacerateDone() || Bot.Quests.IsUnlocked(8739) || core.isCompletedBefore(92))
+                    if (IsLacerateDone() || Bot.Quests.IsUnlocked(8739) || core.isCompletedBefore(92, log: false))
                         return;
 
                     SetClass(ClassType.Solo);
@@ -3293,7 +3286,7 @@ public class ArmyFarmerJoeDoAll
                         core.KillMonster("greenguardwest", "West12", "Up", "Big Bad Boar", "Big Bad Boar's Wallet");
                         core.EnsureComplete(91);
                     }
-                    if (!core.isCompletedBefore(92))
+                    if (!core.isCompletedBefore(92, log: false))
                     {
                         core.EnsureAccept(92);
                         core.HuntMonster("greenguardwest", "Breken the Vile", "Breken the Vile's Sword", 1);
@@ -3310,24 +3303,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 3b. Blacksmithing Rank 5 (Traditional Rank 4 via Quest 2777 + 6 shared rounds of Quest 8736)
-        if (
-            !RunCooperativeObjective(
-                "BRACKET60_LACERATE_BLACKSMITH_REP_4",
-                () => HasBlacksmithRank5() || Farm.FactionRank("Blacksmithing") >= 4,
-                () =>
-                {
-                    if (HasBlacksmithRank5() || Farm.FactionRank("Blacksmithing") >= 4)
-                        return;
-
-                    SetClass(ClassType.Farm);
-                    Farm.BlacksmithingREP(4, false);
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
-                }
-            )
-        )
+        if (!RunBlacksmithingRank4Step("BRACKET60_LACERATE_BLACKSMITH_REP_4", HasBlacksmithRank5))
             return false;
 
         // Coordinate Quest 8736 (Intensive Metallic Mastery: 2,500 Rep per turn-in, 12,500 Rep from Rank 4 to Rank 5)
@@ -3360,7 +3336,11 @@ public class ArmyFarmerJoeDoAll
                     },
                     (targetPlayerNumber, targetPlayerName) =>
                     {
-                        Army.CoordinateFollowAndCombat(targetPlayerName, "Hydra Head 25");
+                        Army.CoordinateFollowAndCombat(
+                            targetPlayerName,
+                            "Hydra Head 25",
+                            targetMap: "hydrachallenge"
+                        );
                     }
                 )
             )
@@ -3389,7 +3369,11 @@ public class ArmyFarmerJoeDoAll
                     },
                     (targetPlayerNumber, targetPlayerName) =>
                     {
-                        Army.CoordinateFollowAndCombat(targetPlayerName, "Creature Creation");
+                        Army.CoordinateFollowAndCombat(
+                            targetPlayerName,
+                            "Creature Creation",
+                            targetMap: "maul"
+                        );
                     }
                 )
             )
@@ -3421,7 +3405,11 @@ public class ArmyFarmerJoeDoAll
                     },
                     (targetPlayerNumber, targetPlayerName) =>
                     {
-                        Army.CoordinateFollowAndCombat(targetPlayerName, "Dread Klunk");
+                        Army.CoordinateFollowAndCombat(
+                            targetPlayerName,
+                            "Dread Klunk",
+                            targetMap: "towerofdoom"
+                        );
                     }
                 )
             )
@@ -3736,7 +3724,7 @@ public class ArmyFarmerJoeDoAll
             HasAnyClassInInventory(38084, 38049) || HasClassInInventory("Glacial Berserker");
         bool HasGBRank10() => HasRank10Class("Glacial Berserker");
         bool IsGlaceraRepDone() => HasGB() || Farm.FactionRank("Glacera") >= 10;
-        bool IsGlaceraStoryDone() => IsGlaceraRepDone() || core.isCompletedBefore(5601);
+        bool IsGlaceraStoryDone() => IsGlaceraRepDone() || core.isCompletedBefore(5601, log: false);
 
         if (!RunCoordinatedFrozenTower(IsGlaceraStoryDone))
             return false;
@@ -3829,9 +3817,7 @@ public class ArmyFarmerJoeDoAll
         CoreBots core = CoreBots.Instance;
 
         bool IsFTQuestDone(int questId) =>
-            skipCondition() || core.isCompletedBefore(3937) || core.isCompletedBefore(questId);
-
-        Story.PreLoad(this);
+            skipCondition() || core.isCompletedBefore(3937, log: false) || core.isCompletedBefore(questId, log: false);
 
         // 3907: Seek the Tower
         if (
@@ -4415,9 +4401,7 @@ public class ArmyFarmerJoeDoAll
         CoreBots core = CoreBots.Instance;
 
         bool IsWWQuestDone(int questId) =>
-            skipCondition() || core.isCompletedBefore(3439) || core.isCompletedBefore(questId);
-
-        Story.PreLoad(this);
+            skipCondition() || core.isCompletedBefore(3439, log: false) || core.isCompletedBefore(questId, log: false);
 
         // 3428: Clear Twilight's Edge
         if (
@@ -4507,20 +4491,18 @@ public class ArmyFarmerJoeDoAll
 
         bool IsShogunDone(int questId) =>
             skipCondition()
-            || core.isCompletedBefore(6494)
-            || core.isCompletedBefore(6459)
-            || core.isCompletedBefore(questId);
+            || core.isCompletedBefore(6494, log: false)
+            || core.isCompletedBefore(6459, log: false)
+            || core.isCompletedBefore(questId, log: false);
 
         bool IsShinrinDone(int questId) =>
             skipCondition()
-            || core.isCompletedBefore(6494)
-            || core.isCompletedBefore(6472)
-            || core.isCompletedBefore(questId);
+            || core.isCompletedBefore(6494, log: false)
+            || core.isCompletedBefore(6472, log: false)
+            || core.isCompletedBefore(questId, log: false);
 
         bool IsShadowFortressDone(int questId) =>
-            skipCondition() || core.isCompletedBefore(6494) || core.isCompletedBefore(questId);
-
-        Story.PreLoad(this);
+            skipCondition() || core.isCompletedBefore(6494, log: false) || core.isCompletedBefore(questId, log: false);
 
         // --- Part 1: ShogunWar (Quests 6450-6459) ---
         if (
@@ -5326,14 +5308,12 @@ public class ArmyFarmerJoeDoAll
 
         bool IsRuinsQuestDone(int questId) =>
             skipCondition()
-            || core.isCompletedBefore(5601)
-            || core.isCompletedBefore(3954)
-            || core.isCompletedBefore(questId);
+            || core.isCompletedBefore(5601, log: false)
+            || core.isCompletedBefore(3954, log: false)
+            || core.isCompletedBefore(questId, log: false);
 
         bool IsIceWindQuestDone(int questId) =>
-            skipCondition() || core.isCompletedBefore(5601) || core.isCompletedBefore(questId);
-
-        Story.PreLoad(this);
+            skipCondition() || core.isCompletedBefore(5601, log: false) || core.isCompletedBefore(questId, log: false);
 
         // --- Part 1: FrozenRuins & Glacera (Quests 3941-3954) ---
         if (
@@ -5451,7 +5431,12 @@ public class ArmyFarmerJoeDoAll
                     Story.KillQuest(3948, "glacera", "Frost Invader");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Frost Invader", compositionType: ClassType.Farm)
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        "Frost Invader",
+                        compositionType: ClassType.Farm,
+                        targetMap: "glacera"
+                    )
             )
         )
             return false;
@@ -6211,6 +6196,87 @@ public class ArmyFarmerJoeDoAll
         Adv.RankUpClass(className, gearRestore: false);
     }
 
+    private bool RunBlacksmithingRank4Step(string objectiveName, Func<bool> alreadySatisfied)
+    {
+        bool IsDone() => alreadySatisfied() || Farm.FactionRank("Blacksmithing") >= 4;
+
+        return RunCooperativeObjective(
+            objectiveName,
+            IsDone,
+            () =>
+            {
+                if (IsDone())
+                    return;
+
+                SetClass(ClassType.Farm);
+                FarmBlacksmithingRank4();
+            },
+            (targetPlayerNumber, targetPlayerName) =>
+            {
+                Army.CoordinateFollowAndCombat(targetPlayerName, compositionType: ClassType.Farm);
+            }
+        );
+    }
+
+    private void FarmBlacksmithingRank4()
+    {
+        if (Bot.ShouldExit || Farm.FactionRank("Blacksmithing") >= 4)
+            return;
+
+        CoreBots core = CoreBots.Instance;
+        core.Logger(
+            $"Blacksmithing Rep: farming Rank 4 via Quest 2777 (current: {Farm.TotalFactionRep("Blacksmithing")}/10000, Rank {Farm.FactionRank("Blacksmithing")})."
+        );
+        Farm.ToggleBoost(BoostType.Reputation);
+
+        int turnIns = 0;
+        try
+        {
+            while (!Bot.ShouldExit && Farm.FactionRank("Blacksmithing") < 4)
+            {
+                if (!Bot.Quests.IsInProgress(2777))
+                    core.EnsureAccept(2777);
+
+                core.HuntMonster("greenguardeast", "Wolf", "Furry Lost Sock", 2, isTemp: true, log: false);
+                core.KillMonster("greenguardwest", "West4", "Right", "Slime", "Slimy Lost Sock", 5, isTemp: true, log: false);
+
+                if (Bot.ShouldExit)
+                    break;
+
+                bool completed = core.EnsureComplete(2777);
+                if (!completed)
+                {
+                    core.JumpWait();
+                    Bot.Sleep(500);
+                    completed = core.EnsureComplete(2777);
+                }
+
+                if (completed)
+                {
+                    Bot.Wait.ForTrue(
+                        () => !Bot.Quests.IsInProgress(2777) && !Bot.TempInv.Contains("Slimy Lost Sock", 5),
+                        15
+                    );
+                    turnIns++;
+                    if (turnIns == 1 || turnIns % 5 == 0 || Farm.FactionRank("Blacksmithing") >= 4)
+                    {
+                        core.Logger(
+                            $"Blacksmithing Rep 4 progress: {Farm.TotalFactionRep("Blacksmithing")}/10000 "
+                                + $"(Rank {Farm.FactionRank("Blacksmithing")}, turn-in #{turnIns})."
+                        );
+                    }
+                }
+            }
+        }
+        finally
+        {
+            Farm.ToggleBoost(BoostType.Reputation, false);
+            if (Bot.Quests.IsInProgress(2777))
+                core.AbandonQuest(2777);
+            LeaveCombatRoomForEquipmentChange();
+        }
+    }
+
     private void LeaveCombatRoomForEquipmentChange()
     {
         try
@@ -6932,7 +6998,12 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
-                    Army.CoordinateFollowAndCombat(targetPlayerName, "Binky", compositionType: ClassType.Solo);
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        "Binky",
+                        compositionType: ClassType.Solo,
+                        targetMap: "doomvault"
+                    );
                 }
             )
         )
@@ -7220,7 +7291,8 @@ public class ArmyFarmerJoeDoAll
         string helpMonster,
         ClassType role,
         Action work,
-        int softRetryLimit = 2
+        int softRetryLimit = 2,
+        string? targetMap = null
     )
     {
         int attempts = 0;
@@ -7256,7 +7328,12 @@ public class ArmyFarmerJoeDoAll
                 }
             },
             (targetPlayerNumber, targetPlayerName) =>
-                Army.CoordinateFollowAndCombat(targetPlayerName, helpMonster, compositionType: role),
+                Army.CoordinateFollowAndCombat(
+                    targetPlayerName,
+                    helpMonster,
+                    compositionType: role,
+                    targetMap: targetMap
+                ),
             maxWorkAttempts: softRetryLimit > 0 ? softRetryLimit + 1 : 0
         );
     }
@@ -7316,7 +7393,8 @@ public class ArmyFarmerJoeDoAll
                 else
                     core.HuntMonster(map, monster, itemName, quant, isTemp);
             },
-            softRetryLimit: softRetryLimit
+            softRetryLimit: softRetryLimit,
+            targetMap: map
         );
     }
 
@@ -7344,10 +7422,10 @@ public class ArmyFarmerJoeDoAll
                 if (
                     !RunCooperativeObjective(
                         objName,
-                        () => IsDisabled() || core.isCompletedBefore(step.QuestId),
+                        () => IsDisabled() || core.isCompletedBefore(step.QuestId, log: false),
                         () =>
                         {
-                            if (IsDisabled() || core.isCompletedBefore(step.QuestId))
+                            if (IsDisabled() || core.isCompletedBefore(step.QuestId, log: false))
                                 return;
 
                             LeaveCombatRoomForEquipmentChange();
@@ -7365,10 +7443,10 @@ public class ArmyFarmerJoeDoAll
             if (
                 !RunCooperativeObjective(
                     objName,
-                    () => IsDisabled() || core.isCompletedBefore(step.QuestId),
+                    () => IsDisabled() || core.isCompletedBefore(step.QuestId, log: false),
                     () =>
                     {
-                        if (IsDisabled() || core.isCompletedBefore(step.QuestId))
+                        if (IsDisabled() || core.isCompletedBefore(step.QuestId, log: false))
                             return;
 
                         SetClass(step.Role);
@@ -7380,7 +7458,8 @@ public class ArmyFarmerJoeDoAll
                         Army.CoordinateFollowAndCombat(
                             targetPlayerName,
                             step.HelpMonster,
-                            compositionType: step.Role
+                            compositionType: step.Role,
+                            targetMap: step.Map
                         )
                 )
             )
@@ -7470,30 +7549,45 @@ public class ArmyFarmerJoeDoAll
         CoreBots core = CoreBots.Instance;
         TryLoadQuest(2084);
 
-        bool IsUnlocked() => core.isCompletedBefore(2084);
-        if (IsUnlocked())
-        {
-            return RunCooperativeObjective(
-                $"{objectivePrefix}_LOYAL_FOLLOWER_SYNC",
-                IsUnlocked,
-                () => { },
-                (n, name) => Bot.Sleep(500),
-                maxWorkAttempts: 1
-            );
-        }
+        bool IsUnlocked() => core.isCompletedBefore(2084, log: false);
 
-        // Step 1: 2066 (Handle) & 2067 (Bonegrinder Medal, 15,000 Gold) in /doomwood Shop 276
+        // Step 1: Ensure 16,000+ Gold before /doomwood Shop 276 so helpers assist if Gold farming runs
+        bool IsGoldReadyForSetup() =>
+            IsUnlocked()
+            || core.isCompletedBefore(2067, log: false)
+            || core.CheckInventory("Bonegrinder Medal")
+            || Bot.Player.Gold >= 16000;
+
+        if (
+            !RunCooperativeObjective(
+                $"{objectivePrefix}_LOYAL_FOLLOWER_GOLD",
+                IsGoldReadyForSetup,
+                () =>
+                {
+                    if (IsGoldReadyForSetup())
+                        return;
+
+                    SetClass(ClassType.Farm);
+                    Farm.Gold(20000);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(
+                        targetPlayerName,
+                        compositionType: ClassType.Farm
+                    )
+            )
+        )
+            return false;
+
+        // Step 2: 2066 (Handle) & 2067 (Bonegrinder Medal, 15,000 Gold) in /doomwood Shop 276
         if (
             !RunCooperativeObjective(
                 $"{objectivePrefix}_LOYAL_FOLLOWER_SETUP",
-                () => IsUnlocked() || (core.isCompletedBefore(2066) && core.isCompletedBefore(2067)),
+                () => IsUnlocked() || (core.isCompletedBefore(2066, log: false) && core.isCompletedBefore(2067, log: false)),
                 () =>
                 {
-                    if (IsUnlocked() || (core.isCompletedBefore(2066) && core.isCompletedBefore(2067)))
+                    if (IsUnlocked() || (core.isCompletedBefore(2066, log: false) && core.isCompletedBefore(2067, log: false)))
                         return;
-
-                    if (!core.isCompletedBefore(2067) && !core.CheckInventory("Bonegrinder Medal") && Bot.Player.Gold < 16000)
-                        Farm.Gold(20000);
 
                     LeaveCombatRoomForEquipmentChange();
                     Story.BuyQuest(2066, "doomwood", 276, "Blinding Light of Destiny Handle");
@@ -7509,8 +7603,8 @@ public class ArmyFarmerJoeDoAll
         bool AreSpiritOrbsReady() =>
             IsUnlocked()
             || (
-                core.isCompletedBefore(2082)
-                && core.isCompletedBefore(2083)
+                core.isCompletedBefore(2082, log: false)
+                && core.isCompletedBefore(2083, log: false)
                 && core.CheckInventory("Spirit Orb", 100, toInv: false)
             );
 
@@ -7528,14 +7622,14 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Spirit Orb", "Undead Energy", "Undead Essence", "Bone Dust");
                     SetClass(ClassType.Farm);
 
-                    if (!core.isCompletedBefore(2082))
+                    if (!core.isCompletedBefore(2082, log: false))
                     {
                         core.EnsureAccept(2082);
                         core.HuntMonster("battleunderb", "Skeleton Warrior", "Undead Essence", 25, isTemp: false);
                         core.EnsureComplete(2082);
                     }
 
-                    if (!core.isCompletedBefore(2083))
+                    if (!core.isCompletedBefore(2083, log: false))
                     {
                         core.EnsureAccept(2083);
                         core.HuntMonster("battleunderb", "Skeleton Warrior", "Bone Dust", 40, isTemp: false);
@@ -7632,7 +7726,7 @@ public class ArmyFarmerJoeDoAll
         // 8b. Daily: Mine Crafting [2091] (Metals for BLoD/NSoD + 2,000 DoomWood Rep)
         (string targetMetalName, int targetMetalId) = PickMineCraftingMetal(core);
         bool mineCraftingAvailable =
-            core.isCompletedBefore(2084)
+            core.isCompletedBefore(2084, log: false)
             && targetMetalId > 0
             && CanRunPeriodicQuest(2091);
 
@@ -7656,7 +7750,8 @@ public class ArmyFarmerJoeDoAll
                     core.EnsureComplete(2091, targetMetalId);
                     WaitForDailyRewardPickup(2091, targetMetalName);
                     BankIfPresent(targetMetalName, "Axe of the Prospector");
-                }
+                },
+                targetMap: "stalagbite"
             )
         )
             return false;
@@ -7728,7 +7823,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         bool HasBrightKnight() => core.CheckInventory("Bright Knight", toInv: false);
-        bool unlocked = core.isCompletedBefore(2084);
+        bool unlocked = core.isCompletedBefore(2084, log: false);
 
         // 5a. Daily: Seal of Light [3826] (ULTRA Alteon)
         bool sealLightReady =
@@ -7754,7 +7849,8 @@ public class ArmyFarmerJoeDoAll
                     LeaveCombatRoomForEquipmentChange();
                     core.EnsureComplete(3826);
                     WaitForDailyRewardPickup(3826, "Seal of Light");
-                }
+                },
+                targetMap: "alteonbattle"
             )
         )
             return false;
@@ -7783,7 +7879,8 @@ public class ArmyFarmerJoeDoAll
                     LeaveCombatRoomForEquipmentChange();
                     core.EnsureComplete(3825);
                     WaitForDailyRewardPickup(3825, "Seal of Darkness");
-                }
+                },
+                targetMap: "sepulchurebattle"
             )
         )
             return false;
@@ -7838,7 +7935,7 @@ public class ArmyFarmerJoeDoAll
 
         // 3a. Daily: Embrace Your Chaos [3596] (/mountdoomskull b1 -> +5,000 Chaos Rep + Dage's Scroll Fragment)
         bool embraceReady =
-            core.isCompletedBefore(2084)
+            core.isCompletedBefore(2084, log: false)
             && !core.CheckInventory("Dage's Scroll Fragment", 13, toInv: false)
             && CanRunPeriodicQuest(3596, requireAvailable: true);
 
@@ -7868,7 +7965,8 @@ public class ArmyFarmerJoeDoAll
                     core.EnsureComplete(3596);
                     WaitForDailyRewardPickup(3596, "Dage's Scroll Fragment");
                     BankIfPresent("Dage's Scroll Fragment");
-                }
+                },
+                targetMap: "mountdoomskull"
             )
         )
             return false;
@@ -7882,7 +7980,7 @@ public class ArmyFarmerJoeDoAll
         for (int questId = 7156; questId <= 7165; questId++)
         {
             TryLoadQuest(questId);
-            if (core.isCompletedBefore(questId))
+            if (core.isCompletedBefore(questId, log: false))
                 continue;
 
             if (Bot.Quests.IsAvailable(questId) && !Bot.Quests.IsDailyComplete(questId))
@@ -8160,8 +8258,8 @@ public class ArmyFarmerJoeDoAll
         bool completeAttempted = false;
         return RunCoordinatedTurnInStep(
             $"BRACKET65_LOO_{questId}_COMPLETE",
-            () => completeAttempted || nextLoOQuest != questId || core.isCompletedBefore(questId) || !Bot.Quests.IsAvailable(questId),
-            () => completeAttempted || nextLoOQuest != questId || core.isCompletedBefore(questId),
+            () => completeAttempted || nextLoOQuest != questId || core.isCompletedBefore(questId, log: false) || !Bot.Quests.IsAvailable(questId),
+            () => completeAttempted || nextLoOQuest != questId || core.isCompletedBefore(questId, log: false),
             () =>
             {
                 completeAttempted = true;
@@ -8199,7 +8297,7 @@ public class ArmyFarmerJoeDoAll
         int softRetryLimit = 2
     )
     {
-        bool IsActiveOnThisQuest() => nextLoOQuest == questId && !core.isCompletedBefore(questId);
+        bool IsActiveOnThisQuest() => nextLoOQuest == questId && !core.isCompletedBefore(questId, log: false);
 
         for (int i = 0; i < targets.Length; i++)
         {
@@ -8236,10 +8334,8 @@ public class ArmyFarmerJoeDoAll
         CoreBots core = CoreBots.Instance;
         bool HasLoOClass() => HasClassInInventory(50741) || HasClassInInventory("Lord of Order");
 
-        if (Bot.Player.Level < 50)
-            return true;
-
-        int nextQuestId = HasLoOClass() ? 0 : GetNextAvailableLoOQuest(core);
+        bool eligible = Bot.Player.Level >= 50 && !HasLoOClass();
+        int nextQuestId = eligible ? GetNextAvailableLoOQuest(core) : 0;
         if (nextQuestId > 0)
             core.Logger($"Daily: Lord of Order [{nextQuestId}/7165] active for this account.");
 
@@ -8294,7 +8390,8 @@ public class ArmyFarmerJoeDoAll
                         core.EnsureComplete(6182);
                         Bot.Wait.ForPickup("Mage's Gratitude");
                     }
-                }
+                },
+                targetMap: "citadelruins"
             )
             || !RunCoordinatedTurnInStep(
                 "BRACKET65_LOO_7156_RAVENSCAR_TRUTH",
@@ -8435,7 +8532,8 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("Hanzamune Dragon Koi Blade");
                     core.EnsureAccept(7160);
                     core.KillKitsune("Hanzamune Dragon Koi Blade");
-                }
+                },
+                targetMap: "kitsune"
             )
             || !RunCoordinatedHuntStep("BRACKET65_LOO_7160_LEDGERMAYNE", 7160, "ledgermayne", "Ledgermayne", "The Supreme Arcane Staff", 1, role: ClassType.Solo, isEnabled: () => nextQuestId == 7160)
             || !RunCoordinatedHuntStep("BRACKET65_LOO_7160_DRAGONOID", 7160, "mqlesson", "Dragonoid", "Dragonoid of Hours", 1, role: ClassType.Solo, isEnabled: () => nextQuestId == 7160)
@@ -8474,7 +8572,8 @@ public class ArmyFarmerJoeDoAll
                         core.EnsureComplete(6319);
                         Bot.Wait.ForPickup("Ice Katana");
                     }
-                }
+                },
+                targetMap: "drakonnan"
             )
             || !CompleteLoODayIfReady(
                 core,
@@ -8594,7 +8693,8 @@ public class ArmyFarmerJoeDoAll
                     Adv.GearStore(true, EnhAfter: enhAfterRestore);
                     _syncedClassType = ClassType.None;
                     SetClass();
-                }
+                },
+                targetMap: "mirrorportal"
             )
             || !RunCoordinatedHuntStep("BRACKET65_LOO_7164_SEREPTHYS", 7164, "yasaris", "Serepthys", "Inversion Infusion", 5, role: ClassType.Solo, isEnabled: () => nextQuestId == 7164)
             || !CompleteLoODayIfReady(
@@ -8652,12 +8752,9 @@ public class ArmyFarmerJoeDoAll
     /// </summary>
     public bool RunTheEncroachingShadowsDaily()
     {
-        if (Bot.Player.Level < 75)
-            return true;
-
         CoreBots core = CoreBots.Instance;
         bool voidAuraCapped = core.CheckInventory("Void Aura", 7500, toInv: false);
-        bool dailyAvailable = !voidAuraCapped && CanRunPeriodicQuest(8653);
+        bool dailyAvailable = Bot.Player.Level >= 75 && !voidAuraCapped && CanRunPeriodicQuest(8653);
 
         if (
             !RunCoordinatedHuntStep(
@@ -8883,7 +8980,8 @@ public class ArmyFarmerJoeDoAll
                 core.AddDrop(expectedPetName);
                 core.HuntMonster(map, monster, expectedPetName, isTemp: false, log: false);
                 Bot.Wait.ForPickup(expectedPetName);
-            }
+            },
+            targetMap: map
         );
     }
 
@@ -8925,7 +9023,8 @@ public class ArmyFarmerJoeDoAll
                     LeaveCombatRoomForEquipmentChange();
                     core.EnsureComplete(4247);
                     Bot.Wait.ForPickup("Synderes' Souvenir");
-                }
+                },
+                targetMap: "enemyforest"
             )
         )
             return false;
@@ -9001,7 +9100,8 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop("The Server is Down");
                     core.HuntMonster("undergroundlabb", "Rabid Server Hamster", "The Server is Down", isTemp: false, log: false);
                     Bot.Wait.ForPickup("The Server is Down");
-                }
+                },
+                targetMap: "undergroundlabb"
             )
         )
             return false;

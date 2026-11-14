@@ -5470,7 +5470,7 @@ public class CoreArmyFJ
             return false;
         if (questId == 0)
             return true;
-        if (!Core.isCompletedBefore(questId))
+        if (!Core.isCompletedBefore(questId, log: false))
             return false;
 
         return slot != EnhancementSlot.Helm
@@ -6048,7 +6048,7 @@ public class CoreArmyFJ
                 }
             }
 
-            bool localComplete = isComplete();
+            bool localComplete = reportedDone || isComplete();
             if (localComplete && !reportedDone)
             {
                 if (!SendArmySignal(doneSignal))
@@ -6165,15 +6165,224 @@ public class CoreArmyFJ
     private bool actAsSupportHelper;
     private string lastSkillRotationClass = string.Empty;
 
+    private static readonly HashSet<string> SoloOnlyMaps = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "queeniona",
+        "baconcatb",
+        "caroling",
+        "chaosbattle",
+        "chaoslord",
+        "chaosrealm",
+        "darkthronehub",
+        "drakathfight",
+        "dragonfire",
+        "dragonkoi",
+        "falcontower",
+        "finalbattle",
+        "finalshowdown",
+        "herotournament",
+        "infernalarena",
+        "malgor",
+        "nothing",
+        "ravenscar",
+        "superslayin",
+        "titandrakath",
+        "tlapd",
+        "trickortreat",
+        "vordredboss",
+        "treetitanbattle",
+    };
+
+    private static readonly Dictionary<string, (int Slot, int Value)[]> MapQuestSlotBypasses =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["marsh2"] = new[] { (58, 8) },
+            ["nightmare"] = new[] { (192, 9) },
+            ["temple"] = new[] { (49, 25) },
+            ["wanders"] = new[] { (176, 6) },
+            ["kitsune"] = new[] { (25, 22) },
+            ["dragonkoiz"] = new[] { (25, 22) },
+            ["elemental"] = new[] { (32, 35) },
+            ["twilightedge"] = new[] { (156, 23) },
+            ["desoloth"] = new[] { (56, 35) },
+            ["xancave"] = new[] { (53, 35) },
+            ["shadowgrove"] = new[] { (315, 7) },
+            ["stalagbite"] = new[] { (22, 35) },
+            ["maloth"] = new[] { (246, 23) },
+            ["originul"] = new[] { (387, 16) },
+            ["fiendshard"] = new[] { (387, 16) },
+            ["mummies"] = new[] { (97, 15) },
+            ["doomvault"] = new[] { (126, 18) },
+            ["doomvaultb"] = new[] { (127, 26), (126, 18) },
+            ["pyramid"] = new[] { (36, 28) },
+            ["djinn"] = new[] { (36, 28) },
+            ["ultradrakath"] = new[] { (182, 5) },
+            ["backroom"] = new[] { (402, 12) },
+            ["chaoscave"] = new[] { (26, 22) },
+            ["lycanwar"] = new[] { (26, 22) },
+            ["timespace"] = new[] { (100, 14) },
+            ["transformation"] = new[] { (405, 12) },
+            ["ebilcorphq"] = new[] { (431, 9) },
+            ["necrodungeon"] = new[] { (77, 18) },
+            ["oddities"] = new[] { (456, 13) },
+            ["championdrakath"] = new[] { (182, 7) },
+            ["glacera"] = new[] { (225, 21) },
+            ["ultratyndarius"] = new[] { (412, 22) },
+            ["towerofdoom"] = new[] { (159, 10) },
+            ["towerofdoom2"] = new[] { (159, 10) },
+            ["towerofdoom3"] = new[] { (159, 10) },
+            ["towerofdoom4"] = new[] { (159, 10) },
+            ["towerofdoom5"] = new[] { (159, 10) },
+            ["towerofdoom6"] = new[] { (159, 10) },
+            ["towerofdoom7"] = new[] { (159, 10) },
+            ["towerofdoom8"] = new[] { (159, 10) },
+            ["towerofdoom9"] = new[] { (159, 10) },
+            ["towerofdoom10"] = new[] { (159, 10) },
+            ["wolfwing"] = new[] { (26, 23) },
+            ["darkoviaforest"] = new[] { (26, 23) },
+            ["lycan"] = new[] { (26, 23) },
+            ["safiria"] = new[] { (26, 23) },
+            ["manacradle"] = new[] { (488, 20) },
+            ["shadowattack"] = new[] { (175, 18) },
+            ["dreadhaven"] = new[] { (175, 20) },
+            ["confrontation"] = new[] { (175, 20) },
+            ["celestialarenab"] = new[] { (249, 20) },
+            ["celestialarenac"] = new[] { (249, 20) },
+            ["celestialarenad"] = new[] { (249, 20) },
+            ["moonyardb"] = new[] { (28, 35) },
+        };
+
+    private static readonly Dictionary<string, int> MapQuestIdBypasses =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["stormtemple"] = 2814,
+        };
+
+    private static string? NormalizeMapKey(string? mapName)
+    {
+        if (string.IsNullOrWhiteSpace(mapName))
+            return null;
+
+        int dashIndex = mapName.IndexOf('-');
+        string cleanName = dashIndex >= 0 ? mapName.Substring(0, dashIndex) : mapName;
+        return cleanName.Trim().ToLowerInvariant();
+    }
+
+    private static bool IsSoloOnlyMap(string? mapName)
+    {
+        string? normalized = NormalizeMapKey(mapName);
+        return !string.IsNullOrEmpty(normalized) && SoloOnlyMaps.Contains(normalized);
+    }
+
+    private void ApplyQuestSlotBypass(int slot, int value)
+    {
+        try
+        {
+            if (Bot.Flash.CallGameFunction<int>("world.getQuestValue", slot) < value)
+                Bot.Quests.UpdateQuest(value, slot);
+        }
+        catch
+        {
+            // Ignore transient Flash read errors while map transitions settle.
+        }
+    }
+
+    private void EnsureMapAccessBypass(string? mapName)
+    {
+        string? normalized = NormalizeMapKey(mapName);
+        if (string.IsNullOrEmpty(normalized))
+            return;
+
+        if (string.Equals(normalized, "doomvaultb", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                Core.SetAchievement(18);
+            }
+            catch
+            {
+                // Best effort; quest-slot bypasses below still proceed.
+            }
+        }
+
+        if (MapQuestIdBypasses.TryGetValue(normalized, out int questId))
+        {
+            try
+            {
+                if (!Bot.Quests.HasBeenCompleted(questId))
+                    Bot.Quests.UpdateQuest(questId);
+            }
+            catch
+            {
+                // Best effort when quest data has not been fetched yet.
+            }
+        }
+
+        if (MapQuestSlotBypasses.TryGetValue(normalized, out var slots))
+        {
+            foreach (var (slot, value) in slots)
+                ApplyQuestSlotBypass(slot, value);
+        }
+    }
+
+    private bool JumpToPlayerInSameMap(
+        string normalizedTarget,
+        string targetCell,
+        string targetPad,
+        string? targetMap
+    )
+    {
+        if (Bot.Player.Cell == targetCell)
+            return true;
+
+        string? currentMap = NormalizeMapKey(Bot.Map?.Name ?? targetMap);
+        EnsureMapAccessBypass(currentMap);
+
+        Bot.Map?.Jump(targetCell, targetPad);
+        Bot.Wait.ForCellChange(targetCell);
+        if (Bot.Player.Cell == targetCell)
+            return true;
+
+        // If the client loaded a gated map SWF before quest-tree/achievement bypasses were
+        // applied (e.g., /wolfwing Dracowerepyre gate or /doomvault cutscenes), reload via
+        // /whitemap with bypasses active before returning to the worker's exact room.
+        if (!string.IsNullOrEmpty(currentMap) && !IsSoloOnlyMap(currentMap))
+        {
+            Core.Logger(
+                $"Map '{currentMap}' blocked cell jump to '{targetCell}'; reloading via /whitemap with access bypass.",
+                "CoordinateFollowAndCombat"
+            );
+            Core.Join("whitemap", ignoreCheck: true);
+            EnsureMapAccessBypass(currentMap);
+            Bot.Player.Goto(normalizedTarget);
+            Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
+            if (Bot.Map.TryGetPlayer(normalizedTarget, out var playerAfterReload) && playerAfterReload != null)
+            {
+                if (playerAfterReload.Cell != Bot.Player.Cell)
+                {
+                    Bot.Map.Jump(playerAfterReload.Cell, playerAfterReload.Pad);
+                    Bot.Wait.ForCellChange(playerAfterReload.Cell);
+                }
+                return Bot.Player.Cell == playerAfterReload.Cell;
+            }
+        }
+
+        return Bot.Player.Cell == targetCell;
+    }
+
     public void CoordinateFollowAndCombat(
         string targetPlayerName,
         string monster = "*",
         bool useSkillRotations = true,
         bool waitForFirstHit = true,
-        ClassType compositionType = ClassType.Solo
+        ClassType compositionType = ClassType.Solo,
+        string? targetMap = null
     )
     {
         if (string.IsNullOrWhiteSpace(targetPlayerName) || Bot.ShouldExit)
+            return;
+
+        if (IsSoloOnlyMap(targetMap))
             return;
 
         string normalizedTarget = NormalizeArmyUsername(targetPlayerName);
@@ -6185,25 +6394,28 @@ public class CoreArmyFJ
         bool inSameCell = false;
         if (Bot.Map.TryGetPlayer(normalizedTarget, out var targetPlayer) && targetPlayer != null)
         {
-            if (targetPlayer.Cell != Bot.Player.Cell)
-            {
-                Bot.Map.Jump(targetPlayer.Cell, targetPlayer.Pad);
-                Bot.Wait.ForCellChange(targetPlayer.Cell);
-            }
-            inSameCell = targetPlayer.Cell == Bot.Player.Cell;
+            inSameCell = JumpToPlayerInSameMap(
+                normalizedTarget,
+                targetPlayer.Cell,
+                targetPlayer.Pad,
+                Bot.Map?.Name ?? targetMap
+            );
         }
         else
         {
+            EnsureMapAccessBypass(targetMap);
             Bot.Player.Goto(normalizedTarget);
             Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
+            string? loadedMap = Bot.Map?.Name ?? targetMap;
+            EnsureMapAccessBypass(loadedMap);
             if (Bot.Map.TryGetPlayer(normalizedTarget, out var playerAfterGoto) && playerAfterGoto != null)
             {
-                if (playerAfterGoto.Cell != Bot.Player.Cell)
-                {
-                    Bot.Map.Jump(playerAfterGoto.Cell, playerAfterGoto.Pad);
-                    Bot.Wait.ForCellChange(playerAfterGoto.Cell);
-                }
-                inSameCell = playerAfterGoto.Cell == Bot.Player.Cell;
+                inSameCell = JumpToPlayerInSameMap(
+                    normalizedTarget,
+                    playerAfterGoto.Cell,
+                    playerAfterGoto.Pad,
+                    loadedMap
+                );
             }
         }
 
