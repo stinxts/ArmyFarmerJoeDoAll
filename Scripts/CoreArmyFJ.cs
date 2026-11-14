@@ -6164,6 +6164,7 @@ public class CoreArmyFJ
 
     private bool actAsSupportHelper;
     private string lastSkillRotationClass = string.Empty;
+    private string lastSpecialEquippedMapRoom = string.Empty;
 
     private static readonly HashSet<string> SoloOnlyMaps = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -6256,6 +6257,8 @@ public class CoreArmyFJ
         new(StringComparer.OrdinalIgnoreCase)
         {
             ["stormtemple"] = 2814,
+            ["onslaughttower"] = 2621,
+            ["ledgermayne"] = 847,
         };
 
     private static string? NormalizeMapKey(string? mapName)
@@ -6323,6 +6326,49 @@ public class CoreArmyFJ
             foreach (var (slot, value) in slots)
                 ApplyQuestSlotBypass(slot, value);
         }
+
+        EnsureSpecialMapItemEquipped(normalized);
+    }
+
+    private void EnsureSpecialMapItemEquipped(string? normalizedMap)
+    {
+        if (string.IsNullOrEmpty(normalizedMap) || Bot.Map == null || !Bot.Map.Loaded)
+            return;
+
+        string? currentLoadedMap = NormalizeMapKey(Bot.Map.Name);
+        if (!string.Equals(currentLoadedMap, normalizedMap, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        string roomKey = $"{normalizedMap}:{Bot.Map.RoomID}";
+        if (string.Equals(lastSpecialEquippedMapRoom, roomKey, StringComparison.OrdinalIgnoreCase))
+            return;
+
+        try
+        {
+            if (string.Equals(normalizedMap, "rivensylth", StringComparison.OrdinalIgnoreCase))
+            {
+                Bot.Map.GetMapItem(3935);
+                Core.Sleep(300);
+                Core.SendPackets($"%xt%zm%equipItem%{Bot.Map.RoomID}%32057%");
+                Core.Sleep(300);
+                lastSpecialEquippedMapRoom = roomKey;
+            }
+            else if (
+                string.Equals(normalizedMap, "onslaughttower", StringComparison.OrdinalIgnoreCase)
+                && !Core.isCompletedBefore(2627)
+            )
+            {
+                Bot.Map.GetMapItem(68);
+                Core.Sleep(300);
+                Core.SendPackets($"%xt%zm%equipItem%{Bot.Map.RoomID}%2096%");
+                Core.Sleep(300);
+                lastSpecialEquippedMapRoom = roomKey;
+            }
+        }
+        catch
+        {
+            // Ignore transient packet errors while map is still initializing.
+        }
     }
 
     private bool JumpToPlayerInSameMap(
@@ -6332,11 +6378,11 @@ public class CoreArmyFJ
         string? targetMap
     )
     {
-        if (Bot.Player.Cell == targetCell)
-            return true;
-
         string? currentMap = NormalizeMapKey(Bot.Map?.Name ?? targetMap);
         EnsureMapAccessBypass(currentMap);
+
+        if (Bot.Player.Cell == targetCell)
+            return true;
 
         Bot.Map?.Jump(targetCell, targetPad);
         Bot.Wait.ForCellChange(targetCell);
@@ -6356,6 +6402,12 @@ public class CoreArmyFJ
             EnsureMapAccessBypass(currentMap);
             Bot.Player.Goto(normalizedTarget);
             Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
+            if (!Bot.Map.PlayerExists(normalizedTarget))
+            {
+                Core.Join(currentMap);
+                Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
+            }
+            EnsureMapAccessBypass(currentMap);
             if (Bot.Map.TryGetPlayer(normalizedTarget, out var playerAfterReload) && playerAfterReload != null)
             {
                 if (playerAfterReload.Cell != Bot.Player.Cell)
@@ -6389,7 +6441,25 @@ public class CoreArmyFJ
         if (string.Equals(normalizedTarget, armyUsername, StringComparison.OrdinalIgnoreCase))
             return;
 
-        EnsureHelperRoleClassEquipped(compositionType);
+        bool isDoomKittenFight =
+            string.Equals(NormalizeMapKey(targetMap ?? Bot.Map?.Name), "doomkitten", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(monster, "DoomKitten", StringComparison.OrdinalIgnoreCase);
+
+        if (isDoomKittenFight)
+        {
+            if (HasClassInInventory("DragonSoul Shinobi"))
+                SwitchClassOutsideCombatRoom("DragonSoul Shinobi");
+            else if (HasClassInInventory("Blaze Binder"))
+                SwitchClassOutsideCombatRoom("Blaze Binder");
+            else if (HasClassInInventory("StoneCrusher"))
+                SwitchClassOutsideCombatRoom("StoneCrusher");
+            else
+                EnsureHelperRoleClassEquipped(compositionType);
+        }
+        else
+        {
+            EnsureHelperRoleClassEquipped(compositionType);
+        }
 
         bool inSameCell = false;
         if (Bot.Map.TryGetPlayer(normalizedTarget, out var targetPlayer) && targetPlayer != null)
@@ -6406,6 +6476,11 @@ public class CoreArmyFJ
             EnsureMapAccessBypass(targetMap);
             Bot.Player.Goto(normalizedTarget);
             Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
+            if (!Bot.Map.PlayerExists(normalizedTarget) && !string.IsNullOrEmpty(targetMap) && !IsSoloOnlyMap(targetMap))
+            {
+                Core.Join(targetMap);
+                Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
+            }
             string? loadedMap = Bot.Map?.Name ?? targetMap;
             EnsureMapAccessBypass(loadedMap);
             if (Bot.Map.TryGetPlayer(normalizedTarget, out var playerAfterGoto) && playerAfterGoto != null)
@@ -6628,13 +6703,42 @@ public class CoreArmyFJ
         try
         {
             string currentClassName = Bot.Player.CurrentClass?.Name ?? "generic";
+            bool inDoomKitten = string.Equals(NormalizeMapKey(Bot.Map?.Name), "doomkitten", StringComparison.OrdinalIgnoreCase);
+            bool isDoomKittenShinobi =
+                inDoomKitten
+                && (
+                    string.Equals(currentClassName, "DragonSoul Shinobi", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(currentClassName, "Shadow Dragon Shinobi", StringComparison.OrdinalIgnoreCase)
+                );
+            bool isDoomKittenBlaze =
+                inDoomKitten
+                && (
+                    string.Equals(currentClassName, "Blaze Binder", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(currentClassName, "FireLord Summoner", StringComparison.OrdinalIgnoreCase)
+                );
+            bool isDoomKittenSC =
+                inDoomKitten
+                && string.Equals(currentClassName, "StoneCrusher", StringComparison.OrdinalIgnoreCase);
+
+            string rotationKey =
+                (isDoomKittenShinobi || isDoomKittenBlaze || isDoomKittenSC)
+                    ? $"{currentClassName}:doomkitten"
+                    : currentClassName;
+
             if (
                 !Bot.Skills.TimerRunning
-                || !string.Equals(lastSkillRotationClass, currentClassName, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(lastSkillRotationClass, rotationKey, StringComparison.OrdinalIgnoreCase)
             )
             {
-                Bot.Skills.StartAdvanced(currentClassName, false, ClassUseMode.Base);
-                lastSkillRotationClass = currentClassName;
+                if (isDoomKittenShinobi)
+                    Bot.Skills.StartAdvanced("4 | 1 | 3M<30 | 2H<30");
+                else if (isDoomKittenBlaze)
+                    Bot.Skills.StartAdvanced("3 | 4 | 2");
+                else if (isDoomKittenSC)
+                    Bot.Skills.StartAdvanced("3 | 1 | 4");
+                else
+                    Bot.Skills.StartAdvanced(currentClassName, false, ClassUseMode.Base);
+                lastSkillRotationClass = rotationKey;
             }
         }
         catch

@@ -1,6 +1,6 @@
 /*
 name: Army FarmerJoe Step 1
-description: Test runner for FarmerJoe level 1-30, Bracket 30, Bracket 50, and Step 2C (Brackets 55, 60, and 65) with Army synchronization.
+description: Test runner for FarmerJoe level 1-30, Bracket 30, Bracket 50, Step 2C (Brackets 55, 60, and 65), Step 2D (Bracket 70), and Step 3A (Level 75 Progression) with Army synchronization.
 tags: army, farmerjoe, test
 */
 //cs_include Scripts/CoreBots.cs
@@ -55,6 +55,12 @@ public class ArmyFarmerJoeStep1
             if (!Harness.RunBracket65())
                 return;
 
+            if (!Harness.RunBracket70())
+                return;
+
+            if (!Harness.RunStep3A())
+                return;
+
             if (!Harness.RunSellStarterClasses())
                 return;
 
@@ -63,8 +69,8 @@ public class ArmyFarmerJoeStep1
 
             if (Harness.IsPlayer(1))
             {
-                if (Harness.StopArmySync("STEP2C_COMPLETE"))
-                    Core.Logger("Army FarmerJoe: player 1 published STEP2C_COMPLETE.");
+                if (Harness.StopArmySync("STEP3A_COMPLETE"))
+                    Core.Logger("Army FarmerJoe: player 1 published STEP3A_COMPLETE.");
                 return;
             }
 
