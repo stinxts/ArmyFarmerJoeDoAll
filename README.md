@@ -6,7 +6,7 @@ Write with AI: GPT-6 Luna, Opus 5.5, Gemini 4 Argon, Gemini 4 Hydrogen.
 
 # Army FarmerJoe DoAll
 
-A multi-account cooperative progression framework (`Scripts/Army/ArmyFarmerJoeDoAll.cs` + `Scripts/Army/CoreArmyFJ.cs`) built for synchronized groups of **4 to 7 accounts** (**Players 1–4 required; Players 5–7 optional**). Every account progresses together from **Level 1 to Level 100 Endgame**—clearing level brackets, storylines, reputation tiers, class rank-ups, enhancement unlocks, and endgame gear—while assisting teammates automatically and staying aligned at every barrier.
+A multi-account cooperative progression framework built for synchronized groups of **4 to 7 accounts** (**Players 1–4 required; Players 5–7 optional**). Every account progresses together from **Level 1 to Level 100 Endgame**—clearing level brackets, storylines, reputation tiers, class rank-ups, enhancement unlocks, and endgame gear—while assisting teammates automatically and staying aligned at every barrier.
 
 ---
 
@@ -28,7 +28,7 @@ A multi-account cooperative progression framework (`Scripts/Army/ArmyFarmerJoeDo
 * **Synchronized 4–7 Account Barriers:** No account advances to the next bracket until all teammates finish the current objective.
 * **Ready Check & On-Demand Class Kits:** Before combat begins, every account verifies its role class, applies that class's predetermined enhancement kit when needed, and waits at the barrier so the party enters fights together.
 * **Smart Subgroup Splitting & Level-Lock Sleep:** Automatically splits 5–7 player groups on player-capped maps (**3-player** or **1–4 / 5–7** subgroups) and puts helpers into sleep mode when a teammate is inside a higher-level locked room.
-* **Safe Equipment Swapping & Inventory/Bank Awareness:** Steps into a safe non-combat room before swapping classes, turning in quests, buying items, or enhancing gear, while checking both inventory and bank for reagents and boost gear.
+* **Safe Equipment Swapping & Inventory/Bank Awareness:** Steps into a safe non-combat room before swapping classes, turning in quests, buying items, or enhancing gear.
 
 ---
 
