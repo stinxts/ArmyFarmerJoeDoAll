@@ -2807,7 +2807,7 @@ public class ArmyFarmerJoeDoAll
                 && item.Quantity > 1
             );
 
-        // 2a. Farm 84x Shurpu Blaze Token from Shurpu Ring Guardian in /xancave (cell r9, Down)
+        // 2a. Farm 84x Shurpu Blaze Token from Shurpu Ring Guardian in /xancave
         if (
             !RunCooperativeObjective(
                 "BRACKET55_BB_PYRO_TOKENS",
@@ -2819,10 +2819,13 @@ public class ArmyFarmerJoeDoAll
 
                     core.AddDrop("Shurpu Blaze Token");
                     SetClass(ClassType.Solo);
-                    core.KillMonster(
+                    if (!JoinMapVerified("xancave"))
+                    {
+                        core.Logger("Map '/xancave' is currently unavailable for 'BRACKET55_BB_PYRO_TOKENS'.");
+                        return;
+                    }
+                    core.HuntMonster(
                         "xancave",
-                        "r9",
-                        "Down",
                         "Shurpu Ring Guardian",
                         "Shurpu Blaze Token",
                         84,
@@ -12304,12 +12307,17 @@ public class ArmyFarmerJoeDoAll
     private bool JoinMapVerified(string map, string? cell = null, string? pad = null)
     {
         CoreBots core = CoreBots.Instance;
+        Army.EnsureMapAccessBypass(map);
         if (!string.IsNullOrEmpty(cell) && !string.IsNullOrEmpty(pad))
             core.Join(map, cell, pad);
         else
             core.Join(map);
 
-        return string.Equals(Bot.Map?.Name, map, StringComparison.OrdinalIgnoreCase);
+        if (!string.Equals(Bot.Map?.Name, map, StringComparison.OrdinalIgnoreCase))
+            return false;
+
+        Army.EnsureMapAccessBypass(map);
+        return true;
     }
 
     private bool RunCoordinatedTurnInStep(

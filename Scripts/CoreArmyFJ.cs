@@ -6335,7 +6335,7 @@ public class CoreArmyFJ
         }
     }
 
-    private void EnsureMapAccessBypass(string? mapName)
+    public void EnsureMapAccessBypass(string? mapName)
     {
         string? normalized = NormalizeMapKey(mapName);
         if (string.IsNullOrEmpty(normalized))
