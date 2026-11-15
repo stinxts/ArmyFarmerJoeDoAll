@@ -7765,6 +7765,59 @@ public class CoreArmyFJ
         && !value.Contains('\r')
         && !value.Contains('\n')
         && !value.Contains('\0');
+
+    public bool AllPlayersSatisfy(string objectiveName, Func<bool> localPredicate)
+    {
+        if (!armySessionStarted || armyPlayers.Length == 0 || string.IsNullOrWhiteSpace(armySyncPath))
+            return localPredicate();
+
+        string safeName = NormalizeArmyRecordName(objectiveName);
+        if (string.IsNullOrEmpty(safeName))
+            safeName = "FLAG";
+
+        string flagPrefix = $"{armySyncPath}.{safeName}.{armySessionId}";
+        string myFlagPath = $"{flagPrefix}.p{armyPlayerIndex + 1}";
+
+        try
+        {
+            File.WriteAllText(myFlagPath, localPredicate() ? "1" : "0");
+        }
+        catch { }
+
+        if (!SyncArmy($"{safeName}_FLAG_READY"))
+            return false;
+
+        bool allTrue = true;
+        for (int i = 1; i <= armyPlayers.Length; i++)
+        {
+            string pPath = $"{flagPrefix}.p{i}";
+            try
+            {
+                string val = File.Exists(pPath) ? File.ReadAllText(pPath).Trim() : "0";
+                if (val != "1")
+                {
+                    allTrue = false;
+                    break;
+                }
+            }
+            catch
+            {
+                allTrue = false;
+                break;
+            }
+        }
+
+        SyncArmy($"{safeName}_FLAG_DONE");
+
+        try
+        {
+            if (File.Exists(myFlagPath))
+                File.Delete(myFlagPath);
+        }
+        catch { }
+
+        return allTrue;
+    }
 }
 
 public enum UltraRunResult

@@ -1,16 +1,33 @@
+/*
+name: Army FarmerJoe DoAll
+description: Synchronized 4 to 7 account FarmerJoe progression from Level 1 to Level 100 Endgame.
+tags: army, farmerjoe, progression, doall, dailies, DoT, AF, YnR, VDK, VHL, Forge Enhancements, AM, AI, AWESCENDED, HOLLOWBORN REAPER'S SCYTHE
+*/
 //cs_include Scripts/CoreBots.cs
 //cs_include Scripts/CoreFarms.cs
 //cs_include Scripts/CoreAdvanced.cs
 //cs_include Scripts/CoreStory.cs
 //cs_include Scripts/CoreDailies.cs
-//cs_include Scripts/CoreArmyFJ.cs
+//cs_include Scripts/Army/CoreArmyFJ.cs
 //cs_include Scripts/Story/Tutorial.cs
 //cs_include Scripts/Story/Mazumi.cs
 //cs_include Scripts/Story/Lair.cs
 //cs_include Scripts/Other/FreeBoosts/FreeBoostsQuest(10mns)[Rng].cs
+//cs_include Scripts/Other/Weapons/BurningBladeOfAbezeth.cs
+//cs_include Scripts/Other/Classes/DragonOfTime.cs
+//cs_include Scripts/Nation/Various/Archfiend.cs
+//cs_include Scripts/Legion/YamiNoRonin/CoreYnR.cs
+//cs_include Scripts/Other/Classes/VerusDoomKnight.cs
+//cs_include Scripts/Enhancement/UnlockForgeEnhancements.cs
+//cs_include Scripts/Nation/VHL/CoreVHL.cs
+//cs_include Scripts/Other/Classes/ArchMage/CoreArchMage.cs
+//cs_include Scripts/Other/Classes/ArcanaInvoker[Non-Insignia].cs
+//cs_include Scripts/Hollowborn/MergeShops/ShadowRealmMerge.cs
+//cs_include Scripts/Good/GearOfAwe/Awescended.cs
 using System;
 using System.Collections.Generic;
 using System.Globalization;
+using System.IO;
 using System.Linq;
 using Skua.Core.Interfaces;
 using Skua.Core.Models.Items;
@@ -28,6 +45,17 @@ public class ArmyFarmerJoeDoAll
     private static readonly Mazumi Mazumi = new();
     private static readonly Lair Lair = new();
     private static readonly FreeBoosts Boosts = new();
+    private static readonly BurningBladeOfAbezeth BBoA = new();
+    private static readonly DragonOfTime DoT = new();
+    private static readonly ArchFiend AF = new();
+    private static readonly CoreYnR YnR = new();
+    private static readonly VerusDoomKnightClass VDK = new();
+    private static readonly UnlockForgeEnhancements ForgeUnlock = new();
+    private static readonly CoreVHL VHLCore = new();
+    private static readonly CoreArchMage AMCore = new();
+    private static readonly ArcanaInvoker AICore = new();
+    private static readonly ShadowrealmMerge SRM = new();
+    private static readonly Awescended AwescendedCore = new();
 
     private const int Rank10ClassPoints = 302500;
 
@@ -46,8 +74,9 @@ public class ArmyFarmerJoeDoAll
 
     private static IScriptInterface Bot => IScriptInterface.Instance;
 
-    public string OptionsStorage = "ArmyFarmerJoeStep1";
+    public string OptionsStorage = "ArmyFarmerJoeDoAll";
     public bool DontPreconfigure = true;
+    private const string SyncFileName = "ArmyFarmerJoeDoAll.sync";
     public List<IOption> Options = new()
     {
         Army.player1,
@@ -109,6 +138,69 @@ public class ArmyFarmerJoeDoAll
         ),
         CoreBots.Instance.SkipOptions,
     };
+
+    public void ScriptMain(IScriptInterface bot)
+    {
+        CoreBots core = CoreBots.Instance;
+        core.SetOptions();
+        try
+        {
+            if (!StartArmySync(SyncFileName))
+                return;
+
+            if (!RunLevel1To30())
+                return;
+
+            if (!RunBracket30())
+                return;
+
+            if (!RunBracket50())
+                return;
+
+            if (!RunBracket55())
+                return;
+
+            if (!RunBracket60())
+                return;
+
+            if (!RunBracket65())
+                return;
+
+            if (!RunBracket70())
+                return;
+
+            if (!RunStep3A())
+                return;
+
+            if (!RunStep3B())
+                return;
+
+            if (!RunStep3C())
+                return;
+
+            if (!RunStep4A())
+                return;
+
+            if (!RunSellStarterClasses())
+                return;
+
+            if (!RunFarmerJoeOutfit())
+                return;
+
+            if (IsPlayer(1))
+            {
+                if (StopArmySync("STEP4A_COMPLETE"))
+                    core.Logger("Army FarmerJoe: player 1 published STEP4A_COMPLETE.");
+                return;
+            }
+
+            WaitForArmyStop();
+        }
+        finally
+        {
+            core.SetOptions(false);
+        }
+    }
 
     public bool StartArmySync(string syncFileName)
     {
@@ -3695,7 +3787,7 @@ public class ArmyFarmerJoeDoAll
                         string? currentClass = Bot.Player.CurrentClass?.Name;
                         if (!string.IsNullOrWhiteSpace(currentClass))
                         {
-                            Adv.SmartEnhance(currentClass);
+                            ApplyAndRecordSmartEnhance(currentClass);
                             Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
                         }
                     }
@@ -5212,7 +5304,7 @@ public class ArmyFarmerJoeDoAll
                     string? currentClass = Bot.Player.CurrentClass?.Name;
                     if (!string.IsNullOrWhiteSpace(currentClass))
                     {
-                        Adv.SmartEnhance(currentClass);
+                        ApplyAndRecordSmartEnhance(currentClass);
                         Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
                     }
                 }
@@ -5248,8 +5340,7 @@ public class ArmyFarmerJoeDoAll
 
         if (HasClassInInventory(chosenClass))
         {
-            if (!ShouldPreserveEquippedGear() && !IsDisableAutoEnhanceEnabled())
-                Adv.SmartEnhance(chosenClass);
+            EnsureCombatEnhancementReady(chosenClass, allowFullGearEnhance: true);
 
             core.Equip(chosenClass);
             Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped(chosenClass), 20);
@@ -8823,7 +8914,7 @@ public class ArmyFarmerJoeDoAll
                         string? currentClass = Bot.Player.CurrentClass?.Name;
                         if (!string.IsNullOrWhiteSpace(currentClass))
                         {
-                            Adv.SmartEnhance(currentClass);
+                            ApplyAndRecordSmartEnhance(currentClass);
                             Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
                         }
                     }
@@ -8837,6 +8928,769 @@ public class ArmyFarmerJoeDoAll
         return !Bot.ShouldExit;
     }
     #endregion Step 3A: Level 75 Progression (13 LoC, LoO Daily, Additional Classes & Forge Weapons)
+
+    #region Step 3B: Level 80 Progression (BBoA, Dragon of Time, ArchFiend, Yami no Ronin, Dage's Scroll Fragment Daily)
+    /// <summary>
+    /// Step 3B: Level 80 Progression.
+    /// - Level 80 + Enhance + Best Boost Gear
+    /// - Dailies: The Encroaching Shadows (8653), LoO (7156-7165), Dage's Scroll Fragment (3596)
+    /// - Burning Blade of Abezeth (+30% All Damage, solo-only /celestialarenad)
+    /// - Dragon of Time (subgroup 1-4 / 5-7 for /towerofdoom*, bypass via EnsureMapAccessBypass)
+    /// - ArchFiend (50x Bone Dust pre-check + subgroup 1-4 / 5-7 for /tercessuinotlim)
+    /// - Yami no Ronin (synchronized Fail to the King [793] Legion vs Non-Legion route)
+    /// </summary>
+    public bool RunStep3B()
+    {
+        CoreBots core = CoreBots.Instance;
+        core.Logger(
+            "Step 3B: Starting Level 80 Progression (BBoA, Dragon of Time, ArchFiend, Yami no Ronin & Dage's Scroll Fragment)..."
+        );
+
+        if (!Army.SyncArmy("STEP3B_80_START"))
+            return false;
+
+        if (!RunBracketLevelAndEnhance("STEP3B_LEVEL_80", 80))
+            return false;
+
+        EnsureBestStaticBoostGearEquipped();
+
+        if (!RunTheEncroachingShadowsDaily())
+            return false;
+
+        if (!RunLordOfOrderProgression("STEP3B"))
+            return false;
+
+        BankQuestExtras(7156, "Lord of Order");
+
+        if (!RunDagesScrollFragmentDaily())
+            return false;
+
+        if (!RunStep3BBurningBladeOfAbezeth())
+            return false;
+
+        if (!RunStep3BDragonOfTime())
+            return false;
+
+        if (!RunStep3BArchFiend())
+            return false;
+
+        if (!RunStep3BYamiNoRonin())
+            return false;
+
+        EnsureBestStaticBoostGearEquipped();
+        _syncedClassType = ClassType.None;
+        SetClass(rankUpIfNeeded: false);
+
+        if (!Army.SyncArmy("STEP3B_80_END"))
+            return false;
+
+        core.Logger("Step 3B: Level 80 Progression completed.");
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep3BBurningBladeOfAbezeth()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasBBoAOrSkip() =>
+            ShouldPreserveEquippedGear()
+            || core.CheckInventory("Burning Blade Of Abezeth", 1, toInv: false);
+
+        // /celestialarena* and /celestialarenad are strict 1-player solo maps; helpers cannot join.
+        if (
+            !RunCooperativeObjective(
+                "STEP3B_BBOA",
+                HasBBoAOrSkip,
+                () =>
+                {
+                    if (HasBBoAOrSkip())
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Solo);
+                    BBoA.GetBBoA();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+            )
+        )
+            return false;
+
+        EnsureBestStaticBoostGearEquipped();
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep3BDragonOfTime()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasDoT() => core.CheckInventory("Dragon of Time", 1, toInv: false);
+
+        // /towerofdoom* has a 6-player room cap: split into Group 0 (Players 1-4) and Group 1 (Players 5-7).
+        if (!HasDoT())
+        {
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        "STEP3B_DOT_CLASS",
+                        HasDoT,
+                        () =>
+                        {
+                            if (HasDoT())
+                                return;
+
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                            DoT.GetDoT(rankUpClass: false, doExtra: false);
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                        }
+                    )
+                )
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
+        }
+        else if (!Army.SyncArmy("STEP3B_DOT_CLASS_SKIP"))
+            return false;
+
+        RankUpClassForArmy("Dragon of Time");
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep3BArchFiend()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasArchFiend() => core.CheckInventory("ArchFiend", 1, toInv: false);
+
+        // All accounts (including helpers) need 50 Bone Dust in inventory to enter /tercessuinotlim.
+        if (
+            !RunCoordinatedCombatStep(
+                "STEP3B_AF_BONE_DUST",
+                () => HasArchFiend() || core.CheckInventory("Bone Dust", 50),
+                () => HasArchFiend() || core.CheckInventory("Bone Dust", 50),
+                "*",
+                ClassType.Farm,
+                () =>
+                {
+                    if (HasArchFiend() || core.CheckInventory("Bone Dust", 50))
+                        return;
+                    core.HuntMonster("battleunderb", "Skeleton Warrior", "Bone Dust", 50, isTemp: false);
+                },
+                targetMap: "battleunderb"
+            )
+        )
+            return false;
+
+        // /tercessuinotlim has a 6-player room cap: split into Group 0 (Players 1-4) and Group 1 (Players 5-7).
+        if (!HasArchFiend())
+        {
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        "STEP3B_AF_CLASS",
+                        HasArchFiend,
+                        () =>
+                        {
+                            if (HasArchFiend())
+                                return;
+
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                            AF.GetArchfiend(rankUp: false);
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                        }
+                    )
+                )
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
+        }
+        else if (!Army.SyncArmy("STEP3B_AF_CLASS_SKIP"))
+            return false;
+
+        RankUpClassForArmy("ArchFiend");
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep3BYamiNoRonin()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasYnR() => core.CheckInventory("Yami no Ronin", 1, toInv: false);
+
+        bool allLegion = Army.AllPlayersSatisfy(
+            "YNR_FAIL_TO_THE_KING_793",
+            () => core.isCompletedBefore(793, log: false)
+        );
+        core.Logger(
+            $"Step 3B: Yami no Ronin route selected -> {(allLegion ? "Legion" : "Non-Legion")} (Fail to the King [793] check across Army)."
+        );
+
+        if (
+            !RunCooperativeObjective(
+                "STEP3B_YNR_BLADEMASTER_SCROLL",
+                () => HasYnR() || core.CheckInventory("Blademaster Sword Scroll", 1, toInv: false),
+                () =>
+                {
+                    if (HasYnR() || core.CheckInventory("Blademaster Sword Scroll", 1, toInv: false))
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Solo);
+                    YnR.BlademasterSwordScroll(nonLegion: !allLegion);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+            )
+            || !RunCooperativeObjective(
+                "STEP3B_YNR_YOKAI_SCROLL",
+                () => HasYnR() || core.CheckInventory("Yokai Sword Scroll", 1, toInv: false),
+                () =>
+                {
+                    if (HasYnR() || core.CheckInventory("Yokai Sword Scroll", 1, toInv: false))
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Farm);
+                    YnR.YokaiSwordScroll();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Farm)
+            )
+            || !RunCoordinatedTurnInStep(
+                "STEP3B_YNR_TURNIN",
+                HasYnR,
+                HasYnR,
+                () =>
+                {
+                    if (HasYnR())
+                        return;
+                    core.AddDrop("Yami no Ronin");
+                    core.EnsureAccept(7408);
+                    core.Unbank("Blademaster Sword Scroll", "Yokai Sword Scroll");
+                    core.EnsureComplete(7408);
+                    Bot.Wait.ForPickup("Yami no Ronin");
+                }
+            )
+        )
+            return false;
+
+        RankUpClassForArmy("Yami no Ronin");
+        return !Bot.ShouldExit;
+    }
+    #endregion Step 3B: Level 80 Progression
+
+    #region Step 3C: Level 90 Progression (Verus DoomKnight & Forge Capes)
+    /// <summary>
+    /// Step 3C: Level 90 Progression.
+    /// - Level 90 + Enhance + Best Boost Gear
+    /// - Dailies: The Encroaching Shadows (8653), LoO (7156-7165), Dage's Scroll Fragment (3596)
+    /// - Verus DoomKnight (Rank 10 Evil + coordinated /terminatemple questline + Rank 10)
+    /// - Forge Capes (Blacksmithing Rank 9 + Good Rank 10 + Absolution -> Vainglory -> Avarice -> Penitence -> Lament)
+    /// </summary>
+    public bool RunStep3C()
+    {
+        CoreBots core = CoreBots.Instance;
+        core.Logger("Step 3C: Starting Level 90 Progression (Verus DoomKnight & Forge Capes)...");
+
+        if (!Army.SyncArmy("STEP3C_90_START"))
+            return false;
+
+        if (!RunBracketLevelAndEnhance("STEP3C_LEVEL_90", 90))
+            return false;
+
+        EnsureBestStaticBoostGearEquipped();
+
+        if (!RunTheEncroachingShadowsDaily())
+            return false;
+
+        if (!RunLordOfOrderProgression("STEP3C"))
+            return false;
+
+        BankQuestExtras(7156, "Lord of Order");
+
+        if (!RunDagesScrollFragmentDaily())
+            return false;
+
+        if (!RunStep3CVerusDoomKnight())
+            return false;
+
+        if (!RunStep3CForgeCapes())
+            return false;
+
+        EnsureBestStaticBoostGearEquipped();
+        _syncedClassType = ClassType.None;
+        SetClass(rankUpIfNeeded: false);
+
+        if (!Army.SyncArmy("STEP3C_90_END"))
+            return false;
+
+        core.Logger("Step 3C: Level 90 Progression completed.");
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep3CVerusDoomKnight()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasVDK() => core.CheckInventory("Verus DoomKnight", 1, toInv: false);
+
+        if (
+            !RunCooperativeObjective(
+                "STEP3C_VDK_EVIL_REP_10",
+                () => HasVDK() || Farm.FactionRank("Evil") >= 10,
+                () =>
+                {
+                    if (HasVDK() || Farm.FactionRank("Evil") >= 10)
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Farm);
+                    Farm.EvilREP(10);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Farm)
+            )
+            || !RunCooperativeObjective(
+                "STEP3C_VDK_CLASS",
+                HasVDK,
+                () =>
+                {
+                    if (HasVDK())
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Solo);
+                    VDK.GetClass(rankup: false);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+            )
+        )
+            return false;
+
+        RankUpClassForArmy("Verus DoomKnight");
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep3CForgeCapes()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool IsAllCapesDone() => core.isCompletedBefore(8823, log: false);
+
+        if (
+            !RunCoordinatedBlacksmithingRankStep(
+                "STEP3C_FORGE_CAPE_BS_RANK9",
+                9,
+                45,
+                () => IsAllCapesDone() || core.isCompletedBefore(8743, log: false)
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "STEP3C_FORGE_CAPE_GOOD_REP10",
+                () => IsAllCapesDone() || core.isCompletedBefore(8743, log: false) || Farm.FactionRank("Good") >= 10,
+                () =>
+                {
+                    if (IsAllCapesDone() || core.isCompletedBefore(8743, log: false) || Farm.FactionRank("Good") >= 10)
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Farm);
+                    Farm.GoodREP(10);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Farm)
+            )
+        )
+            return false;
+
+        var capeSteps = new (string Objective, int QuestId, Action UnlockAction)[]
+        {
+            ("STEP3C_FORGE_CAPE_ABSOLUTION", 8743, () => ForgeUnlock.Absolution()),
+            ("STEP3C_FORGE_CAPE_VAINGLORY", 8744, () => ForgeUnlock.Vainglory()),
+            ("STEP3C_FORGE_CAPE_AVARICE", 8745, () => ForgeUnlock.Avarice()),
+            ("STEP3C_FORGE_CAPE_PENITENCE", 8822, () => ForgeUnlock.Penitence()),
+            ("STEP3C_FORGE_CAPE_LAMENT", 8823, () => ForgeUnlock.Lament()),
+        };
+
+        foreach ((string objective, int questId, Action unlockAction) in capeSteps)
+        {
+            bool IsCapeDone() => core.isCompletedBefore(questId, log: false);
+            if (
+                !RunCooperativeObjective(
+                    objective,
+                    IsCapeDone,
+                    () =>
+                    {
+                        if (IsCapeDone())
+                            return;
+
+                        PrepareCombatLoadoutForArmy(ClassType.Solo);
+                        unlockAction();
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                    {
+                        Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                    },
+                    prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+                )
+            )
+                return false;
+        }
+
+        // Restore best boost Armor after /sloth (HazMat Suit used in Lament) and reset enhancement cache
+        // so the next combat loadout re-applies the newly unlocked Forge Cape enhancements.
+        LeaveCombatRoomForEquipmentChange();
+        EnsureBestStaticBoostGearEquipped();
+        _lastSmartEnhancedClass = null;
+        return !Bot.ShouldExit;
+    }
+    #endregion Step 3C: Level 90 Progression
+
+    #region Step 4A: Level 100 Endgame Progression (VHL, AM, AI, Valiance, Ravenous, Infernal ArchFiend, Hollowborn Reaper's Scythe & Awescended)
+    /// <summary>
+    /// Step 4A: Level 100 Endgame Progression (no weekly Ultra Bosses).
+    /// - Level 100 + Enhance + Best Boost Gear
+    /// - Dailies: The Encroaching Shadows (8653), LoO (7156-7165), Dage's Scroll Fragment (3596)
+    /// - Endgame Classes: Void Highlord, ArchMage, Arcana Invoker (Non-Insignia)
+    /// - Forge Weapons: Hero's Valiance (8741) & Ravenous (9560)
+    /// - Endgame Gear: Infernal ArchFiend (+40% All Races), Hollowborn Reaper's Scythe (+40% All Damage)
+    /// - Final Questline: Awe-scention (Awescended)
+    /// </summary>
+    public bool RunStep4A()
+    {
+        CoreBots core = CoreBots.Instance;
+        core.Logger(
+            "Step 4A: Starting Level 100 Endgame Progression (VHL, AM, AI, Valiance, Ravenous, Infernal ArchFiend, Hollowborn Reaper's Scythe & Awescended)..."
+        );
+
+        if (!Army.SyncArmy("STEP4A_100_START"))
+            return false;
+
+        if (!RunBracketLevelAndEnhance("STEP4A_LEVEL_100", 100))
+            return false;
+
+        EnsureBestStaticBoostGearEquipped();
+
+        if (!RunTheEncroachingShadowsDaily())
+            return false;
+
+        if (!RunLordOfOrderProgression("STEP4A"))
+            return false;
+
+        BankQuestExtras(7156, "Lord of Order");
+
+        if (!RunDagesScrollFragmentDaily())
+            return false;
+
+        if (!RunStep4AVoidHighlord())
+            return false;
+
+        if (!RunStep4AArchMage())
+            return false;
+
+        if (!RunStep4AArcanaInvoker())
+            return false;
+
+        if (!RunStep4AValiance())
+            return false;
+
+        if (!RunStep4ARavenousAndInfernalArchFiend())
+            return false;
+
+        if (!RunStep4AHollowbornReapersScythe())
+            return false;
+
+        if (!RunStep4AAwescended())
+            return false;
+
+        EnsureBestStaticBoostGearEquipped();
+        _lastSmartEnhancedClass = null;
+        _syncedClassType = ClassType.None;
+        SetClass(rankUpIfNeeded: false);
+
+        if (!Army.SyncArmy("STEP4A_100_END"))
+            return false;
+
+        core.Logger("Step 4A: Level 100 Endgame Progression completed.");
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep4AClassUnlock(
+        string objectivePrefix,
+        string className,
+        Action unlockWithoutRankUp
+    )
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasClass() => core.CheckInventory(className, 1, toInv: false);
+
+        if (
+            !RunCooperativeObjective(
+                objectivePrefix,
+                HasClass,
+                () =>
+                {
+                    if (HasClass())
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Solo);
+                    unlockWithoutRankUp();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+            )
+        )
+            return false;
+
+        if (HasClass())
+            RankUpClassForArmy(className);
+
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep4AVoidHighlord() =>
+        RunStep4AClassUnlock("STEP4A_VHL", "Void Highlord", () => VHLCore.GetVHL(rankUpClass: false));
+
+    private bool RunStep4AArchMage() =>
+        RunStep4AClassUnlock("STEP4A_AM", "ArchMage", () => AMCore.GetAM(rankUpClass: false));
+
+    private bool RunStep4AArcanaInvoker() =>
+        RunStep4AClassUnlock("STEP4A_AI", "Arcana Invoker", () => AICore.GetAI(rankUpClass: false));
+
+    private bool RunStep4AValiance()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool IsValianceDone() => core.isCompletedBefore(8741, log: false);
+
+        if (
+            !RunCoordinatedBlacksmithingRankStep(
+                "STEP4A_VALIANCE_BS_RANK10",
+                10,
+                55,
+                IsValianceDone
+            )
+        )
+            return false;
+
+        if (!IsValianceDone())
+        {
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        "STEP4A_VALIANCE_UNLOCK",
+                        IsValianceDone,
+                        () =>
+                        {
+                            if (IsValianceDone())
+                                return;
+
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                            ForgeUnlock.HerosValiance();
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                        }
+                    )
+                )
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
+        }
+        else if (!Army.SyncArmy("STEP4A_VALIANCE_SKIP"))
+            return false;
+
+        _lastSmartEnhancedClass = null;
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep4ARavenousAndInfernalArchFiend()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool IsRavenousDone() => core.isCompletedBefore(9560, log: false);
+        bool HasInfernalArchFiend() => core.CheckInventory("Infernal ArchFiend", 1, toInv: false);
+
+        // Ensure 50 Bone Dust in case Prime Fiend Shard / Nulgath steps enter /tercessuinotlim.
+        if (
+            !RunCoordinatedCombatStep(
+                "STEP4A_RAVENOUS_BONE_DUST",
+                () => IsRavenousDone() || core.CheckInventory("Bone Dust", 50),
+                () => IsRavenousDone() || core.CheckInventory("Bone Dust", 50),
+                "*",
+                ClassType.Farm,
+                () =>
+                {
+                    if (IsRavenousDone() || core.CheckInventory("Bone Dust", 50))
+                        return;
+                    core.HuntMonster("battleunderb", "Skeleton Warrior", "Bone Dust", 50, isTemp: false);
+                },
+                targetMap: "battleunderb"
+            )
+        )
+            return false;
+
+        if (!IsRavenousDone())
+        {
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        "STEP4A_RAVENOUS_UNLOCK",
+                        IsRavenousDone,
+                        () =>
+                        {
+                            if (IsRavenousDone())
+                                return;
+
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                            ForgeUnlock.Ravenous();
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                        }
+                    )
+                )
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
+        }
+        else if (!Army.SyncArmy("STEP4A_RAVENOUS_SKIP"))
+            return false;
+
+        if (
+            !RunCoordinatedTurnInStep(
+                "STEP4A_BUY_INFERNAL_ARCHFIEND",
+                () => !IsRavenousDone() || HasInfernalArchFiend(),
+                () => !IsRavenousDone() || HasInfernalArchFiend(),
+                () =>
+                {
+                    if (!IsRavenousDone() || HasInfernalArchFiend())
+                        return;
+
+                    core.AddDrop("Infernal ArchFiend");
+                    Adv.BuyItem("fiendshard", 2411, "Infernal ArchFiend");
+                    Bot.Wait.ForPickup("Infernal ArchFiend");
+                }
+            )
+        )
+            return false;
+
+        _lastSmartEnhancedClass = null;
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep4AHollowbornReapersScythe()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasScythe() => core.CheckInventory("Hollowborn Reaper's Scythe", 1, toInv: false);
+
+        return RunCooperativeObjective(
+            "STEP4A_HOLLOWBORN_SCYTHE",
+            HasScythe,
+            () =>
+            {
+                if (HasScythe())
+                    return;
+
+                PrepareCombatLoadoutForArmy(ClassType.Solo);
+                SRM.BuyAllMerge("Hollowborn Reaper's Scythe");
+            },
+            (targetPlayerNumber, targetPlayerName) =>
+            {
+                Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+            },
+            prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+        );
+    }
+
+    private bool RunStep4AAwescended()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool IsAwescendedDone() =>
+            core.isCompletedBefore(8042, log: false) && core.CheckInventory("Awescended", 1, toInv: false);
+
+        return RunCooperativeObjective(
+            "STEP4A_AWESCENDED",
+            IsAwescendedDone,
+            () =>
+            {
+                if (IsAwescendedDone())
+                    return;
+
+                PrepareCombatLoadoutForArmy(ClassType.Solo);
+                AwescendedCore.GetAwe();
+            },
+            (targetPlayerNumber, targetPlayerName) =>
+            {
+                Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+            },
+            prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+        );
+    }
+    #endregion Step 4A: Level 100 Endgame Progression
 
     /// <summary>
     /// Coordinates /frozentower Quests 3907-3937 (Slot 185, Value 1..31) for Cryomancer and Glacera Story.
@@ -11076,6 +11930,7 @@ public class ArmyFarmerJoeDoAll
         if (HasClassInInventory(desiredClass))
         {
             LeaveCombatRoomForEquipmentChange();
+            EnsureCombatEnhancementReady(desiredClass, allowFullGearEnhance: false);
             core.EquipClass(effectiveType);
             _syncedClassType = effectiveType;
         }
@@ -11108,22 +11963,71 @@ public class ArmyFarmerJoeDoAll
     }
 
     private readonly HashSet<string> _enhancedAtCapCache = new(StringComparer.OrdinalIgnoreCase);
+    private string? _lastSmartEnhancedClass;
+    private string? _lastSmartEnhancedGearSignature;
+
+    private string GetEquippedCombatGearSignature()
+    {
+        if (Bot.Inventory?.Items == null)
+            return string.Empty;
+
+        string weapon =
+            Bot.Inventory.Items.FirstOrDefault(x =>
+                x != null && x.Equipped && string.Equals(x.ItemGroup, "Weapon", StringComparison.OrdinalIgnoreCase)
+            )?.Name
+            ?? string.Empty;
+        string helm =
+            Bot.Inventory.Items.FirstOrDefault(x => x != null && x.Equipped && x.Category == ItemCategory.Helm)?.Name
+            ?? string.Empty;
+        string cape =
+            Bot.Inventory.Items.FirstOrDefault(x => x != null && x.Equipped && x.Category == ItemCategory.Cape)?.Name
+            ?? string.Empty;
+
+        return $"{weapon}|{helm}|{cape}";
+    }
 
     private bool NeedsOnDemandEnhancement(string className, int minLevelGap = 10)
     {
         if (Bot.Inventory?.Items == null)
             return false;
 
+        string normalizedClass = className.Trim();
         int cap = Math.Min(Bot.Player.Level, 100);
-        if (_enhancedAtCapCache.Contains($"{className}:{cap}"))
-            return false;
 
         InventoryItem? classItem = Bot.Inventory.Items.FirstOrDefault(i =>
             i != null
             && i.Category == ItemCategory.Class
-            && i.Name?.Trim().Equals(className.Trim(), StringComparison.OrdinalIgnoreCase) == true
+            && i.Name?.Trim().Equals(normalizedClass, StringComparison.OrdinalIgnoreCase) == true
         );
-        if (classItem != null && (classItem.EnhancementLevel <= 0 || cap - classItem.EnhancementLevel >= minLevelGap))
+        if (classItem != null && classItem.EnhancementLevel <= 0)
+            return true;
+
+        bool hasUnenhancedEquipped = Bot.Inventory.Items.Any(x =>
+            x != null
+            && x.Equipped
+            && (
+                string.Equals(x.ItemGroup, "Weapon", StringComparison.OrdinalIgnoreCase)
+                || x.Category == ItemCategory.Helm
+                || x.Category == ItemCategory.Cape
+            )
+            && x.EnhancementLevel <= 0
+        );
+        if (hasUnenhancedEquipped)
+            return true;
+
+        // Every class has its own predetermined enhancement kit (Lucky/Wizard/Healer/Forge/Awe).
+        // Whenever the combat class or equipped gear changes, re-apply SmartEnhance for that class.
+        if (!string.Equals(_lastSmartEnhancedClass, normalizedClass, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        string currentGearSignature = GetEquippedCombatGearSignature();
+        if (!string.Equals(_lastSmartEnhancedGearSignature, currentGearSignature, StringComparison.OrdinalIgnoreCase))
+            return true;
+
+        if (_enhancedAtCapCache.Contains($"{normalizedClass}:{cap}"))
+            return false;
+
+        if (classItem != null && cap - classItem.EnhancementLevel >= minLevelGap)
             return true;
 
         return Bot.Inventory.Items.Any(x =>
@@ -11134,12 +12038,25 @@ public class ArmyFarmerJoeDoAll
                 || x.Category == ItemCategory.Helm
                 || x.Category == ItemCategory.Cape
             )
-            && (x.EnhancementLevel <= 0 || cap - x.EnhancementLevel >= minLevelGap)
+            && cap - x.EnhancementLevel >= minLevelGap
         );
     }
 
     private void EnhanceClassForArmyRespectingGearPolicy(string className, bool allowFullGearEnhance) =>
         EnsureCombatEnhancementReady(className, allowFullGearEnhance);
+
+    private void ApplyAndRecordSmartEnhance(string className)
+    {
+        if (string.IsNullOrWhiteSpace(className))
+            return;
+
+        string normalizedClass = className.Trim();
+        int cap = Math.Min(Bot.Player.Level, 100);
+        Adv.SmartEnhance(normalizedClass);
+        _lastSmartEnhancedClass = normalizedClass;
+        _lastSmartEnhancedGearSignature = GetEquippedCombatGearSignature();
+        _enhancedAtCapCache.Add($"{normalizedClass}:{cap}");
+    }
 
     private void EnsureCombatEnhancementReady(string className, bool allowFullGearEnhance, int minLevelGap = 10)
     {
@@ -11177,9 +12094,7 @@ public class ArmyFarmerJoeDoAll
             return;
 
         LeaveCombatRoomForEquipmentChange();
-        int cap = Math.Min(Bot.Player.Level, 100);
-        Adv.SmartEnhance(className);
-        _enhancedAtCapCache.Add($"{className}:{cap}");
+        ApplyAndRecordSmartEnhance(className);
     }
 
     private void PrepareCombatLoadoutForArmy(ClassType role, string? targetMap = null)
@@ -13043,38 +13958,8 @@ public class ArmyFarmerJoeDoAll
         bool embraceReady =
             core.isCompletedBefore(2084, log: false)
             && !core.CheckInventory("Dage's Scroll Fragment", 13, toInv: false)
-            && CanRunPeriodicQuest(3596, requireAvailable: true);
-
-        if (
-            !RunCoordinatedCombatStep(
-                "BRACKET65_EMBRACE_YOUR_CHAOS_DAILY",
-                () => !embraceReady,
-                () =>
-                    Bot.Quests.IsDailyComplete(3596)
-                    || core.CheckInventory("Dage's Scroll Fragment", 13, toInv: false),
-                "*",
-                ClassType.Farm,
-                () =>
-                {
-                    core.Logger("Daily: Embrace Your Chaos [3596] (/mountdoomskull)");
-                    if (!JoinMapVerified("mountdoomskull", "b1", "Left"))
-                    {
-                        core.Logger("Map '/mountdoomskull' is not unlocked yet; skipping Embrace Your Chaos safely.");
-                        return;
-                    }
-
-                    UnbankIfOwned("Dage's Scroll Fragment");
-                    core.AddDrop("Dage's Scroll Fragment");
-                    core.EnsureAccept(3596);
-                    core.KillMonster("mountdoomskull", "b1", "Left", "*", "Chaos Power Increased", 6, isTemp: true);
-                    LeaveCombatRoomForEquipmentChange();
-                    core.EnsureComplete(3596);
-                    WaitForDailyRewardPickup(3596, "Dage's Scroll Fragment");
-                    BankIfPresent("Dage's Scroll Fragment");
-                },
-                targetMap: "mountdoomskull"
-            )
-        )
+            && CanRunPeriodicQuest(3596);
+        if (embraceReady && !RunDagesScrollFragmentDaily())
             return false;
 
         // 3b. Daily: Lord of Order Progression Chain [7156-7165] (Level 50+, Player 4 Endgame Support Class)
@@ -13085,23 +13970,29 @@ public class ArmyFarmerJoeDoAll
     {
         for (int questId = 7156; questId <= 7165; questId++)
         {
-            TryLoadQuest(questId);
-            if (core.isCompletedBefore(questId, log: false))
-                continue;
-
-            if (Bot.Quests.IsAvailable(questId) && !Bot.Quests.IsDailyComplete(questId))
+            if (!core.isCompletedBefore(questId))
                 return questId;
-
-            // Chain is sequential: stop at the first uncompleted day.
-            return 0;
         }
-
         return 0;
     }
 
     private bool RunLoODay1Stories(
         CoreBots core,
         Func<bool> activeCondition,
+        string objectivePrefix = "BRACKET65"
+    )
+    {
+        if (
+            !RunCoordinatedStoryChain(
+                $"{objectivePrefix}_LOO_CITADEL_182",
+                new[]
+                {
+                    new CoordinatedStoryStep(
+                        182,
+                        "citadel",
+                        "Grand Inquisitor",
+                        c =>
+                        {
                             c.EnsureAccept(182);
                             c.HuntMonster("Citadel", "Grand Inquisitor", "Ring of Evil Intent");
                             c.EnsureComplete(182);
@@ -13937,6 +14828,33 @@ public class ArmyFarmerJoeDoAll
                 WaitForDailyRewardPickup(8653, "Void Aura");
                 BankIfPresent("Void Aura", "(Necro) Scroll of Dark Arts");
             }
+        );
+    }
+
+    /// <summary>
+    /// Level 80+ Daily: "Dage's Scroll Fragment" [3596] (prerequisite for Drakath the Eternal / Hero's Valiance in Stage 4A).
+    /// </summary>
+    public bool RunDagesScrollFragmentDaily()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool hasEnoughFragments = core.CheckInventory("Dage's Scroll Fragment", 13, toInv: false);
+        bool dailyAvailable = Bot.Player.Level >= 75 && !hasEnoughFragments && CanRunPeriodicQuest(3596);
+        bool dailyDone = !dailyAvailable;
+
+        return RunCoordinatedCombatStep(
+            "STEP3B_DAGES_SCROLL_FRAGMENT",
+            () => dailyDone,
+            () => dailyDone,
+            "*",
+            ClassType.Farm,
+            () =>
+            {
+                if (dailyDone)
+                    return;
+                Daily.DagesScrollFragment(ToBank: true);
+                dailyDone = true;
+            },
+            targetMap: "mountdoomskull"
         );
     }
     #endregion Approved Dailies, Weeklies & Future NSoD Daily
