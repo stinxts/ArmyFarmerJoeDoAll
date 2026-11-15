@@ -5986,7 +5986,8 @@ public class CoreArmyFJ
         Action doWork,
         Action help,
         int maxWorkAttempts = 0,
-        int maxPlayersPerSubgroup = 0
+        int maxPlayersPerSubgroup = 0,
+        Action? prepareForCombat = null
     ) =>
         RunCooperativeObjective(
             objectiveName,
@@ -5994,7 +5995,8 @@ public class CoreArmyFJ
             doWork,
             (targetPlayerNumber, targetPlayerName) => help(),
             maxWorkAttempts,
-            maxPlayersPerSubgroup
+            maxPlayersPerSubgroup,
+            prepareForCombat
         );
 
     public bool RunCooperativeObjective(
@@ -6003,7 +6005,8 @@ public class CoreArmyFJ
         Action doWork,
         Action<int, string> help,
         int maxWorkAttempts = 0,
-        int maxPlayersPerSubgroup = 0
+        int maxPlayersPerSubgroup = 0,
+        Action? prepareForCombat = null
     )
     {
         if (!RequireArmySession())
@@ -6023,6 +6026,15 @@ public class CoreArmyFJ
 
         if (!SyncArmy($"OBJECTIVE_{name}_START"))
             return false;
+
+        if (prepareForCombat != null)
+        {
+            if (!isComplete())
+                prepareForCombat();
+
+            if (!SyncArmy($"OBJECTIVE_{name}_READY"))
+                return false;
+        }
 
         long objectiveId = lastArmyStepId;
         string doneSignal = $"SIG_OBJ_{objectiveId}_{name}_DONE";

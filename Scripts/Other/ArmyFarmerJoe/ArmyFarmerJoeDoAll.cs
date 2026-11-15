@@ -1921,7 +1921,7 @@ public class ArmyFarmerJoeDoAll
 
                     core.Logger("Level 50: Farming Burning Blade (+15% All Damage) from Diabolical Warlord");
                     core.AddDrop("Burning Blade");
-                    SetClass(ClassType.Solo);
+                    PrepareCombatLoadoutForArmy(ClassType.Solo, "lostruinswar");
                     core.KillMonster(
                         "lostruinswar",
                         "r7",
@@ -1934,7 +1934,8 @@ public class ArmyFarmerJoeDoAll
                 (targetPlayerNumber, targetPlayerName) =>
                 {
                     Army.CoordinateFollowAndCombat(targetPlayerName, "Diabolical Warlord");
-                }
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo, "lostruinswar")
             )
         )
             return false;
@@ -2818,7 +2819,7 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     core.AddDrop("Shurpu Blaze Token");
-                    SetClass(ClassType.Solo);
+                    PrepareCombatLoadoutForArmy(ClassType.Solo, "xancave");
                     if (!JoinMapVerified("xancave"))
                     {
                         core.Logger("Map '/xancave' is currently unavailable for 'BRACKET55_BB_PYRO_TOKENS'.");
@@ -2835,7 +2836,8 @@ public class ArmyFarmerJoeDoAll
                 (targetPlayerNumber, targetPlayerName) =>
                 {
                     Army.CoordinateFollowAndCombat(targetPlayerName, "Shurpu Ring Guardian", targetMap: "xancave");
-                }
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo, "xancave")
             )
         )
             return false;
@@ -11105,7 +11107,41 @@ public class ArmyFarmerJoeDoAll
         );
     }
 
-    private void EnhanceClassForArmyRespectingGearPolicy(string className, bool allowFullGearEnhance)
+    private readonly HashSet<string> _enhancedAtCapCache = new(StringComparer.OrdinalIgnoreCase);
+
+    private bool NeedsOnDemandEnhancement(string className, int minLevelGap = 10)
+    {
+        if (Bot.Inventory?.Items == null)
+            return false;
+
+        int cap = Math.Min(Bot.Player.Level, 100);
+        if (_enhancedAtCapCache.Contains($"{className}:{cap}"))
+            return false;
+
+        InventoryItem? classItem = Bot.Inventory.Items.FirstOrDefault(i =>
+            i != null
+            && i.Category == ItemCategory.Class
+            && i.Name?.Trim().Equals(className.Trim(), StringComparison.OrdinalIgnoreCase) == true
+        );
+        if (classItem != null && (classItem.EnhancementLevel <= 0 || cap - classItem.EnhancementLevel >= minLevelGap))
+            return true;
+
+        return Bot.Inventory.Items.Any(x =>
+            x != null
+            && x.Equipped
+            && (
+                string.Equals(x.ItemGroup, "Weapon", StringComparison.OrdinalIgnoreCase)
+                || x.Category == ItemCategory.Helm
+                || x.Category == ItemCategory.Cape
+            )
+            && (x.EnhancementLevel <= 0 || cap - x.EnhancementLevel >= minLevelGap)
+        );
+    }
+
+    private void EnhanceClassForArmyRespectingGearPolicy(string className, bool allowFullGearEnhance) =>
+        EnsureCombatEnhancementReady(className, allowFullGearEnhance);
+
+    private void EnsureCombatEnhancementReady(string className, bool allowFullGearEnhance, int minLevelGap = 10)
     {
         if (string.IsNullOrWhiteSpace(className))
             return;
@@ -11117,27 +11153,19 @@ public class ArmyFarmerJoeDoAll
         );
 
         // Unenhanced Lv 0 classes (e.g. freshly dropped Blood Sorceress / Scarlet Sorceress) cannot be equipped in AQW
-        // until enhanced at least once. Ensure they get enhanced even when DisableAutoEnhance or PreserveEquippedGear is active.
+        // until enhanced at least once. Enhance only the class item when DisableAutoEnhance or PreserveEquippedGear is active.
         if (classItem != null && classItem.EnhancementLevel <= 0)
         {
-            Adv.SmartEnhance(className, ForceEnh: true);
-            classItem = Bot.Inventory?.Items.FirstOrDefault(i =>
-                i != null
-                && i.Category == ItemCategory.Class
-                && i.Name?.Trim().Equals(className.Trim(), StringComparison.OrdinalIgnoreCase) == true
+            LeaveCombatRoomForEquipmentChange();
+            Adv.EnhanceItem(
+                classItem.Name ?? className,
+                EnhancementType.Lucky,
+                CapeSpecial.None,
+                HelmSpecial.None,
+                WeaponSpecial.None,
+                logging: false,
+                bypassDisableAutoEnhance: true
             );
-            if (classItem != null && classItem.EnhancementLevel <= 0)
-            {
-                Adv.EnhanceItem(
-                    classItem.Name ?? className,
-                    EnhancementType.Lucky,
-                    CapeSpecial.None,
-                    HelmSpecial.None,
-                    WeaponSpecial.None,
-                    logging: false,
-                    bypassDisableAutoEnhance: true
-                );
-            }
             if (!allowFullGearEnhance || ShouldPreserveEquippedGear() || IsDisableAutoEnhanceEnabled())
                 return;
         }
@@ -11145,43 +11173,43 @@ public class ArmyFarmerJoeDoAll
         if (!allowFullGearEnhance || ShouldPreserveEquippedGear() || IsDisableAutoEnhanceEnabled())
             return;
 
+        if (!NeedsOnDemandEnhancement(className, minLevelGap))
+            return;
+
+        LeaveCombatRoomForEquipmentChange();
+        int cap = Math.Min(Bot.Player.Level, 100);
         Adv.SmartEnhance(className);
+        _enhancedAtCapCache.Add($"{className}:{cap}");
+    }
+
+    private void PrepareCombatLoadoutForArmy(ClassType role, string? targetMap = null)
+    {
+        SetClass(role);
+        string? activeClass = Bot.Player.CurrentClass?.Name;
+        if (!string.IsNullOrWhiteSpace(activeClass))
+        {
+            EnsureCombatEnhancementReady(activeClass, allowFullGearEnhance: true);
+            if (!Bot.Skills.TimerRunning)
+                Bot.Skills.StartAdvanced(activeClass, false, ClassUseMode.Base);
+        }
+
+        if (!string.IsNullOrWhiteSpace(targetMap))
+            Army.EnsureMapAccessBypass(targetMap);
     }
 
     private bool RunBracketLevelAndEnhance(string objectiveName, int targetLevel)
     {
-        bool enhanceAttempted = ShouldPreserveEquippedGear() || IsDisableAutoEnhanceEnabled();
+        // On-demand enhancement policy: only level up here; enhancements are applied lazily
+        // when the next rank-up or combat Ready Check actually requires the equipped gear.
         return RunCooperativeObjective(
             objectiveName,
-            () => Bot.Player.Level >= targetLevel && (enhanceAttempted || !HasEquippedItemBelowCurrentCap()),
+            () => Bot.Player.Level >= targetLevel,
             () =>
             {
                 if (Bot.Player.Level < targetLevel)
                 {
                     SetClass(ClassType.Farm);
                     Farm.Experience(targetLevel);
-                }
-
-                if (
-                    Bot.Player.Level >= targetLevel
-                    && !ShouldPreserveEquippedGear()
-                    && !IsDisableAutoEnhanceEnabled()
-                    && !enhanceAttempted
-                )
-                {
-                    if (HasEquippedItemBelowCurrentCap())
-                    {
-                        SetClass(ClassType.Farm);
-                        string? currentClass = Bot.Player.CurrentClass?.Name;
-                        if (!string.IsNullOrWhiteSpace(currentClass))
-                        {
-                            LeaveCombatRoomForEquipmentChange();
-                            Adv.SmartEnhance(currentClass);
-                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
-                        }
-                    }
-
-                    enhanceAttempted = true;
                 }
             },
             (targetPlayerNumber, targetPlayerName) =>
@@ -11892,9 +11920,10 @@ public class ArmyFarmerJoeDoAll
             if (target.Category != ItemCategory.Armor)
             {
                 InventoryItem? equippedNow = Bot.Inventory.Items.FirstOrDefault(x => x != null && x.ID == target.ID);
+                int cap = Math.Min(Bot.Player.Level, 100);
                 if (
                     equippedNow != null
-                    && (equippedNow.EnhancementLevel <= 0 || equippedNow.EnhancementLevel < Math.Min(Bot.Player.Level, 100))
+                    && (equippedNow.EnhancementLevel <= 0 || cap - equippedNow.EnhancementLevel >= 10)
                 )
                     needEnhance = true;
             }
@@ -11903,7 +11932,8 @@ public class ArmyFarmerJoeDoAll
         if (needEnhance && !Bot.ShouldExit)
         {
             string? currentClass = Bot.Player.CurrentClass?.Name;
-            Adv.SmartEnhance(currentClass ?? string.Empty);
+            if (!string.IsNullOrWhiteSpace(currentClass))
+                EnsureCombatEnhancementReady(currentClass, allowFullGearEnhance: true);
             if (!string.IsNullOrWhiteSpace(currentClass) && !Bot.Skills.TimerRunning)
                 Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
         }
@@ -12374,7 +12404,7 @@ public class ArmyFarmerJoeDoAll
                 }
 
                 attempts++;
-                SetClass(role);
+                PrepareCombatLoadoutForArmy(role, targetMap);
                 work();
 
                 if (liveDoneCheck())
@@ -12398,7 +12428,8 @@ public class ArmyFarmerJoeDoAll
                     compositionType: role,
                     targetMap: targetMap
                 ),
-            maxWorkAttempts: softRetryLimit > 0 ? softRetryLimit + 1 : 0
+            maxWorkAttempts: softRetryLimit > 0 ? softRetryLimit + 1 : 0,
+            prepareForCombat: () => PrepareCombatLoadoutForArmy(role, targetMap)
         );
     }
 
@@ -13071,28 +13102,6 @@ public class ArmyFarmerJoeDoAll
     private bool RunLoODay1Stories(
         CoreBots core,
         Func<bool> activeCondition,
-        string objectivePrefix = "BRACKET65"
-    )
-    {
-        // Murry's Quests (/citadel 144-182)
-        if (
-            !RunCoordinatedStoryChain(
-                $"{objectivePrefix}_LOO_MURRY",
-                new[]
-                {
-                    new CoordinatedStoryStep(144, "citadel", "Inquisitor Guard", c => Story.KillQuest(144, "Citadel", "Inquisitor Guard")),
-                    new CoordinatedStoryStep(145, "citadel", "Crusader", c => Story.KillQuest(145, "Citadel", "Crusader")),
-                    new CoordinatedStoryStep(146, "citadel", "Inquisitor Captain", c => Story.KillQuest(146, "Citadel", "Inquisitor Captain")),
-                    new CoordinatedStoryStep(147, "citadel", "Burning Witch", c => Story.KillQuest(147, "Citadel", "Burning Witch")),
-                    new CoordinatedStoryStep(148, "citadel", "Inquisitor Guard", c => Story.KillQuest(148, "Citadel", "Inquisitor Guard")),
-                    new CoordinatedStoryStep(149, "citadel", "Inquisitor Guard", c => Story.KillQuest(149, "Citadel", "Inquisitor Guard", false)),
-                    new CoordinatedStoryStep(181, "citadel", "Belrot The Fiend", c => Story.KillQuest(181, "Citadel", "Belrot The Fiend"), ClassType.Solo),
-                    new CoordinatedStoryStep(
-                        182,
-                        "citadel",
-                        "Grand Inquisitor",
-                        c =>
-                        {
                             c.EnsureAccept(182);
                             c.HuntMonster("Citadel", "Grand Inquisitor", "Ring of Evil Intent");
                             c.EnsureComplete(182);
@@ -14305,14 +14314,16 @@ public class ArmyFarmerJoeDoAll
         Action doWork,
         Action help,
         int maxWorkAttempts = 0,
-        int maxPlayersPerSubgroup = 0
+        int maxPlayersPerSubgroup = 0,
+        Action? prepareForCombat = null
     ) => Army.RunCooperativeObjective(
         objectiveName,
         isComplete,
         doWork,
         (targetPlayerNumber, targetPlayerName) => help(),
         maxWorkAttempts,
-        maxPlayersPerSubgroup
+        maxPlayersPerSubgroup,
+        prepareForCombat
     );
 
     public bool RunCooperativeObjective(
@@ -14321,14 +14332,16 @@ public class ArmyFarmerJoeDoAll
         Action doWork,
         Action<int, string> help,
         int maxWorkAttempts = 0,
-        int maxPlayersPerSubgroup = 0
+        int maxPlayersPerSubgroup = 0,
+        Action? prepareForCombat = null
     ) => Army.RunCooperativeObjective(
         objectiveName,
         isComplete,
         doWork,
         help,
         maxWorkAttempts,
-        maxPlayersPerSubgroup
+        maxPlayersPerSubgroup,
+        prepareForCombat
     );
 
     public bool IsPlayer(int playerNumber) => Army.IsArmyPlayer(playerNumber);
