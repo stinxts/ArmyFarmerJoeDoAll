@@ -20,7 +20,6 @@ A multi-account cooperative progression framework (`Scripts/Army/ArmyFarmerJoeDo
 | **Room Management** | Standard room joins | Mandatory private room (`00000` guard), automatic **1–4 / 5–7** and **3-player** subgroup splitting, plus sleep mode on level-locked rooms |
 | **Enhancements & Readiness** | Re-applied repeatedly across steps | **Pre-combat Ready Check** + **on-demand class-kit enhancements** (no wasted loops while skipping completed steps) |
 | **Gear Protection** | Basic best-gear equip | Configurable `BoostGearPolicy`, per-player gear locks, and safe non-combat room swaps |
-| **Endgame Scope** | Early-to-mid progression focus | Full **Lv 1–100** Free-to-Play progression including late-game classes, special weapon/helm/cape enhancements, and endgame boost gear (excluding weekly raid encounters) |
 
 ---
 
