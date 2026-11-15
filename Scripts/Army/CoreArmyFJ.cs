@@ -6504,13 +6504,115 @@ public class CoreArmyFJ
         return Bot.Player.Cell == targetCell;
     }
 
+    private volatile bool _helperSeaVoiceChargeDetected;
+    private bool _helperSeaVoiceListenerAttached;
+
+    private void HelperSeaVoiceFlashListener(string name, object[] args)
+    {
+        try
+        {
+            if (name != "pext" || args.Length == 0 || _helperSeaVoiceChargeDetected)
+                return;
+
+            string rawPacket = args[0]?.ToString() ?? string.Empty;
+            if (rawPacket.IndexOf("You will not resist!", StringComparison.OrdinalIgnoreCase) < 0)
+                return;
+
+            _helperSeaVoiceChargeDetected = true;
+            Bot.Combat.StopAttacking = true;
+            try
+            {
+                Bot.Skills.Stop();
+            }
+            catch
+            {
+            }
+            Core.Logger("Helper detected Voice in the Sea charge; pausing skills for Vigil.", "CopyHelpedActions");
+        }
+        catch
+        {
+        }
+    }
+
+    private void EnsureSeaVoiceHelperProtection(bool shouldAttach)
+    {
+        bool inSeaVoice = string.Equals(Bot.Map?.Name, "seavoice", StringComparison.OrdinalIgnoreCase);
+        if (shouldAttach && inSeaVoice)
+        {
+            if (!_helperSeaVoiceListenerAttached)
+            {
+                _helperSeaVoiceChargeDetected = false;
+                Bot.Flash.FlashCall += HelperSeaVoiceFlashListener;
+                _helperSeaVoiceListenerAttached = true;
+            }
+
+            if (!Bot.Inventory.IsEquipped("Vigil"))
+            {
+                if (!Core.CheckInventory("Vigil", 1))
+                    Adv.BuyItem("seavoice", 2320, "Vigil", 1000, 12023);
+                if (Core.CheckInventory("Vigil", 1) && !Bot.Inventory.IsEquipped("Vigil"))
+                    Core.Equip("Vigil");
+            }
+        }
+        else if (_helperSeaVoiceListenerAttached)
+        {
+            Bot.Flash.FlashCall -= HelperSeaVoiceFlashListener;
+            _helperSeaVoiceListenerAttached = false;
+            _helperSeaVoiceChargeDetected = false;
+            Bot.Combat.StopAttacking = false;
+        }
+    }
+
+    private void HandleCopyHelpedActions(Skua.Core.Models.Players.PlayerInfo? targetPlayer)
+    {
+        if (targetPlayer != null)
+        {
+            float dx = Math.Abs(Bot.Player.X - targetPlayer.X);
+            float dy = Math.Abs(Bot.Player.Y - targetPlayer.Y);
+            if (dx > 25f || dy > 25f)
+            {
+                Bot.Player.WalkTo((int)targetPlayer.X, (int)targetPlayer.Y);
+            }
+        }
+
+        bool inSeaVoice = string.Equals(Bot.Map?.Name, "seavoice", StringComparison.OrdinalIgnoreCase);
+        EnsureSeaVoiceHelperProtection(inSeaVoice);
+
+        if (inSeaVoice && _helperSeaVoiceChargeDetected)
+        {
+            Bot.Combat.StopAttacking = true;
+            try
+            {
+                Bot.Skills.Stop();
+            }
+            catch
+            {
+            }
+            while (
+                !Bot.ShouldExit
+                && Bot.Player.Alive
+                && Bot.Player.HasTarget
+                && !Bot.Self.HasActiveAura("Vigil")
+                && string.Equals(Bot.Map?.Name, "seavoice", StringComparison.OrdinalIgnoreCase)
+            )
+            {
+                if (Bot.Skills.CanUseSkill(5))
+                    Bot.Skills.UseSkill(5);
+                Bot.Sleep(50);
+            }
+            _helperSeaVoiceChargeDetected = false;
+            Bot.Combat.StopAttacking = false;
+        }
+    }
+
     public void CoordinateFollowAndCombat(
         string targetPlayerName,
         string monster = "*",
         bool useSkillRotations = true,
         bool waitForFirstHit = true,
         ClassType compositionType = ClassType.Solo,
-        string? targetMap = null
+        string? targetMap = null,
+        bool copyHelpedActions = false
     )
     {
         if (string.IsNullOrWhiteSpace(targetPlayerName) || Bot.ShouldExit)
@@ -6596,9 +6698,23 @@ public class CoreArmyFJ
         }
 
         if (!inSameCell)
+        {
+            if (!copyHelpedActions)
+                EnsureSeaVoiceHelperProtection(false);
             return;
+        }
 
-        if (useSkillRotations)
+        if (copyHelpedActions)
+        {
+            Bot.Map.TryGetPlayer(normalizedTarget, out var syncedTargetPlayer);
+            HandleCopyHelpedActions(syncedTargetPlayer);
+        }
+        else
+        {
+            EnsureSeaVoiceHelperProtection(false);
+        }
+
+        if (useSkillRotations && !_helperSeaVoiceChargeDetected)
         {
             EnsureSkillRotationActive();
         }

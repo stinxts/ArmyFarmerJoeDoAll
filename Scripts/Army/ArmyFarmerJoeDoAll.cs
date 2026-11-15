@@ -24,6 +24,9 @@ tags: army, farmerjoe, progression, doall, dailies, DoT, AF, YnR, VDK, VHL, Forg
 //cs_include Scripts/Other/Classes/ArcanaInvoker[Non-Insignia].cs
 //cs_include Scripts/Hollowborn/MergeShops/ShadowRealmMerge.cs
 //cs_include Scripts/Good/GearOfAwe/Awescended.cs
+//cs_include Scripts/Story/QueenofMonsters/Extra/CelestialPast.cs
+//cs_include Scripts/Other/Classes/KathoolAdept.cs
+//cs_include Scripts/Other/Classes/ScionofFlames.cs
 using System;
 using System.Collections.Generic;
 using System.Globalization;
@@ -56,6 +59,9 @@ public class ArmyFarmerJoeDoAll
     private static readonly ArcanaInvoker AICore = new();
     private static readonly ShadowrealmMerge SRM = new();
     private static readonly Awescended AwescendedCore = new();
+    private static readonly CelestialPast CelestialPastCore = new();
+    private static readonly KathoolAdept KACore = new();
+    private static readonly ScionofFlames SOFCore = new();
 
     private const int Rank10ClassPoints = 302500;
 
@@ -1400,6 +1406,77 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     RankUpClassForArmy("Evolved Shaman");
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName);
+                }
+            )
+        )
+            return false;
+        SetClass();
+
+        // 5f. Bard (Non-Member Support — Kimberly Story + Mythsong Rep 4 -> Buy in /mythsong shop 186 & Rank 10)
+        bool HasBard() => HasClassInInventory("Bard");
+        bool HasBardRank10() => HasBard() && HasRank10Class("Bard");
+        bool IsBardMythsongDone() => HasBard() || Farm.FactionRank("Mythsong") >= 4;
+
+        if (!RunCoordinatedKimberlyStory(() => IsBardMythsongDone() || core.isCompletedBefore(710, log: false), "BRACKET30_BARD_KIMBERLY"))
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_BARD_MYTHSONG_REP4",
+                IsBardMythsongDone,
+                () =>
+                {
+                    if (IsBardMythsongDone())
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Farm);
+                    Farm.MythsongREP(4);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Farm)
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_BARD_BUY",
+                HasBard,
+                () =>
+                {
+                    if (HasBard())
+                        return;
+
+                    LeaveCombatRoomForEquipmentChange();
+                    Adv.BuyItem("mythsong", 186, "Bard");
+                    Bot.Wait.ForItemBuy();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Bot.Sleep(1000);
+                },
+                maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        if (
+            !RunCooperativeObjective(
+                "BRACKET30_BARD_RANK_10",
+                HasBardRank10,
+                () =>
+                {
+                    if (HasBardRank10())
+                        return;
+
+                    RankUpClassForArmy("Bard");
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -3486,41 +3563,52 @@ public class ArmyFarmerJoeDoAll
             )
                 return false;
 
-            if (
-                !RunCooperativeObjective(
-                    $"BRACKET60_LACERATE_BS8736_R{currentRound}_KLUNK",
-                    () => HasBlacksmithRank5() || roundCompleted,
-                    () =>
-                    {
-                        if (HasBlacksmithRank5() || roundCompleted)
-                            return;
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        $"BRACKET60_LACERATE_BS8736_R{currentRound}_KLUNK",
+                        () => HasBlacksmithRank5() || roundCompleted,
+                        () =>
+                        {
+                            if (HasBlacksmithRank5() || roundCompleted)
+                                return;
 
-                        core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
-                        core.EnsureAccept(8736);
-                        SetClass(ClassType.Solo);
-                        core.HuntMonster(
-                            "towerofdoom",
-                            "Dread Klunk",
-                            "Monster Trophy",
-                            15,
-                            isTemp: false,
-                            log: false
-                        );
-                        LeaveCombatRoomForEquipmentChange();
-                        core.EnsureComplete(8736);
-                        roundCompleted = true;
-                    },
-                    (targetPlayerNumber, targetPlayerName) =>
-                    {
-                        Army.CoordinateFollowAndCombat(
-                            targetPlayerName,
-                            "Dread Klunk",
-                            targetMap: "towerofdoom"
-                        );
-                    }
+                            ApplyCurrentArmyRoomSettings();
+                            core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
+                            core.EnsureAccept(8736);
+                            SetClass(ClassType.Solo);
+                            core.HuntMonster(
+                                "towerofdoom",
+                                "Dread Klunk",
+                                "Monster Trophy",
+                                15,
+                                isTemp: false,
+                                log: false
+                            );
+                            LeaveCombatRoomForEquipmentChange();
+                            core.EnsureComplete(8736);
+                            roundCompleted = true;
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(
+                                targetPlayerName,
+                                "Dread Klunk",
+                                targetMap: "towerofdoom"
+                            );
+                        },
+                        prepareForCombat: () => ApplyCurrentArmyRoomSettings()
+                    )
                 )
-            )
-                return false;
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
         }
 
         // 3c. Coordinate the 6 required items for Quest 8739 (Lacerate)
@@ -5106,41 +5194,52 @@ public class ArmyFarmerJoeDoAll
             )
                 return false;
 
-            if (
-                !RunCooperativeObjective(
-                    $"{objectivePrefix}_BS8736_R{currentRound}_KLUNK",
-                    () => HasTargetRank() || roundCompleted,
-                    () =>
-                    {
-                        if (HasTargetRank() || roundCompleted)
-                            return;
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        $"{objectivePrefix}_BS8736_R{currentRound}_KLUNK",
+                        () => HasTargetRank() || roundCompleted,
+                        () =>
+                        {
+                            if (HasTargetRank() || roundCompleted)
+                                return;
 
-                        core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
-                        core.EnsureAccept(8736);
-                        SetClass(ClassType.Solo);
-                        core.HuntMonster(
-                            "towerofdoom",
-                            "Dread Klunk",
-                            "Monster Trophy",
-                            15,
-                            isTemp: false,
-                            log: false
-                        );
-                        LeaveCombatRoomForEquipmentChange();
-                        core.EnsureComplete(8736);
-                        roundCompleted = true;
-                    },
-                    (targetPlayerNumber, targetPlayerName) =>
-                    {
-                        Army.CoordinateFollowAndCombat(
-                            targetPlayerName,
-                            "Dread Klunk",
-                            targetMap: "towerofdoom"
-                        );
-                    }
+                            ApplyCurrentArmyRoomSettings();
+                            core.AddDrop("Hydra Scale Piece", "Creature Shard", "Monster Trophy");
+                            core.EnsureAccept(8736);
+                            SetClass(ClassType.Solo);
+                            core.HuntMonster(
+                                "towerofdoom",
+                                "Dread Klunk",
+                                "Monster Trophy",
+                                15,
+                                isTemp: false,
+                                log: false
+                            );
+                            LeaveCombatRoomForEquipmentChange();
+                            core.EnsureComplete(8736);
+                            roundCompleted = true;
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(
+                                targetPlayerName,
+                                "Dread Klunk",
+                                targetMap: "towerofdoom"
+                            );
+                        },
+                        prepareForCombat: () => ApplyCurrentArmyRoomSettings()
+                    )
                 )
-            )
-                return false;
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
         }
 
         return !Bot.ShouldExit;
@@ -5223,24 +5322,36 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        if (
-            !RunCoordinatedHuntStep(
-                $"{objectivePrefix}_ESSENCE",
-                questId,
-                "towerofdoom10",
-                "*",
-                "Ethereal Essence",
-                etherealEssenceQuant,
-                isTemp: false,
-                role: ClassType.Farm,
-                cell: "r8",
-                pad: "Left",
-                softRetryLimit: 0,
-                beforeHunt: _ => UnbankIfOwned(starterClassName, "Ethereal Essence"),
-                isEnabled: () => !IsQuestDone()
+        ApplySubgroupRoomSettings(4);
+        try
+        {
+            if (
+                !RunCoordinatedHuntStep(
+                    $"{objectivePrefix}_ESSENCE",
+                    questId,
+                    "towerofdoom10",
+                    "*",
+                    "Ethereal Essence",
+                    etherealEssenceQuant,
+                    isTemp: false,
+                    role: ClassType.Farm,
+                    cell: "r8",
+                    pad: "Left",
+                    softRetryLimit: 0,
+                    beforeHunt: _ =>
+                    {
+                        ApplyCurrentArmyRoomSettings();
+                        UnbankIfOwned(starterClassName, "Ethereal Essence");
+                    },
+                    isEnabled: () => !IsQuestDone()
+                )
             )
-        )
-            return false;
+                return false;
+        }
+        finally
+        {
+            ApplyArmyRoomSettings();
+        }
 
         return RunCoordinatedTurnInStep(
             $"{objectivePrefix}_COMPLETE",
@@ -8903,6 +9014,40 @@ public class ArmyFarmerJoeDoAll
                     core.EnsureComplete(9171);
                 }
             )
+            || !RunCooperativeObjective(
+                "STEP3A_FORGE_SMITE",
+                () => core.isCompletedBefore(8740, log: false),
+                () =>
+                {
+                    if (core.isCompletedBefore(8740, log: false))
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Solo);
+                    ForgeUnlock.Smite();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+            )
+            || !RunCooperativeObjective(
+                "STEP3A_FORGE_CAPE",
+                () => core.isCompletedBefore(8758, log: false),
+                () =>
+                {
+                    if (core.isCompletedBefore(8758, log: false))
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Solo);
+                    ForgeUnlock.ForgeCapeEnhancement();
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
+            )
             || !RunCoordinatedTurnInStep(
                 "STEP3A_FORGE_ENHANCE_EQUIPPED",
                 () => false,
@@ -9247,6 +9392,12 @@ public class ArmyFarmerJoeDoAll
         if (!RunStep3CForgeCapes())
             return false;
 
+        if (!RunStep3CScionOfFlames())
+            return false;
+
+        if (!RunStep3CKathoolAdept())
+            return false;
+
         EnsureBestStaticBoostGearEquipped();
         _syncedClassType = ClassType.None;
         SetClass(rankUpIfNeeded: false);
@@ -9343,6 +9494,7 @@ public class ArmyFarmerJoeDoAll
 
         var capeSteps = new (string Objective, int QuestId, Action UnlockAction)[]
         {
+            ("STEP3C_FORGE_CAPE_BASE", 8758, () => ForgeUnlock.ForgeCapeEnhancement()),
             ("STEP3C_FORGE_CAPE_ABSOLUTION", 8743, () => ForgeUnlock.Absolution()),
             ("STEP3C_FORGE_CAPE_VAINGLORY", 8744, () => ForgeUnlock.Vainglory()),
             ("STEP3C_FORGE_CAPE_AVARICE", 8745, () => ForgeUnlock.Avarice()),
@@ -9380,6 +9532,118 @@ public class ArmyFarmerJoeDoAll
         LeaveCombatRoomForEquipmentChange();
         EnsureBestStaticBoostGearEquipped();
         _lastSmartEnhancedClass = null;
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep3CScionOfFlames()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasSOF() => core.CheckInventory("Scion of Flames", 1, toInv: false);
+
+        if (!HasSOF())
+        {
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        "STEP3C_SCION_OF_FLAMES",
+                        HasSOF,
+                        () =>
+                        {
+                            if (HasSOF())
+                                return;
+
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Boss);
+                            SOFCore.GetScionofFlames(rankUpClass: false);
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(
+                                targetPlayerName,
+                                "*",
+                                compositionType: ClassType.Boss,
+                                copyHelpedActions: true
+                            );
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Boss);
+                        }
+                    )
+                )
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
+        }
+        else if (!Army.SyncArmy("STEP3C_SCION_OF_FLAMES_SKIP"))
+            return false;
+
+        if (HasSOF())
+            RankUpClassForArmy("Scion of Flames");
+
+        return !Bot.ShouldExit;
+    }
+
+    private bool RunStep3CKathoolAdept()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool HasKA() => core.CheckInventory("Kathool Adept", 1, toInv: false);
+
+        if (!HasKA())
+        {
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        "STEP3C_KATHOOL_ADEPT",
+                        HasKA,
+                        () =>
+                        {
+                            if (HasKA())
+                                return;
+
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Boss);
+                            KACore.GetClass(rankUpClass: false);
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(
+                                targetPlayerName,
+                                "*",
+                                compositionType: ClassType.Boss,
+                                copyHelpedActions: true
+                            );
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Boss);
+                        }
+                    )
+                )
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
+        }
+        else if (!Army.SyncArmy("STEP3C_KATHOOL_ADEPT_SKIP"))
+            return false;
+
+        if (HasKA())
+            RankUpClassForArmy("Kathool Adept");
+
         return !Bot.ShouldExit;
     }
     #endregion Step 3C: Level 90 Progression
@@ -9439,6 +9703,9 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         if (!RunStep4AAwescended())
+            return false;
+
+        if (!RunStep4AElysium())
             return false;
 
         EnsureBestStaticBoostGearEquipped();
@@ -9689,6 +9956,122 @@ public class ArmyFarmerJoeDoAll
             },
             prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
         );
+    }
+
+    private bool RunStep4AElysium()
+    {
+        CoreBots core = CoreBots.Instance;
+        bool IsElysiumDone() => core.isCompletedBefore(8821, log: false);
+
+        if (
+            !RunCoordinatedBlacksmithingRankStep(
+                "STEP4A_ELYSIUM_BS_RANK10",
+                10,
+                55,
+                IsElysiumDone
+            )
+        )
+            return false;
+
+        if (!IsElysiumDone())
+        {
+            ApplySubgroupRoomSettings(4);
+            try
+            {
+                if (
+                    !RunCooperativeObjective(
+                        "STEP4A_ELYSIUM_CELESTIAL_PAST",
+                        () => IsElysiumDone() || core.isCompletedBefore(7681, log: false),
+                        () =>
+                        {
+                            if (IsElysiumDone() || core.isCompletedBefore(7681, log: false))
+                                return;
+
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                            CelestialPastCore.CompleteCeletialPast();
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                        }
+                    )
+                )
+                    return false;
+
+                if (
+                    !RunCooperativeObjective(
+                        "STEP4A_ELYSIUM_AZALITH",
+                        () => IsElysiumDone() || core.CheckInventory("The Divine Will"),
+                        () =>
+                        {
+                            if (IsElysiumDone() || core.CheckInventory("The Divine Will"))
+                                return;
+
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Boss);
+                            core.HuntMonster("celestialpast", "Azalith", "The Divine Will", 1, isTemp: false);
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(
+                                targetPlayerName,
+                                "Azalith",
+                                targetMap: "celestialpast",
+                                compositionType: ClassType.Boss
+                            );
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Boss);
+                        }
+                    )
+                )
+                    return false;
+
+                if (
+                    !RunCooperativeObjective(
+                        "STEP4A_ELYSIUM_UNLOCK",
+                        IsElysiumDone,
+                        () =>
+                        {
+                            if (IsElysiumDone())
+                                return;
+
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                            ForgeUnlock.Elysium();
+                        },
+                        (targetPlayerNumber, targetPlayerName) =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                        },
+                        prepareForCombat: () =>
+                        {
+                            ApplyCurrentArmyRoomSettings();
+                            PrepareCombatLoadoutForArmy(ClassType.Solo);
+                        }
+                    )
+                )
+                    return false;
+            }
+            finally
+            {
+                ApplyArmyRoomSettings();
+            }
+        }
+        else if (!Army.SyncArmy("STEP4A_ELYSIUM_SKIP"))
+            return false;
+
+        return !Bot.ShouldExit;
     }
     #endregion Step 4A: Level 100 Endgame Progression
 
@@ -11647,6 +12030,7 @@ public class ArmyFarmerJoeDoAll
     private static readonly string[] Player2SupportClasses =
     {
         "StoneCrusher",
+        "Bard",
         "Oracle",
         "Healer (Rare)",
         "Healer",
@@ -11686,9 +12070,10 @@ public class ArmyFarmerJoeDoAll
         "Healer",
     };
 
-    // Player 6 (Optional): Crit / Damage Amplifier & Flex DPS (Master Ranger -> Scarlet Sorceress -> Archfiend)
+    // Player 6 (Optional): Crit / Damage Amplifier & Flex DPS (Master Ranger -> Scarlet Sorceress -> Archfiend -> Scion of Flames)
     private static readonly string[] Player6FlexClasses =
     {
+        "Scion of Flames",
         "Archfiend",
         "Scarlet Sorceress",
         "Master Ranger",
@@ -11714,6 +12099,7 @@ public class ArmyFarmerJoeDoAll
         "Lord of Order",
         "StoneCrusher",
         "ArchPaladin",
+        "Bard",
         "Oracle",
         "Evolved Shaman",
         "Healer (Rare)",
@@ -11723,6 +12109,7 @@ public class ArmyFarmerJoeDoAll
     private static readonly string[] FarmClasses =
     {
         "ArchMage",
+        "Kathool Adept",
         "Arcana Invoker",
         "Dragon of Time",
         "Archfiend",
