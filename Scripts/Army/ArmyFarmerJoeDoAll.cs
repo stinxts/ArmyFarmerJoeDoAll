@@ -13135,7 +13135,26 @@ public class ArmyFarmerJoeDoAll
             return;
 
         CoreBots core = CoreBots.Instance;
-        core.Logger(
+        core.Logger("Farming Blacksmithing Rank 4 via Quest 2777 in /greenguardwest...");
+        Farm.ToggleBoost(BoostType.Reputation, true);
+        int turnIns = 0;
+        try
+        {
+            while (!Bot.ShouldExit && Farm.FactionRank("Blacksmithing") < 4)
+            {
+                if (!Bot.Quests.IsInProgress(2777))
+                    core.EnsureAccept(2777);
+
+                core.KillMonster("greenguardwest", "West4", "Right", "Slime", "Slimy Lost Sock", 5, isTemp: true, log: false);
+
+                if (Bot.ShouldExit)
+                    break;
+
+                bool completed = core.EnsureComplete(2777);
+                if (!completed)
+                {
+                    core.JumpWait();
+                    Bot.Sleep(500);
                     completed = core.EnsureComplete(2777);
                 }
 
