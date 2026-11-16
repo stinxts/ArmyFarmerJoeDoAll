@@ -4019,7 +4019,7 @@ public class ArmyFarmerJoeDoAll
                         if (!string.IsNullOrWhiteSpace(currentClass))
                         {
                             ApplyAndRecordSmartEnhance(currentClass);
-                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+                            Army.StartClassSkills(currentClass);
                         }
                     }
                 },
@@ -5568,7 +5568,7 @@ public class ArmyFarmerJoeDoAll
                     if (!string.IsNullOrWhiteSpace(currentClass))
                     {
                         ApplyAndRecordSmartEnhance(currentClass);
-                        Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+                        Army.StartClassSkills(currentClass);
                     }
                 }
             }
@@ -9273,7 +9273,7 @@ public class ArmyFarmerJoeDoAll
                         if (!string.IsNullOrWhiteSpace(currentClass))
                         {
                             ApplyAndRecordSmartEnhance(currentClass);
-                            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+                            Army.StartClassSkills(currentClass);
                         }
                     }
                 }
@@ -12586,8 +12586,7 @@ public class ArmyFarmerJoeDoAll
 
         if (alreadyWearingDesired)
         {
-            if (!Bot.Skills.TimerRunning)
-                Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+            Army.EnsureSkillRotationActive();
             _syncedClassType = effectiveType;
             return;
         }
@@ -12598,15 +12597,12 @@ public class ArmyFarmerJoeDoAll
             {
                 LeaveCombatRoomForEquipmentChange();
                 core.EquipClass(effectiveType);
+                Army.StartClassSkills(Bot.Player.CurrentClass?.Name);
                 _syncedClassType = effectiveType;
             }
-            else if (!Bot.Skills.TimerRunning)
+            else
             {
-                Bot.Skills.StartAdvanced(
-                    string.IsNullOrWhiteSpace(currentClass) ? desiredClass : currentClass,
-                    false,
-                    ClassUseMode.Base
-                );
+                Army.EnsureSkillRotationActive();
             }
             return;
         }
@@ -12616,11 +12612,12 @@ public class ArmyFarmerJoeDoAll
             LeaveCombatRoomForEquipmentChange();
             EnsureCombatEnhancementReady(desiredClass, allowFullGearEnhance: false);
             core.EquipClass(effectiveType);
+            Army.StartClassSkills(Bot.Player.CurrentClass?.Name ?? desiredClass);
             _syncedClassType = effectiveType;
         }
         else if (!Bot.Skills.TimerRunning && !string.IsNullOrWhiteSpace(currentClass))
         {
-            Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+            Army.StartClassSkills(currentClass);
         }
     }
 
@@ -12790,8 +12787,7 @@ public class ArmyFarmerJoeDoAll
         if (!string.IsNullOrWhiteSpace(activeClass))
         {
             EnsureCombatEnhancementReady(activeClass, allowFullGearEnhance: true);
-            if (!Bot.Skills.TimerRunning)
-                Bot.Skills.StartAdvanced(activeClass, false, ClassUseMode.Base);
+            Army.EnsureSkillRotationActive();
         }
 
         if (!string.IsNullOrWhiteSpace(targetMap))
@@ -12855,7 +12851,7 @@ public class ArmyFarmerJoeDoAll
 
         // Start Skua's Advanced Skills Set rotation for the class being ranked up!
         // (Adv.RankUpClass only calls Core.Equip, which does not start Bot.Skills.StartAdvanced!)
-        Bot.Skills.StartAdvanced(className, false, ClassUseMode.Base);
+        Army.StartClassSkills(className);
 
         if (preserveGear)
         {
@@ -13656,8 +13652,8 @@ public class ArmyFarmerJoeDoAll
             string? currentClass = Bot.Player.CurrentClass?.Name;
             if (!string.IsNullOrWhiteSpace(currentClass))
                 EnsureCombatEnhancementReady(currentClass, allowFullGearEnhance: true);
-            if (!string.IsNullOrWhiteSpace(currentClass) && !Bot.Skills.TimerRunning)
-                Bot.Skills.StartAdvanced(currentClass, false, ClassUseMode.Base);
+            if (!string.IsNullOrWhiteSpace(currentClass))
+                Army.EnsureSkillRotationActive();
         }
     }
 

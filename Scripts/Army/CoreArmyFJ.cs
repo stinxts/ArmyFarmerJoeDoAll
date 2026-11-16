@@ -1370,8 +1370,7 @@ public class CoreArmyFJ
         Core.Equip(targetClass);
         Bot.Wait.ForTrue(() => Bot.Inventory.IsEquipped(targetClass), 20);
 
-        Bot.Skills.StartAdvanced(targetClass, false, ClassUseMode.Base);
-        lastSkillRotationClass = targetClass;
+        StartClassSkills(targetClass);
     }
 
     private static bool IsSupportClassName(string? className)
@@ -1388,47 +1387,93 @@ public class CoreArmyFJ
             || className.Equals("Lord of Order", StringComparison.OrdinalIgnoreCase);
     }
 
+    public void StartClassSkills(string? className = null)
+    {
+        string resolvedClass = string.IsNullOrWhiteSpace(className)
+            ? (Bot.Player.CurrentClass?.Name ?? "generic")
+            : className.Trim();
+
+        bool inDoomKitten = string.Equals(NormalizeMapKey(Bot.Map?.Name), "doomkitten", StringComparison.OrdinalIgnoreCase);
+        bool isDoomKittenShinobi =
+            inDoomKitten
+            && (
+                string.Equals(resolvedClass, "DragonSoul Shinobi", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(resolvedClass, "Shadow Dragon Shinobi", StringComparison.OrdinalIgnoreCase)
+            );
+        bool isDoomKittenBlaze =
+            inDoomKitten
+            && (
+                string.Equals(resolvedClass, "Blaze Binder", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(resolvedClass, "FireLord Summoner", StringComparison.OrdinalIgnoreCase)
+            );
+        bool isDoomKittenSC =
+            inDoomKitten
+            && string.Equals(resolvedClass, "StoneCrusher", StringComparison.OrdinalIgnoreCase);
+
+        if (isDoomKittenShinobi)
+        {
+            Bot.Skills.StartAdvanced("4 | 1 | 3M<30 | 2H<30");
+            lastSkillRotationClass = $"{resolvedClass}:doomkitten";
+            return;
+        }
+        if (isDoomKittenBlaze)
+        {
+            Bot.Skills.StartAdvanced("3 | 4 | 2");
+            lastSkillRotationClass = $"{resolvedClass}:doomkitten";
+            return;
+        }
+        if (isDoomKittenSC)
+        {
+            Bot.Skills.StartAdvanced("3 | 1 | 4");
+            lastSkillRotationClass = $"{resolvedClass}:doomkitten";
+            return;
+        }
+
+        // Bard and Arachnomancer default to WaitForCooldown in AdvancedSkills.json, which can stall
+        // on a skill slot (leaving the account on auto-attacks only). Force UseIfAvailable rotations.
+        if (string.Equals(resolvedClass, "Bard", StringComparison.OrdinalIgnoreCase))
+        {
+            Bot.Skills.StartAdvanced("1 | 4 | 2 | 3");
+            lastSkillRotationClass = resolvedClass;
+            return;
+        }
+        if (string.Equals(resolvedClass, "Arachnomancer", StringComparison.OrdinalIgnoreCase))
+        {
+            Bot.Skills.StartAdvanced("4 | 1 | 3 | 2");
+            lastSkillRotationClass = resolvedClass;
+            return;
+        }
+
+        Bot.Skills.StartAdvanced(resolvedClass, false, ClassUseMode.Base);
+        lastSkillRotationClass = resolvedClass;
+    }
+
     public void EnsureSkillRotationActive()
     {
         try
         {
             string currentClassName = Bot.Player.CurrentClass?.Name ?? "generic";
             bool inDoomKitten = string.Equals(NormalizeMapKey(Bot.Map?.Name), "doomkitten", StringComparison.OrdinalIgnoreCase);
-            bool isDoomKittenShinobi =
+            bool isDoomKittenOverride =
                 inDoomKitten
                 && (
                     string.Equals(currentClassName, "DragonSoul Shinobi", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(currentClassName, "Shadow Dragon Shinobi", StringComparison.OrdinalIgnoreCase)
-                );
-            bool isDoomKittenBlaze =
-                inDoomKitten
-                && (
-                    string.Equals(currentClassName, "Blaze Binder", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(currentClassName, "Blaze Binder", StringComparison.OrdinalIgnoreCase)
                     || string.Equals(currentClassName, "FireLord Summoner", StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(currentClassName, "StoneCrusher", StringComparison.OrdinalIgnoreCase)
                 );
-            bool isDoomKittenSC =
-                inDoomKitten
-                && string.Equals(currentClassName, "StoneCrusher", StringComparison.OrdinalIgnoreCase);
 
-            string rotationKey =
-                (isDoomKittenShinobi || isDoomKittenBlaze || isDoomKittenSC)
-                    ? $"{currentClassName}:doomkitten"
-                    : currentClassName;
+            string rotationKey = isDoomKittenOverride
+                ? $"{currentClassName}:doomkitten"
+                : currentClassName;
 
             if (
                 !Bot.Skills.TimerRunning
                 || !string.Equals(lastSkillRotationClass, rotationKey, StringComparison.OrdinalIgnoreCase)
             )
             {
-                if (isDoomKittenShinobi)
-                    Bot.Skills.StartAdvanced("4 | 1 | 3M<30 | 2H<30");
-                else if (isDoomKittenBlaze)
-                    Bot.Skills.StartAdvanced("3 | 4 | 2");
-                else if (isDoomKittenSC)
-                    Bot.Skills.StartAdvanced("3 | 1 | 4");
-                else
-                    Bot.Skills.StartAdvanced(currentClassName, false, ClassUseMode.Base);
-                lastSkillRotationClass = rotationKey;
+                StartClassSkills(currentClassName);
             }
         }
         catch
