@@ -2125,30 +2125,16 @@ public class ArmyFarmerJoeDoAll
                     );
                     core.AddDrop("Enchanted Scale", "Dragon Claw");
                     SetClass(ClassType.Farm);
-                    try
-                    {
-                        core.RegisterQuests(5294);
-                        while (
-                            !Bot.ShouldExit
-                            && (
-                                !core.CheckInventory("Enchanted Scale", 75)
-                                || !core.CheckInventory("Dragon Claw", 100)
-                            )
-                        )
-                        {
-                            core.KillMonster(
-                                "dragontown",
-                                "r4",
-                                "Right",
-                                "Tempest Dracolich",
-                                log: false
-                            );
-                        }
-                    }
-                    finally
-                    {
-                        core.CancelRegisteredQuests();
-                    }
+                    Army.RunSafeQuestFarm(
+                        "dragontown",
+                        "r4",
+                        "Right",
+                        "Tempest Dracolich",
+                        new[] { 5294 },
+                        () =>
+                            core.CheckInventory("Enchanted Scale", 75)
+                            && core.CheckInventory("Dragon Claw", 100)
+                    );
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -3514,16 +3500,17 @@ public class ArmyFarmerJoeDoAll
                     core.AddDrop(20561);
                     SetClass(ClassType.Solo);
                     core.FarmingLogger("Dragon Shinobi Token", 300);
-                    try
+                    core.EnsureAccept(7924);
+                    while (!Bot.ShouldExit && !core.CheckInventory(20561, 300))
                     {
-                        core.RegisterQuests(7924);
-                        while (!Bot.ShouldExit && !core.CheckInventory(20561, 300))
-                            core.HuntMonster("shadowfortress", "1st Head of Orochi", log: false);
+                        Army.CompleteCompletableQuestsOutOfCombat(new[] { 7924 }, reaccept: true);
+                        if (core.CheckInventory(20561, 300))
+                            break;
+                        if (!Bot.Quests.IsInProgress(7924))
+                            core.EnsureAccept(7924);
+                        core.HuntMonster("shadowfortress", "1st Head of Orochi", log: false);
                     }
-                    finally
-                    {
-                        core.CancelRegisteredQuests();
-                    }
+                    Army.CompleteCompletableQuestsOutOfCombat(new[] { 7924 }, reaccept: false);
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -4090,7 +4077,25 @@ public class ArmyFarmerJoeDoAll
                         return;
 
                     SetClass(ClassType.Farm);
-                    Farm.GlaceraREP(10);
+                    core.SavedState(true, "icewindwar");
+                    Farm.ToggleBoost(BoostType.Reputation);
+                    core.Logger("Farming Glacera rank 10 (safe out-of-combat turn-in)");
+                    try
+                    {
+                        Army.RunSafeQuestFarm(
+                            "icewindwar",
+                            "r5",
+                            "Left",
+                            "*",
+                            new[] { 5597, 5598, 5599, 5600 },
+                            () => IsGlaceraRepDone()
+                        );
+                    }
+                    finally
+                    {
+                        Farm.ToggleBoost(BoostType.Reputation, false);
+                        core.SavedState(false);
+                    }
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -9113,10 +9118,14 @@ public class ArmyFarmerJoeDoAll
                     core.EnsureAccept(9171);
                     core.AddDrop("Yami");
                     SetClass(ClassType.Farm);
-                    core.RegisterQuests(7409);
-                    while (!Bot.ShouldExit && !core.CheckInventory("Yami", 3))
-                        core.KillMonster("darkally", "r2", "Left", "*", log: false);
-                    core.CancelRegisteredQuests();
+                    Army.RunSafeQuestFarm(
+                        "darkally",
+                        "r2",
+                        "Left",
+                        "*",
+                        new[] { 7409 },
+                        () => core.CheckInventory("Yami", 3)
+                    );
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                 {
@@ -9160,15 +9169,22 @@ public class ArmyFarmerJoeDoAll
                         }
                         core.AddDrop("Dragon Shinobi Token");
                         SetClass(ClassType.Solo);
-                        core.RegisterQuests(7924);
+                        core.EnsureAccept(7924);
                         while (!Bot.ShouldExit && !core.CheckInventory("Dragon Shinobi Token", 100))
+                        {
+                            Army.CompleteCompletableQuestsOutOfCombat(new[] { 7924 }, reaccept: true);
+                            if (core.CheckInventory("Dragon Shinobi Token", 100))
+                                break;
+                            if (!Bot.Quests.IsInProgress(7924))
+                                core.EnsureAccept(7924);
                             core.HuntMonster(
                                 "shadowfortress",
                                 "1st Head of Orochi",
                                 "Perfectly Preserved Dragon Tooth",
                                 log: false
                             );
-                        core.CancelRegisteredQuests();
+                        }
+                        Army.CompleteCompletableQuestsOutOfCombat(new[] { 7924 }, reaccept: false);
                     },
                     (targetPlayerNumber, targetPlayerName) =>
                     {
@@ -12257,7 +12273,7 @@ public class ArmyFarmerJoeDoAll
                     core.HuntMonster("icewindwar", "Glaceran Defender", "Mega Frostspawn Medal", 5);
                     core.HuntMonster("icewindwar", "Frost Invader", "World Ender Medal", 10);
                     core.HuntMonster("icewindwar", "Frost Invader", "Mega World Ender Medal", 5);
-                    core.EnsureComplete(new[] { 5597, 5598, 5599, 5600 });
+                    Army.SafeEnsureComplete(new[] { 5597, 5598, 5599, 5600 });
                     warMedalsDone = true;
                 },
                 (targetPlayerNumber, targetPlayerName) =>
@@ -13153,40 +13169,6 @@ public class ArmyFarmerJoeDoAll
         return a.DmgAll >= b.DmgAll - eps
             && a.Chaos >= b.Chaos - eps
             && a.Dragonkin >= b.Dragonkin - eps
-            && a.Elemental >= b.Elemental - eps
-            && a.Human >= b.Human - eps
-            && a.Undead >= b.Undead - eps
-            && a.Cp >= b.Cp - eps
-            && a.Exp >= b.Exp - eps
-            && a.Gold >= b.Gold - eps
-            && a.Rep >= b.Rep - eps;
-    }
-
-    private static double Max4(double v1, double v2, double v3, double v4) =>
-        Math.Max(Math.Max(v1, v2), Math.Max(v3, v4));
-
-    private enum BoostObjective
-    {
-        Balanced,
-        Combat,
-        Exp,
-        Gold,
-        Rep,
-        ClassPoints,
-    }
-
-    private BoostObjective _activeBoostObjective = BoostObjective.Balanced;
-
-    private static string? NormalizeMonsterRace(string? race)
-    {
-        if (string.IsNullOrWhiteSpace(race))
-            return null;
-
-        string trimmed = race.Trim();
-        if (trimmed.Equals("None", StringComparison.OrdinalIgnoreCase))
-            return null;
-
-        if (trimmed.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
         if (trimmed.Contains("Undead", StringComparison.OrdinalIgnoreCase))
             return "Undead";
 
@@ -14636,16 +14618,14 @@ public class ArmyFarmerJoeDoAll
 
                     if (!core.CheckInventory("Spirit Orb", 100))
                     {
-                        try
-                        {
-                            core.RegisterQuests(2082, 2083);
-                            while (!Bot.ShouldExit && !core.CheckInventory("Spirit Orb", 100))
-                                core.KillMonster("battleunderb", "Enter", "Spawn", "Skeleton Warrior", log: false);
-                        }
-                        finally
-                        {
-                            core.CancelRegisteredQuests();
-                        }
+                        Army.RunSafeQuestFarm(
+                            "battleunderb",
+                            "Enter",
+                            "Spawn",
+                            "Skeleton Warrior",
+                            new[] { 2082, 2083 },
+                            () => core.CheckInventory("Spirit Orb", 100)
+                        );
                     }
                 },
                 (targetPlayerNumber, targetPlayerName) =>
