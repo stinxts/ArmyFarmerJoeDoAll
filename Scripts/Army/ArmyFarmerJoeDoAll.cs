@@ -480,6 +480,24 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         ApplyArmyRoomSettings();
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP1_BEGINNER",
+                () =>
+                    Bot.Player.Level >= 25
+                    && HasClassInInventory("Oracle")
+                    && HasRank10Class("Oracle")
+                    && HasClassInInventory("Ninja")
+                    && HasRank10Class("Ninja")
+                    && HasClassInInventory("Mage")
+                    && HasRank10Class("Mage")
+            )
+        )
+        {
+            CoreBots.Instance.Logger("Army FarmerJoe: Step 1 (Level 1-30) already completed on all accounts — skipping.");
+            return Army.SyncArmy("STEP1_COMPLETE");
+        }
+
         CoreBots.Instance.Logger("Army FarmerJoe: starting level 1-30 on all accounts.");
         if (!RunBeginnerItems())
             return false;
@@ -1072,6 +1090,37 @@ public class ArmyFarmerJoeDoAll
 
         ApplyArmyRoomSettings();
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2A_BRACKET30",
+                () =>
+                    Bot.Config?.Get<bool>("GetBoosts") != true
+                    && Bot.Player.Level >= 30
+                    && HasClassInInventory("Master Ranger")
+                    && HasRank10Class("Master Ranger")
+                    && HasClassInInventory("Darkblood StormKing")
+                    && HasRank10Class("Darkblood StormKing")
+                    && (
+                        (HasClassInInventory("Imperial Chunin") && HasRank10Class("Imperial Chunin"))
+                        || (HasClassInInventory("Chunin") && HasRank10Class("Chunin"))
+                    )
+                    && HasClassInInventory("Shaman")
+                    && HasRank10Class("Shaman")
+                    && HasClassInInventory("Evolved Shaman")
+                    && HasRank10Class("Evolved Shaman")
+                    && HasClassInInventory("Bard")
+                    && HasRank10Class("Bard")
+                    && Farm.FactionRank("Blade of Awe") >= 10
+                    && core.CheckInventory("Awethur's Accoutrements")
+                    && core.isCompletedBefore(8828, log: false)
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2A (Bracket 30) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2A_COMPLETE");
+        }
+
         core.Logger("Army FarmerJoe: starting Step 2A (Bracket 30) on all accounts.");
 
         // 0. Initial SetClass setup
@@ -1907,6 +1956,24 @@ public class ArmyFarmerJoeDoAll
 
         ApplyArmyRoomSettings();
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2B_BRACKET50",
+                () =>
+                    Bot.Player.Level >= 50
+                    && HasClassInInventory("Scarlet Sorceress")
+                    && HasRank10Class("Scarlet Sorceress")
+                    && HasClassInInventory("Dragonslayer General")
+                    && HasRank10Class("Dragonslayer General")
+                    && HasOwnedBoostWeaponAtLeast(0.15)
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2B (Bracket 50) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2B_COMPLETE");
+        }
+
         core.Logger("Army FarmerJoe: starting Step 2B (Bracket 50) on all accounts.");
         EnsureBestStaticBoostGearEquipped();
 
@@ -2235,6 +2302,17 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedShatterGlassMaze(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_HEDGEMAZE_STORY",
+                () =>
+                    skipCondition()
+                    || core.isCompletedBefore(5332, log: false)
+                    || core.isCompletedBefore(5313, log: false)
+            )
+        )
+            return true;
+
         core.EnsureLoad(Enumerable.Range(5298, 16).ToArray());
 
         bool IsHedgeQuestDone(int questId) =>
@@ -2562,6 +2640,14 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedTowerOfMirrors(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_TOWER_OF_MIRRORS_STORY",
+                () => skipCondition() || core.isCompletedBefore(5332, log: false)
+            )
+        )
+            return true;
+
         core.EnsureLoad(Enumerable.Range(5314, 19).ToArray());
 
         bool IsTowerQuestDone(int questId) =>
@@ -3064,6 +3150,26 @@ public class ArmyFarmerJoeDoAll
         if (!Army.SyncArmy("STEP2C_55_START"))
             return false;
 
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2C_55_BRACKET55",
+                () =>
+                    Bot.Player.Level >= 55
+                    && HasClassInInventory("Blaze Binder")
+                    && HasRank10Class("Blaze Binder")
+                    && HasClassInInventory("Cryomancer")
+                    && HasRank10Class("Cryomancer")
+                    && HasClassInInventory("Arachnomancer")
+                    && HasRank10Class("Arachnomancer")
+                    && core.CheckInventory("Cape of Awe")
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2C (Bracket 55) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2C_55_COMPLETE") && !Bot.ShouldExit;
+        }
+
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
 
@@ -3471,6 +3577,22 @@ public class ArmyFarmerJoeDoAll
         // Entry barrier for Bracket 60
         if (!Army.SyncArmy("STEP2C_60_START"))
             return false;
+
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2C_60_BRACKET60",
+                () =>
+                    Bot.Player.Level >= 60
+                    && (HasClassInInventory(59476) || HasClassInInventory("DragonSoul Shinobi"))
+                    && HasRank10Class("DragonSoul Shinobi")
+                    && core.isCompletedBefore(8739, log: false)
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2C (Bracket 60) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2C_60_COMPLETE") && !Bot.ShouldExit;
+        }
 
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
@@ -4037,6 +4159,21 @@ public class ArmyFarmerJoeDoAll
         if (!Army.SyncArmy("STEP2C_65_START"))
             return false;
 
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2C_65_BRACKET65",
+                () =>
+                    Bot.Player.Level >= 65
+                    && (HasAnyClassInInventory(38084, 38049) || HasClassInInventory("Glacial Berserker"))
+                    && HasRank10Class("Glacial Berserker")
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2C (Bracket 65) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2C_65_COMPLETE") && !Bot.ShouldExit;
+        }
+
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
 
@@ -4176,6 +4313,27 @@ public class ArmyFarmerJoeDoAll
 
         if (!Army.SyncArmy("STEP2D_70_START"))
             return false;
+
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2D_70_BRACKET70",
+                () =>
+                    Bot.Player.Level >= 70
+                    && HasClassInInventory("StoneCrusher")
+                    && HasRank10Class("StoneCrusher")
+                    && core.isCompletedBefore(8824, log: false)
+                    && core.isCompletedBefore(8825, log: false)
+                    && core.isCompletedBefore(8826, log: false)
+                    && core.isCompletedBefore(8827, log: false)
+                    && HasClassInInventory("ArchPaladin")
+                    && HasRank10Class("ArchPaladin")
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2D (Bracket 70) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2D_COMPLETE") && !Bot.ShouldExit;
+        }
 
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
@@ -10378,6 +10536,13 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedFrozenTower(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_FROZEN_TOWER_STORY",
+                () => skipCondition() || core.isCompletedBefore(3937, log: false)
+            )
+        )
+            return true;
 
         bool IsFTQuestDone(int questId) =>
             skipCondition() || core.isCompletedBefore(3937, log: false) || core.isCompletedBefore(questId, log: false);
@@ -11051,6 +11216,13 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedYokaiStory(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_YOKAI_STORY",
+                () => skipCondition() || core.isCompletedBefore(6494, log: false)
+            )
+        )
+            return true;
 
         bool IsShogunDone(int questId) =>
             skipCondition()
@@ -11868,6 +12040,13 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedGlaceraForGB(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_GLACERA_STORY",
+                () => skipCondition() || core.isCompletedBefore(5601, log: false)
+            )
+        )
+            return true;
 
         bool IsRuinsQuestDone(int questId) =>
             skipCondition()
@@ -13169,6 +13348,46 @@ public class ArmyFarmerJoeDoAll
         return a.DmgAll >= b.DmgAll - eps
             && a.Chaos >= b.Chaos - eps
             && a.Dragonkin >= b.Dragonkin - eps
+            && a.Elemental >= b.Elemental - eps
+            && a.Human >= b.Human - eps
+            && a.Undead >= b.Undead - eps
+            && a.Cp >= b.Cp - eps
+            && a.Exp >= b.Exp - eps
+            && a.Gold >= b.Gold - eps
+            && a.Rep >= b.Rep - eps;
+    }
+
+    private static double Max4(double v1, double v2, double v3, double v4) =>
+        Math.Max(Math.Max(v1, v2), Math.Max(v3, v4));
+
+    private enum BoostObjective
+    {
+        Balanced,
+        Combat,
+        Exp,
+        Gold,
+        Rep,
+        ClassPoints,
+    }
+
+    private BoostObjective _activeBoostObjective = BoostObjective.Balanced;
+
+    private static string? NormalizeMonsterRace(string? race)
+    {
+        if (string.IsNullOrWhiteSpace(race))
+            return null;
+
+        string trimmed = race.Trim();
+        if (trimmed.Equals("None", StringComparison.OrdinalIgnoreCase))
+            return null;
+        if (trimmed.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
+            return "Chaos";
+        if (trimmed.Contains("Dragon", StringComparison.OrdinalIgnoreCase))
+            return "Dragonkin";
+        if (trimmed.Contains("Elemental", StringComparison.OrdinalIgnoreCase))
+            return "Elemental";
+        if (trimmed.Contains("Human", StringComparison.OrdinalIgnoreCase))
+            return "Human";
         if (trimmed.Contains("Undead", StringComparison.OrdinalIgnoreCase))
             return "Undead";
 
