@@ -274,6 +274,7 @@ public class ArmyFarmerJoeDoAll
         CoreBots.Instance.Logger("Startup: Running BankAllItems (AC inventory & house items)...");
         BankAllCore.BankAll(inventory: true, house: true, bankNonAc: false, blackList: string.Empty);
         EnsureBestStaticBoostGearEquipped();
+        SetClass();
         return Army.SyncArmy("STARTUP_BANK_ALL_DONE");
     }
 
@@ -316,6 +317,12 @@ public class ArmyFarmerJoeDoAll
         );
     }
 
+    private bool _startupBracket30DailiesDone;
+    private bool _startupBracket50DailiesDone;
+    private bool _startupBracket55DailiesDone;
+    private bool _startupEncroachingShadowsDone;
+    private bool _startupDagesScrollDone;
+
     private bool RunStartupUnlockedDailies()
     {
         CoreBots core = CoreBots.Instance;
@@ -330,23 +337,34 @@ public class ArmyFarmerJoeDoAll
         if (!RunBracket30ApprovedDailiesAndWeeklies())
             return false;
 
+        _startupBracket30DailiesDone = Army.AllPlayersSatisfy(
+            "STARTUP_DAILIES_LV30_READY",
+            () => Bot.Player.Level >= 30
+        );
+
         if (
             Army.AllPlayersSatisfy(
                 "STARTUP_DAILIES_LV50_READY",
                 () => Bot.Player.Level >= 50 && core.isCompletedBefore(2084, log: false)
             )
-            && !RunBracket50ApprovedDailies()
         )
-            return false;
+        {
+            if (!RunBracket50ApprovedDailies())
+                return false;
+            _startupBracket50DailiesDone = true;
+        }
 
         if (
             Army.AllPlayersSatisfy(
                 "STARTUP_DAILIES_LV55_BK_READY",
                 () => Bot.Player.Level >= 55 && core.isCompletedBefore(2084, log: false)
             )
-            && !RunBracket55ApprovedDailies()
         )
-            return false;
+        {
+            if (!RunBracket55ApprovedDailies())
+                return false;
+            _startupBracket55DailiesDone = true;
+        }
 
         bool cryoDailyDone = false;
         if (
@@ -397,18 +415,24 @@ public class ArmyFarmerJoeDoAll
 
         if (
             Army.AllPlayersSatisfy("STARTUP_DAILIES_LV75_READY", () => Bot.Player.Level >= 75)
-            && !RunTheEncroachingShadowsDaily()
         )
-            return false;
+        {
+            if (!RunTheEncroachingShadowsDaily())
+                return false;
+            _startupEncroachingShadowsDone = true;
+        }
 
         if (
             Army.AllPlayersSatisfy(
                 "STARTUP_DAILIES_DAGE_READY",
                 () => Bot.Player.Level >= 75 && core.isCompletedBefore(2084, log: false)
             )
-            && !RunDagesScrollFragmentDaily()
         )
-            return false;
+        {
+            if (!RunDagesScrollFragmentDaily())
+                return false;
+            _startupDagesScrollDone = true;
+        }
 
         return Army.SyncArmy("STARTUP_DAILIES_END");
     }
@@ -1143,13 +1167,16 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        // 1. Elders' Blood Daily (if Level >= 30 and daily available)
-        if (!RunEldersBloodDaily("BRACKET30"))
-            return false;
+        if (!_startupBracket30DailiesDone)
+        {
+            // 1. Elders' Blood Daily (if Level >= 30 and daily available)
+            if (!RunEldersBloodDaily("BRACKET30"))
+                return false;
 
-        // 1b. Approved Bracket 30 Weeklies & Early Daily (Design Notes 1213, Wheel of Doom 3076/3075, Odd's 'n' Ends 6187)
-        if (!RunBracket30ApprovedDailiesAndWeeklies())
-            return false;
+            // 1b. Approved Bracket 30 Weeklies & Early Daily (Design Notes 1213, Wheel of Doom 3076/3075, Odd's 'n' Ends 6187)
+            if (!RunBracket30ApprovedDailiesAndWeeklies())
+                return false;
+        }
 
         // 2. GetBoosts (only if enabled in options)
         bool getBoostsEnabled = Bot.Config?.Get<bool>("GetBoosts") == true;
@@ -2293,7 +2320,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 8. Approved Bracket 50 Dailies (Unlock "A Loyal Follower" 2084 -> Mine Crafting 2091 -> ShadowScythe General 3828/3827)
-        if (!RunBracket50ApprovedDailies())
+        if (!_startupBracket50DailiesDone && !RunBracket50ApprovedDailies())
             return false;
 
         return Army.SyncArmy("STEP2B_COMPLETE");
@@ -3556,7 +3583,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 6. Approved Bracket 55 Dailies (Seal of Light 3826 & Seal of Darkness 3825)
-        if (!RunBracket55ApprovedDailies())
+        if (!_startupBracket55DailiesDone && !RunBracket55ApprovedDailies())
             return false;
 
         SetClass(rankUpIfNeeded: true);
@@ -13109,29 +13136,6 @@ public class ArmyFarmerJoeDoAll
 
         CoreBots core = CoreBots.Instance;
         core.Logger(
-            $"Blacksmithing Rep: farming Rank 4 via Quest 2777 (current: {Farm.TotalFactionRep("Blacksmithing")}/10000, Rank {Farm.FactionRank("Blacksmithing")})."
-        );
-        Farm.ToggleBoost(BoostType.Reputation);
-
-        int turnIns = 0;
-        try
-        {
-            while (!Bot.ShouldExit && Farm.FactionRank("Blacksmithing") < 4)
-            {
-                if (!Bot.Quests.IsInProgress(2777))
-                    core.EnsureAccept(2777);
-
-                core.HuntMonster("greenguardeast", "Wolf", "Furry Lost Sock", 2, isTemp: true, log: false);
-                core.KillMonster("greenguardwest", "West4", "Right", "Slime", "Slimy Lost Sock", 5, isTemp: true, log: false);
-
-                if (Bot.ShouldExit)
-                    break;
-
-                bool completed = core.EnsureComplete(2777);
-                if (!completed)
-                {
-                    core.JumpWait();
-                    Bot.Sleep(500);
                     completed = core.EnsureComplete(2777);
                 }
 
