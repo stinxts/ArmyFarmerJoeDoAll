@@ -274,6 +274,7 @@ public class ArmyFarmerJoeDoAll
         CoreBots.Instance.Logger("Startup: Running BankAllItems (AC inventory & house items)...");
         BankAllCore.BankAll(inventory: true, house: true, bankNonAc: false, blackList: string.Empty);
         EnsureBestStaticBoostGearEquipped();
+        SetClass();
         return Army.SyncArmy("STARTUP_BANK_ALL_DONE");
     }
 
@@ -316,6 +317,12 @@ public class ArmyFarmerJoeDoAll
         );
     }
 
+    private bool _startupBracket30DailiesDone;
+    private bool _startupBracket50DailiesDone;
+    private bool _startupBracket55DailiesDone;
+    private bool _startupEncroachingShadowsDone;
+    private bool _startupDagesScrollDone;
+
     private bool RunStartupUnlockedDailies()
     {
         CoreBots core = CoreBots.Instance;
@@ -330,23 +337,34 @@ public class ArmyFarmerJoeDoAll
         if (!RunBracket30ApprovedDailiesAndWeeklies())
             return false;
 
+        _startupBracket30DailiesDone = Army.AllPlayersSatisfy(
+            "STARTUP_DAILIES_LV30_READY",
+            () => Bot.Player.Level >= 30
+        );
+
         if (
             Army.AllPlayersSatisfy(
                 "STARTUP_DAILIES_LV50_READY",
                 () => Bot.Player.Level >= 50 && core.isCompletedBefore(2084, log: false)
             )
-            && !RunBracket50ApprovedDailies()
         )
-            return false;
+        {
+            if (!RunBracket50ApprovedDailies())
+                return false;
+            _startupBracket50DailiesDone = true;
+        }
 
         if (
             Army.AllPlayersSatisfy(
                 "STARTUP_DAILIES_LV55_BK_READY",
                 () => Bot.Player.Level >= 55 && core.isCompletedBefore(2084, log: false)
             )
-            && !RunBracket55ApprovedDailies()
         )
-            return false;
+        {
+            if (!RunBracket55ApprovedDailies())
+                return false;
+            _startupBracket55DailiesDone = true;
+        }
 
         bool cryoDailyDone = false;
         if (
@@ -397,18 +415,24 @@ public class ArmyFarmerJoeDoAll
 
         if (
             Army.AllPlayersSatisfy("STARTUP_DAILIES_LV75_READY", () => Bot.Player.Level >= 75)
-            && !RunTheEncroachingShadowsDaily()
         )
-            return false;
+        {
+            if (!RunTheEncroachingShadowsDaily())
+                return false;
+            _startupEncroachingShadowsDone = true;
+        }
 
         if (
             Army.AllPlayersSatisfy(
                 "STARTUP_DAILIES_DAGE_READY",
                 () => Bot.Player.Level >= 75 && core.isCompletedBefore(2084, log: false)
             )
-            && !RunDagesScrollFragmentDaily()
         )
-            return false;
+        {
+            if (!RunDagesScrollFragmentDaily())
+                return false;
+            _startupDagesScrollDone = true;
+        }
 
         return Army.SyncArmy("STARTUP_DAILIES_END");
     }
@@ -480,6 +504,24 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         ApplyArmyRoomSettings();
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP1_BEGINNER",
+                () =>
+                    Bot.Player.Level >= 25
+                    && HasClassInInventory("Oracle")
+                    && HasRank10Class("Oracle")
+                    && HasClassInInventory("Ninja")
+                    && HasRank10Class("Ninja")
+                    && HasClassInInventory("Mage")
+                    && HasRank10Class("Mage")
+            )
+        )
+        {
+            CoreBots.Instance.Logger("Army FarmerJoe: Step 1 (Level 1-30) already completed on all accounts — skipping.");
+            return Army.SyncArmy("STEP1_COMPLETE");
+        }
+
         CoreBots.Instance.Logger("Army FarmerJoe: starting level 1-30 on all accounts.");
         if (!RunBeginnerItems())
             return false;
@@ -1072,6 +1114,76 @@ public class ArmyFarmerJoeDoAll
 
         ApplyArmyRoomSettings();
         CoreBots core = CoreBots.Instance;
+        // 2. GetBoosts (only if enabled in options; runs before skip so GetBoosts=true doesn't block Bracket 30 skip)
+        if (
+            !Army.AllPlayersSatisfy(
+                "SKIP_BRACKET30_GET_BOOSTS",
+                () => Bot.Config?.Get<bool>("GetBoosts") != true
+            )
+        )
+        {
+            bool getBoostsEnabled = Bot.Config?.Get<bool>("GetBoosts") == true;
+            bool boostsDone = false;
+            if (
+                !RunCooperativeObjective(
+                    "BRACKET30_GET_BOOSTS",
+                    () => !getBoostsEnabled || boostsDone,
+                    () =>
+                    {
+                        if (!getBoostsEnabled)
+                        {
+                            boostsDone = true;
+                            return;
+                        }
+
+                        SetClass(ClassType.Farm);
+                        Farm.GetBoost("REP", 10, true);
+                        Farm.GetBoost("XP", Bot.Player.Level >= 100 ? 0 : 10, true);
+                        Boosts.GetBoostsSelect(10, 10, 0);
+                        boostsDone = !Bot.ShouldExit;
+                    },
+                    (targetPlayerNumber, targetPlayerName) =>
+                    {
+                        Army.CoordinateFollowAndCombat(
+                            targetPlayerName,
+                            compositionType: ClassType.Farm
+                        );
+                    }
+                )
+            )
+                return false;
+        }
+
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2A_BRACKET30",
+                () =>
+                    Bot.Player.Level >= 30
+                    && HasClassInInventory("Master Ranger")
+                    && HasRank10Class("Master Ranger")
+                    && HasClassInInventory("Darkblood StormKing")
+                    && HasRank10Class("Darkblood StormKing")
+                    && (
+                        (HasClassInInventory("Imperial Chunin") && HasRank10Class("Imperial Chunin"))
+                        || (HasClassInInventory("Chunin") && HasRank10Class("Chunin"))
+                    )
+                    && HasClassInInventory("Shaman")
+                    && HasRank10Class("Shaman")
+                    && HasClassInInventory("Evolved Shaman")
+                    && HasRank10Class("Evolved Shaman")
+                    && HasClassInInventory("Bard")
+                    && HasRank10Class("Bard")
+                    && Farm.FactionRank("Blade of Awe") >= 10
+                    && core.CheckInventory("Awethur's Accoutrements", toInv: false)
+                    && core.isCompletedBefore(8828, log: false)
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2A (Bracket 30) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2A_COMPLETE");
+        }
+
         core.Logger("Army FarmerJoe: starting Step 2A (Bracket 30) on all accounts.");
 
         // 0. Initial SetClass setup
@@ -1094,45 +1206,16 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        // 1. Elders' Blood Daily (if Level >= 30 and daily available)
-        if (!RunEldersBloodDaily("BRACKET30"))
-            return false;
+        if (!_startupBracket30DailiesDone)
+        {
+            // 1. Elders' Blood Daily (if Level >= 30 and daily available)
+            if (!RunEldersBloodDaily("BRACKET30"))
+                return false;
 
-        // 1b. Approved Bracket 30 Weeklies & Early Daily (Design Notes 1213, Wheel of Doom 3076/3075, Odd's 'n' Ends 6187)
-        if (!RunBracket30ApprovedDailiesAndWeeklies())
-            return false;
-
-        // 2. GetBoosts (only if enabled in options)
-        bool getBoostsEnabled = Bot.Config?.Get<bool>("GetBoosts") == true;
-        bool boostsDone = false;
-        if (
-            !RunCooperativeObjective(
-                "BRACKET30_GET_BOOSTS",
-                () => !getBoostsEnabled || boostsDone,
-                () =>
-                {
-                    if (!getBoostsEnabled)
-                    {
-                        boostsDone = true;
-                        return;
-                    }
-
-                    SetClass(ClassType.Farm);
-                    Farm.GetBoost("REP", 10, true);
-                    Farm.GetBoost("XP", Bot.Player.Level >= 100 ? 0 : 10, true);
-                    Boosts.GetBoostsSelect(10, 10, 0);
-                    boostsDone = !Bot.ShouldExit;
-                },
-                (targetPlayerNumber, targetPlayerName) =>
-                {
-                    Army.CoordinateFollowAndCombat(
-                        targetPlayerName,
-                        compositionType: ClassType.Farm
-                    );
-                }
-            )
-        )
-            return false;
+            // 1b. Approved Bracket 30 Weeklies & Early Daily (Design Notes 1213, Wheel of Doom 3076/3075, Odd's 'n' Ends 6187)
+            if (!RunBracket30ApprovedDailiesAndWeeklies())
+                return false;
+        }
 
         // 3. Level 30 + post-level-up SmartEnhance
         if (!RunBracketLevelAndEnhance("BRACKET30_LEVEL_30", 30))
@@ -1907,6 +1990,24 @@ public class ArmyFarmerJoeDoAll
 
         ApplyArmyRoomSettings();
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2B_BRACKET50",
+                () =>
+                    Bot.Player.Level >= 50
+                    && HasClassInInventory("Scarlet Sorceress")
+                    && HasRank10Class("Scarlet Sorceress")
+                    && HasClassInInventory("Dragonslayer General")
+                    && HasRank10Class("Dragonslayer General")
+                    && HasOwnedBoostWeaponAtLeast(0.15)
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2B (Bracket 50) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2B_COMPLETE");
+        }
+
         core.Logger("Army FarmerJoe: starting Step 2B (Bracket 50) on all accounts.");
         EnsureBestStaticBoostGearEquipped();
 
@@ -2240,7 +2341,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 8. Approved Bracket 50 Dailies (Unlock "A Loyal Follower" 2084 -> Mine Crafting 2091 -> ShadowScythe General 3828/3827)
-        if (!RunBracket50ApprovedDailies())
+        if (!_startupBracket50DailiesDone && !RunBracket50ApprovedDailies())
             return false;
 
         return Army.SyncArmy("STEP2B_COMPLETE");
@@ -2249,6 +2350,17 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedShatterGlassMaze(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_HEDGEMAZE_STORY",
+                () =>
+                    skipCondition()
+                    || core.isCompletedBefore(5332, log: false)
+                    || core.isCompletedBefore(5313, log: false)
+            )
+        )
+            return true;
+
         core.EnsureLoad(Enumerable.Range(5298, 16).ToArray());
 
         bool IsHedgeQuestDone(int questId) =>
@@ -2576,6 +2688,14 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedTowerOfMirrors(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_TOWER_OF_MIRRORS_STORY",
+                () => skipCondition() || core.isCompletedBefore(5332, log: false)
+            )
+        )
+            return true;
+
         core.EnsureLoad(Enumerable.Range(5314, 19).ToArray());
 
         bool IsTowerQuestDone(int questId) =>
@@ -3078,6 +3198,26 @@ public class ArmyFarmerJoeDoAll
         if (!Army.SyncArmy("STEP2C_55_START"))
             return false;
 
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2C_55_BRACKET55",
+                () =>
+                    Bot.Player.Level >= 55
+                    && HasClassInInventory("Blaze Binder")
+                    && HasRank10Class("Blaze Binder")
+                    && HasClassInInventory("Cryomancer")
+                    && HasRank10Class("Cryomancer")
+                    && HasClassInInventory("Arachnomancer")
+                    && HasRank10Class("Arachnomancer")
+                    && core.CheckInventory("Cape of Awe", toInv: false)
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2C (Bracket 55) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2C_55_COMPLETE") && !Bot.ShouldExit;
+        }
+
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
 
@@ -3464,7 +3604,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 6. Approved Bracket 55 Dailies (Seal of Light 3826 & Seal of Darkness 3825)
-        if (!RunBracket55ApprovedDailies())
+        if (!_startupBracket55DailiesDone && !RunBracket55ApprovedDailies())
             return false;
 
         SetClass(rankUpIfNeeded: true);
@@ -3485,6 +3625,22 @@ public class ArmyFarmerJoeDoAll
         // Entry barrier for Bracket 60
         if (!Army.SyncArmy("STEP2C_60_START"))
             return false;
+
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2C_60_BRACKET60",
+                () =>
+                    Bot.Player.Level >= 60
+                    && (HasClassInInventory(59476) || HasClassInInventory("DragonSoul Shinobi"))
+                    && HasRank10Class("DragonSoul Shinobi")
+                    && core.isCompletedBefore(8739, log: false)
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2C (Bracket 60) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2C_60_COMPLETE") && !Bot.ShouldExit;
+        }
 
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
@@ -4050,6 +4206,21 @@ public class ArmyFarmerJoeDoAll
         if (!Army.SyncArmy("STEP2C_65_START"))
             return false;
 
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2C_65_BRACKET65",
+                () =>
+                    Bot.Player.Level >= 65
+                    && (HasAnyClassInInventory(38084, 38049) || HasClassInInventory("Glacial Berserker"))
+                    && HasRank10Class("Glacial Berserker")
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2C (Bracket 65) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2C_65_COMPLETE") && !Bot.ShouldExit;
+        }
+
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
 
@@ -4171,6 +4342,27 @@ public class ArmyFarmerJoeDoAll
 
         if (!Army.SyncArmy("STEP2D_70_START"))
             return false;
+
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_STEP2D_70_BRACKET70",
+                () =>
+                    Bot.Player.Level >= 70
+                    && HasClassInInventory("StoneCrusher")
+                    && HasRank10Class("StoneCrusher")
+                    && core.isCompletedBefore(8824, log: false)
+                    && core.isCompletedBefore(8825, log: false)
+                    && core.isCompletedBefore(8826, log: false)
+                    && core.isCompletedBefore(8827, log: false)
+                    && HasClassInInventory("ArchPaladin")
+                    && HasRank10Class("ArchPaladin")
+            )
+        )
+        {
+            core.Logger("Army FarmerJoe: Step 2D (Bracket 70) already completed on all accounts — skipping.");
+            EnsureBestStaticBoostGearEquipped();
+            return Army.SyncArmy("STEP2D_COMPLETE") && !Bot.ShouldExit;
+        }
 
         SetClass(rankUpIfNeeded: true);
         EnsureBestStaticBoostGearEquipped();
@@ -10362,6 +10554,15 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedFrozenTower(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_FROZEN_TOWER_STORY",
+                () => skipCondition() || core.isCompletedBefore(3937, log: false)
+            )
+        )
+            return true;
+
+        core.EnsureLoad(Enumerable.Range(3907, 31).ToArray());
 
         bool IsFTQuestDone(int questId) =>
             skipCondition() || core.isCompletedBefore(3937, log: false) || core.isCompletedBefore(questId, log: false);
@@ -11035,6 +11236,20 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedYokaiStory(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_YOKAI_STORY",
+                () => skipCondition() || core.isCompletedBefore(6494, log: false)
+            )
+        )
+            return true;
+
+        core.EnsureLoad(
+            Enumerable.Range(6450, 10)
+                .Concat(Enumerable.Range(6460, 13))
+                .Concat(Enumerable.Range(6488, 7))
+                .ToArray()
+        );
 
         bool IsShogunDone(int questId) =>
             skipCondition()
@@ -11852,15 +12067,27 @@ public class ArmyFarmerJoeDoAll
     private bool RunCoordinatedGlaceraForGB(Func<bool> skipCondition)
     {
         CoreBots core = CoreBots.Instance;
+        if (
+            Army.AllPlayersSatisfy(
+                "SKIP_GLACERA_STORY",
+                () => skipCondition() || core.isCompletedBefore(5601, log: false)
+            )
+        )
+            return true;
+
+        core.EnsureLoad(
+            new[]
+            {
+                3941, 3942, 3943, 3944, 3945, 3946, 3947, 3948, 3949, 3950, 3951, 3952, 3953, 3954,
+                5587, 5588, 5589, 5590, 5591, 5592, 5593, 5594, 5595, 5596, 5597, 5598, 5599, 5600, 5601,
+            }
+        );
 
         bool IsRuinsQuestDone(int questId) =>
-            skipCondition()
-            || core.isCompletedBefore(5601, log: false)
-            || core.isCompletedBefore(3954, log: false)
-            || core.isCompletedBefore(questId, log: false);
+            skipCondition() || core.isCompletedBefore(questId, log: false);
 
         bool IsIceWindQuestDone(int questId) =>
-            skipCondition() || core.isCompletedBefore(5601, log: false) || core.isCompletedBefore(questId, log: false);
+            skipCondition() || core.isCompletedBefore(questId, log: false);
 
         // --- Part 1: FrozenRuins & Glacera (Quests 3941-3954) ---
         if (
@@ -12236,6 +12463,48 @@ public class ArmyFarmerJoeDoAll
                 },
                 (targetPlayerNumber, targetPlayerName) =>
                     Army.CoordinateFollowAndCombat(targetPlayerName, "Frostspawn Horror")
+            )
+        )
+            return false;
+
+        // 5595: Keep the Frostspawn Away!
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5595",
+                () => IsIceWindQuestDone(5595),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5595))
+                        return;
+                    SetClass(ClassType.Farm);
+                    core.EnsureAccept(5595);
+                    core.HuntMonster("icewindpass", "Frost Invader", "Frost Invader Slain", 5);
+                    core.HuntMonster("icewindpass", "Frostspawn Troll", "Frostspawn Troll Slain", 5);
+                    core.EnsureComplete(5595);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm)
+            )
+        )
+            return false;
+
+        // 5596: Take a Break from Fighting
+        if (
+            !RunCooperativeObjective(
+                "BRACKET65_GLACERA_5596",
+                () => IsIceWindQuestDone(5596),
+                () =>
+                {
+                    if (IsIceWindQuestDone(5596))
+                        return;
+                    SetClass(ClassType.Farm);
+                    core.EnsureAccept(5596);
+                    core.HuntMonster("icewindpass", "Polar Golem", "Living Snow", 3);
+                    core.HuntMonster("icewindpass", "Glacial Elemental", "Elemental Icicles", 3);
+                    core.EnsureComplete(5596);
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Farm)
             )
         )
             return false;
@@ -12796,9 +13065,20 @@ public class ArmyFarmerJoeDoAll
 
     private bool RunBracketLevelAndEnhance(string objectiveName, int targetLevel)
     {
+        string targetExpMap = targetLevel switch
+        {
+            <= 10 => "oaklore",
+            <= 20 => "swordhavenundead",
+            <= 60 => "icestormarena",
+            < 75 => "battlegrounde",
+            _ => "icestormunder",
+        };
+        int subgroupCap = GetSubgroupCapForMap(targetExpMap);
+
         // On-demand enhancement policy: only level up here; enhancements are applied lazily
         // when the next rank-up or combat Ready Check actually requires the equipped gear.
-        return RunCooperativeObjective(
+        return RunSubgroupCooperativeObjective(
+            subgroupCap,
             objectiveName,
             () => Bot.Player.Level >= targetLevel,
             () =>
@@ -12816,7 +13096,8 @@ public class ArmyFarmerJoeDoAll
                 Army.CoordinateFollowAndCombat(
                     targetPlayerName,
                     "*",
-                    compositionType: ClassType.Farm
+                    compositionType: ClassType.Farm,
+                    targetMap: targetExpMap
                 );
             }
         );
@@ -12901,11 +13182,7 @@ public class ArmyFarmerJoeDoAll
             return;
 
         CoreBots core = CoreBots.Instance;
-        core.Logger(
-            $"Blacksmithing Rep: farming Rank 4 via Quest 2777 (current: {Farm.TotalFactionRep("Blacksmithing")}/10000, Rank {Farm.FactionRank("Blacksmithing")})."
-        );
-        Farm.ToggleBoost(BoostType.Reputation);
-
+        core.Logger("Farming Blacksmithing Rank 4 via Quest 2777 in /greenguardwest...");
         int turnIns = 0;
         try
         {
@@ -12914,7 +13191,6 @@ public class ArmyFarmerJoeDoAll
                 if (!Bot.Quests.IsInProgress(2777))
                     core.EnsureAccept(2777);
 
-                core.HuntMonster("greenguardeast", "Wolf", "Furry Lost Sock", 2, isTemp: true, log: false);
                 core.KillMonster("greenguardwest", "West4", "Right", "Slime", "Slimy Lost Sock", 5, isTemp: true, log: false);
 
                 if (Bot.ShouldExit)
@@ -13173,7 +13449,6 @@ public class ArmyFarmerJoeDoAll
         string trimmed = race.Trim();
         if (trimmed.Equals("None", StringComparison.OrdinalIgnoreCase))
             return null;
-
         if (trimmed.Contains("Chaos", StringComparison.OrdinalIgnoreCase))
             return "Chaos";
         if (trimmed.Contains("Dragon", StringComparison.OrdinalIgnoreCase))
@@ -14122,6 +14397,11 @@ public class ArmyFarmerJoeDoAll
             "aqlesson" => 4,
             "arcangrove" => 4,
             "banished" => 4,
+            "battlegrounda" => 4,
+            "battlegroundb" => 4,
+            "battlegroundc" => 4,
+            "battlegroundd" => 4,
+            "battlegrounde" => 4,
             "beehive" => 4,
             "bloodtitan" => 4,
             "bonecastlec" => 4,
@@ -14144,6 +14424,7 @@ public class ArmyFarmerJoeDoAll
             "gravestrike" => 4,
             "hedgemaze" => 4,
             "hydrachallenge" => 4,
+            "icestormunder" => 4,
             "icewindpass" => 4,
             "icewindwar" => 4,
             "infernalspire" => 4,
@@ -14154,10 +14435,12 @@ public class ArmyFarmerJoeDoAll
             "mobius" => 4,
             "mqlesson" => 4,
             "mythsong" => 4,
+            "oaklore" => 4,
             "odokuro" => 4,
             "sepulchurebattle" => 4,
             "shadowfortress" => 4,
             "stalagbite" => 4,
+            "swordhavenundead" => 4,
             "tercessuinotlim" => 4,
             "thirdspell" => 4,
             "towerofdoom" => 4,
@@ -15299,13 +15582,23 @@ public class ArmyFarmerJoeDoAll
         if (nextQuestId > 0)
             core.Logger($"Daily: Lord of Order [{nextQuestId}/7165] active for this account.");
 
+        if (
+            Army.AllPlayersSatisfy(
+                $"{objectivePrefix}_LOO_ALL_DONE",
+                () => nextQuestId == 0 && (!HasLoOClass() || HasRank10Class("Lord of Order"))
+            )
+        )
+            return true;
+
         // Always keep barriers aligned across all accounts, skipping work instantly when nextQuestId != day.
         // Day 1 [7156]: Heart of Servitude
         if (nextQuestId == 7156)
             core.AddDrop(core.QuestRewards(7156));
 
         if (
-            !RunCoordinatedCombatStep(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7156_SKIP", () => nextQuestId != 7156)
+            && (
+                !RunCoordinatedCombatStep(
                 $"{objectivePrefix}_LOO_7156_GOLD",
                 () => nextQuestId != 7156 || core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false) || Bot.Player.Gold >= 1000000,
                 () => nextQuestId != 7156 || core.CheckInventory("Dreadrock Donation Receipt", 1, toInv: false) || Bot.Player.Gold >= 1000000,
@@ -15400,12 +15693,14 @@ public class ArmyFarmerJoeDoAll
                 },
                 objectivePrefix: objectivePrefix
             )
+            )
         )
             return false;
 
         // Day 2 [7157]: Spirit of Justice
         if (
-            !RunLoOQuestMultiHunt(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7157_SKIP", () => nextQuestId != 7157)
+            && !RunLoOQuestMultiHunt(
                 core,
                 7157,
                 nextQuestId,
@@ -15423,7 +15718,9 @@ public class ArmyFarmerJoeDoAll
 
         // Day 3 [7158]: Purification of Chaos
         if (
-            !RunCoordinatedCombatStep(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7158_SKIP", () => nextQuestId != 7158)
+            && (
+                !RunCoordinatedCombatStep(
                 $"{objectivePrefix}_LOO_7158_GOLD",
                 () => nextQuestId != 7158 || core.CheckInventory("Chaoroot", 15, toInv: false) || Bot.Player.Gold >= 500000,
                 () => nextQuestId != 7158 || core.CheckInventory("Chaoroot", 15, toInv: false) || Bot.Player.Gold >= 500000,
@@ -15462,12 +15759,14 @@ public class ArmyFarmerJoeDoAll
                 },
                 objectivePrefix: objectivePrefix
             )
+            )
         )
             return false;
 
         // Day 4 [7159]: Steadfast Will
         if (
-            !RunLoOQuestMultiHunt(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7159_SKIP", () => nextQuestId != 7159)
+            && !RunLoOQuestMultiHunt(
                 core,
                 7159,
                 nextQuestId,
@@ -15485,7 +15784,9 @@ public class ArmyFarmerJoeDoAll
 
         // Day 5 [7160]: Strike of Order
         if (
-            !RunCoordinatedCombatStep(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7160_SKIP", () => nextQuestId != 7160)
+            && (
+                !RunCoordinatedCombatStep(
                 $"{objectivePrefix}_LOO_7160_KITSUNE",
                 () => nextQuestId != 7160 || core.CheckInventory("Hanzamune Dragon Koi Blade", 1, toInv: false),
                 () => nextQuestId != 7160 || core.CheckInventory("Hanzamune Dragon Koi Blade", 1, toInv: false),
@@ -15553,12 +15854,14 @@ public class ArmyFarmerJoeDoAll
                 },
                 objectivePrefix: objectivePrefix
             )
+            )
         )
             return false;
 
         // Day 6 [7161]: Harmony
         if (
-            !RunLoOQuestMultiHunt(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7161_SKIP", () => nextQuestId != 7161)
+            && !RunLoOQuestMultiHunt(
                 core,
                 7161,
                 nextQuestId,
@@ -15576,7 +15879,8 @@ public class ArmyFarmerJoeDoAll
 
         // Day 7 [7162]: Ordinance
         if (
-            !RunLoOQuestMultiHunt(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7162_SKIP", () => nextQuestId != 7162)
+            && !RunLoOQuestMultiHunt(
                 core,
                 7162,
                 nextQuestId,
@@ -15596,7 +15900,8 @@ public class ArmyFarmerJoeDoAll
 
         // Day 8 [7163]: Axiom
         if (
-            !RunLoOQuestMultiHunt(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7163_SKIP", () => nextQuestId != 7163)
+            && !RunLoOQuestMultiHunt(
                 core,
                 7163,
                 nextQuestId,
@@ -15616,7 +15921,9 @@ public class ArmyFarmerJoeDoAll
 
         // Day 9 [7164]: Blessing of Order
         if (
-            !RunCoordinatedHuntStep(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7164_SKIP", () => nextQuestId != 7164)
+            && (
+                !RunCoordinatedHuntStep(
                 $"{objectivePrefix}_LOO_7164_RAXGORE",
                 7164,
                 "doomvaultb",
@@ -15672,12 +15979,15 @@ public class ArmyFarmerJoeDoAll
                 new[] { "Weapon Imprint", "Lure of Order", "Quixotic Mana Essence", "Inversion Infusion" },
                 objectivePrefix: objectivePrefix
             )
+            )
         )
             return false;
 
         // Day 10 [7165]: The Final Challenge -> Unlock Lord of Order + Rank 10 for Player 4
         if (
-            !RunCoordinatedHuntStep(
+            !Army.AllPlayersSatisfy($"{objectivePrefix}_LOO_DAY_7165_SKIP", () => nextQuestId != 7165)
+            && (
+                !RunCoordinatedHuntStep(
                 $"{objectivePrefix}_LOO_7165_DRAKATH",
                 7165,
                 "ultradrakath",
@@ -15694,6 +16004,7 @@ public class ArmyFarmerJoeDoAll
                 new[] { "Champion of Chaos Confronted" },
                 chooseItemId: 50741,
                 objectivePrefix: objectivePrefix
+            )
             )
         )
             return false;

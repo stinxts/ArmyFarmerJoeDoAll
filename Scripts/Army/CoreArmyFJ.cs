@@ -1,4 +1,4 @@
-/*
+﻿/*
 name: Core Army FarmerJoe
 description: Shared Army coordination and combat mechanics for FarmerJoe.
 tags: core, army, farmerjoe
@@ -659,6 +659,10 @@ public class CoreArmyFJ
     {
         "icestormarena",
         "icestormunder",
+        "battlegrounda",
+        "battlegroundb",
+        "battlegroundc",
+        "battlegroundd",
         "battlegrounde",
         "icewing",
         "voidxyfrag",
@@ -669,6 +673,55 @@ public class CoreArmyFJ
     {
         string? normalized = NormalizeMapKey(mapName);
         return !string.IsNullOrEmpty(normalized) && LevelBracketedMaps.Contains(normalized);
+    }
+
+    private static int GetRequiredLevelForMapCell(string? mapName, string? cell)
+    {
+        string? normalizedMap = NormalizeMapKey(mapName);
+        string normalizedCell = (cell ?? string.Empty).Trim().ToLowerInvariant();
+        if (string.IsNullOrEmpty(normalizedMap))
+            return 0;
+
+        if (normalizedMap == "icestormarena")
+        {
+            return normalizedCell switch
+            {
+                "r4" => 1,
+                "r5" => 5,
+                "r6" => 10,
+                "r7" => 20,
+                "r10" => 25,
+                "r11" => 30,
+                "r14" => 35,
+                "r16" => 50,
+                "r17" => 61,
+                "r2" => 61,
+                "r3" or "r3a" or "r3b" or "r3c" or "r18" or "r19" or "r20" => 75,
+                _ => 0,
+            };
+        }
+
+        if (normalizedMap == "icestormunder")
+            return normalizedCell is "enter" or "spawn" or "" ? 0 : 75;
+
+        if (normalizedMap == "battlegrounda")
+            return 1;
+        if (normalizedMap == "battlegroundb")
+            return normalizedCell is "enter" or "spawn" or "" ? 0 : 16;
+        if (normalizedMap == "battlegroundc")
+            return normalizedCell is "enter" or "spawn" or "" ? 0 : 31;
+        if (normalizedMap == "battlegroundd")
+            return normalizedCell is "enter" or "spawn" or "" ? 0 : 46;
+        if (normalizedMap == "battlegrounde")
+            return normalizedCell is "enter" or "spawn" or "" ? 0 : 61;
+
+        if (normalizedMap == "icewing")
+            return 75;
+
+        if (normalizedMap is "voidxyfrag" or "voidnerfkitten")
+            return 80;
+
+        return 0;
     }
 
     private static readonly HashSet<string> SoloOnlyMaps = new(StringComparer.OrdinalIgnoreCase)
@@ -884,7 +937,23 @@ public class CoreArmyFJ
     )
     {
         string? currentMap = NormalizeMapKey(Bot.Map?.Name ?? targetMap);
+        if (string.Equals(currentMap, "whitemap", StringComparison.OrdinalIgnoreCase))
+            return false;
+
         EnsureMapAccessBypass(currentMap);
+
+        int requiredLevel = GetRequiredLevelForMapCell(currentMap, targetCell);
+        if (requiredLevel > 0 && Bot.Player.Level < requiredLevel)
+        {
+            if (unreachableHelperTargets.Add(normalizedTarget))
+            {
+                Core.Logger(
+                    $"Map '{currentMap}' cell '{targetCell}' requires Lv {requiredLevel} (local Lv {Bot.Player.Level}); putting helper in sleep mode for '{normalizedTarget}'.",
+                    "CoordinateFollowAndCombat"
+                );
+            }
+            return false;
+        }
 
         if (Bot.Player.Cell == targetCell)
             return true;
@@ -902,6 +971,18 @@ public class CoreArmyFJ
         {
             targetCell = refreshedTarget.Cell;
             targetPad = refreshedTarget.Pad;
+            requiredLevel = GetRequiredLevelForMapCell(currentMap, targetCell);
+            if (requiredLevel > 0 && Bot.Player.Level < requiredLevel)
+            {
+                if (unreachableHelperTargets.Add(normalizedTarget))
+                {
+                    Core.Logger(
+                        $"Map '{currentMap}' cell '{targetCell}' requires Lv {requiredLevel} (local Lv {Bot.Player.Level}); putting helper in sleep mode for '{normalizedTarget}'.",
+                        "CoordinateFollowAndCombat"
+                    );
+                }
+                return false;
+            }
             if (Bot.Player.Cell == targetCell)
                 return true;
         }
@@ -910,17 +991,24 @@ public class CoreArmyFJ
         if (Bot.Player.Cell == targetCell)
             return true;
 
-        // Level-bracketed XP/CP grind maps (e.g. /icestormarena r16/r17, /icestormunder, /battlegrounde)
-        // lock higher-tier cells up to Lv 75. If the local player is below Lv 75, reloading via /whitemap
-        // cannot unlock a level-gated cell, so mark this higher-level teammate as unreachable and sleep.
-        if (IsLevelBracketedMap(currentMap) && Bot.Player.Level < 75)
+        // Level-bracketed XP/CP grind maps (e.g. /icestormarena, /icestormunder, /battlegrounde):
+        // Never bounce through /whitemap here (that can strand helpers in /whitemap during SaveState
+        // or room transitions). Only mark unreachable when the local level is genuinely below the room cap.
+        if (IsLevelBracketedMap(currentMap))
         {
-            if (unreachableHelperTargets.Add(normalizedTarget))
+            if (requiredLevel > 0 && Bot.Player.Level < requiredLevel)
             {
-                Core.Logger(
-                    $"Map '{currentMap}' blocked cell jump to '{targetCell}' (local Lv {Bot.Player.Level} < 75; higher-level room); putting helper in sleep mode for '{normalizedTarget}'.",
-                    "CoordinateFollowAndCombat"
-                );
+                if (unreachableHelperTargets.Add(normalizedTarget))
+                {
+                    Core.Logger(
+                        $"Map '{currentMap}' cell '{targetCell}' requires Lv {requiredLevel} (local Lv {Bot.Player.Level}); putting helper in sleep mode for '{normalizedTarget}'.",
+                        "CoordinateFollowAndCombat"
+                    );
+                }
+            }
+            else
+            {
+                Bot.Sleep(500);
             }
             return false;
         }
@@ -939,7 +1027,7 @@ public class CoreArmyFJ
             EnsureMapAccessBypass(currentMap);
             Bot.Player.Goto(normalizedTarget);
             Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
-            if (!Bot.Map.PlayerExists(normalizedTarget))
+            if (!Bot.Map.PlayerExists(normalizedTarget) || string.Equals(Bot.Map?.Name, "whitemap", StringComparison.OrdinalIgnoreCase))
             {
                 Core.Join(currentMap);
                 Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
@@ -1100,7 +1188,11 @@ public class CoreArmyFJ
             || string.Equals(monster, "DoomKitten", StringComparison.OrdinalIgnoreCase);
 
         bool inSameCell = false;
-        if (Bot.Map.TryGetPlayer(normalizedTarget, out var targetPlayer) && targetPlayer != null)
+        if (
+            !string.Equals(Bot.Map?.Name, "whitemap", StringComparison.OrdinalIgnoreCase)
+            && Bot.Map.TryGetPlayer(normalizedTarget, out var targetPlayer)
+            && targetPlayer != null
+        )
         {
             inSameCell = JumpToPlayerInSameMap(
                 normalizedTarget,
@@ -1114,13 +1206,46 @@ public class CoreArmyFJ
             EnsureMapAccessBypass(targetMap);
             Bot.Player.Goto(normalizedTarget);
             Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
-            if (!Bot.Map.PlayerExists(normalizedTarget) && !string.IsNullOrEmpty(targetMap) && !IsSoloOnlyMap(targetMap))
+            if (
+                (!Bot.Map.PlayerExists(normalizedTarget) || string.Equals(Bot.Map?.Name, "whitemap", StringComparison.OrdinalIgnoreCase))
+                && !string.IsNullOrEmpty(targetMap)
+                && !IsSoloOnlyMap(targetMap)
+            )
             {
                 Core.Join(targetMap);
                 Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
+
+                // In XP/CP level-bracketed farms (where /goto is often blocked on /battlegrounde or private rooms),
+                // a higher-level helper may need to step down (or up to icestormunder if Lv 75+) to find the teammate.
+                if (!Bot.Map.PlayerExists(normalizedTarget) && IsLevelBracketedMap(targetMap))
+                {
+                    string normalizedTargetMap = NormalizeMapKey(targetMap) ?? string.Empty;
+                    string[] fallbackMaps = normalizedTargetMap switch
+                    {
+                        "icestormunder" => new[] { "battlegrounde", "icestormarena" },
+                        "battlegrounde" => new[] { "icestormarena" },
+                        "icestormarena" when Bot.Player.Level >= 75 => new[] { "icestormunder", "battlegrounde" },
+                        "icestormarena" when Bot.Player.Level >= 61 => new[] { "battlegrounde" },
+                        _ => Array.Empty<string>(),
+                    };
+
+                    foreach (string fallbackMap in fallbackMaps)
+                    {
+                        if (Bot.ShouldExit || Bot.Map.PlayerExists(normalizedTarget))
+                            break;
+                        Core.Join(fallbackMap);
+                        Bot.Wait.ForTrue(() => Bot.Map.Loaded && Bot.Map.PlayerExists(normalizedTarget), 20);
+                    }
+                }
             }
             string? loadedMap = Bot.Map?.Name ?? targetMap;
             EnsureMapAccessBypass(loadedMap);
+            if (string.Equals(Bot.Map?.Name, "whitemap", StringComparison.OrdinalIgnoreCase))
+            {
+                // Never strand a helper in /whitemap (e.g. if Goto chased a teammate's 1s SaveState).
+                Bot.Sleep(500);
+                return;
+            }
             if (Bot.Map.TryGetPlayer(normalizedTarget, out var playerAfterGoto) && playerAfterGoto != null)
             {
                 failedGotoCounts.Remove(normalizedTarget);
@@ -1135,12 +1260,28 @@ public class CoreArmyFJ
             {
                 int fails = failedGotoCounts.TryGetValue(normalizedTarget, out int prev) ? prev + 1 : 1;
                 failedGotoCounts[normalizedTarget] = fails;
-                if (fails >= 2 && unreachableHelperTargets.Add(normalizedTarget))
+
+                int mapEntryRequiredLevel = GetRequiredLevelForMapCell(targetMap, "r2");
+                bool isWholeMapLevelLocked =
+                    !string.Equals(NormalizeMapKey(targetMap), "icestormarena", StringComparison.OrdinalIgnoreCase)
+                    && IsLevelBracketedMap(targetMap)
+                    && mapEntryRequiredLevel > 0
+                    && Bot.Player.Level < mapEntryRequiredLevel;
+
+                // Only sleep early when the local player is actually below the target map's level gate.
+                // Higher-level helpers following a lower-level teammate into /icestormarena (e.g. Lv 65 -> Lv 61)
+                // must wait for the teammate to finish equipping/joining instead of sleeping after 2 quick Gotos.
+                int failThreshold = isWholeMapLevelLocked ? 2 : 12;
+                if (fails >= failThreshold && unreachableHelperTargets.Add(normalizedTarget))
                 {
                     Core.Logger(
                         $"Could not reach teammate '{normalizedTarget}' after {fails} Goto attempts (different level-locked map or private instance); putting helper in sleep mode for '{normalizedTarget}'.",
                         "CoordinateFollowAndCombat"
                     );
+                }
+                else
+                {
+                    Bot.Sleep(1000);
                 }
             }
         }
