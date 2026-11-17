@@ -996,7 +996,7 @@ public class ArmyFarmerJoeDoAll
             if (
                 !RunCooperativeObjective(
                     $"BEGINNER_NINJA_MAZUMI_91_{target.Suffix}",
-                    () => IsQuest91Done() || core.CheckInventory(target.Item, target.Quant),
+                    () => IsQuest91Done() || core.CheckInventory(target.Item, target.Quant, toInv: false),
                     () =>
                     {
                         if (IsQuest91Done() || core.CheckInventory(target.Item, target.Quant))
@@ -1044,7 +1044,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BEGINNER_NINJA_MAZUMI_92_BREKEN",
-                () => IsQuest92Done() || core.CheckInventory("Breken the Vile's Sword", 1),
+                () => IsQuest92Done() || core.CheckInventory("Breken the Vile's Sword", 1, toInv: false),
                 () =>
                 {
                     if (IsQuest92Done() || core.CheckInventory("Breken the Vile's Sword", 1))
@@ -1065,7 +1065,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BEGINNER_NINJA_MAZUMI_92_OGUG",
-                () => IsQuest92Done() || core.CheckInventory("Ogug Stoneaxe's Helmet", 1),
+                () => IsQuest92Done() || core.CheckInventory("Ogug Stoneaxe's Helmet", 1, toInv: false),
                 () =>
                 {
                     if (IsQuest92Done() || core.CheckInventory("Ogug Stoneaxe's Helmet", 1))
@@ -1869,7 +1869,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET30_FORGE_HELM_ESCHERION",
-                () => IsForgeHelmDone() || core.CheckInventory("1st Lord Of Chaos Staff", 1),
+                () => IsForgeHelmDone() || core.CheckInventory("1st Lord Of Chaos Staff", 1, toInv: false),
                 () =>
                 {
                     if (IsForgeHelmDone() || core.CheckInventory("1st Lord Of Chaos Staff", 1))
@@ -1892,7 +1892,7 @@ public class ArmyFarmerJoeDoAll
             !RunSubgroupCooperativeObjective(
                 4,
                 "BRACKET30_FORGE_HELM_VATH",
-                () => IsForgeHelmDone() || core.CheckInventory("Chaos Dragonlord Axe", 1),
+                () => IsForgeHelmDone() || core.CheckInventory("Chaos Dragonlord Axe", 1, toInv: false),
                 () =>
                 {
                     if (IsForgeHelmDone() || core.CheckInventory("Chaos Dragonlord Axe", 1))
@@ -1915,7 +1915,7 @@ public class ArmyFarmerJoeDoAll
             !RunSubgroupCooperativeObjective(
                 4,
                 "BRACKET30_FORGE_HELM_KITSUNE",
-                () => IsForgeHelmDone() || core.CheckInventory("Hanzamune Dragon Koi Blade", 1),
+                () => IsForgeHelmDone() || core.CheckInventory("Hanzamune Dragon Koi Blade", 1, toInv: false),
                 () =>
                 {
                     if (IsForgeHelmDone() || core.CheckInventory("Hanzamune Dragon Koi Blade", 1))
@@ -1938,7 +1938,7 @@ public class ArmyFarmerJoeDoAll
             !RunSubgroupCooperativeObjective(
                 4,
                 "BRACKET30_FORGE_HELM_WOLFWING",
-                () => IsForgeHelmDone() || core.CheckInventory("Wrath of the Werepyre", 1),
+                () => IsForgeHelmDone() || core.CheckInventory("Wrath of the Werepyre", 1, toInv: false),
                 () =>
                 {
                     if (IsForgeHelmDone() || core.CheckInventory("Wrath of the Werepyre", 1))
@@ -3249,7 +3249,7 @@ public class ArmyFarmerJoeDoAll
             !RunSubgroupCooperativeObjective(
                 4,
                 "BRACKET55_BB_PYRO_TOKENS",
-                () => HasPyro() || core.CheckInventory("Shurpu Blaze Token", 84),
+                () => HasPyro() || core.CheckInventory("Shurpu Blaze Token", 84, toInv: false),
                 () =>
                 {
                     if (HasPyro() || core.CheckInventory("Shurpu Blaze Token", 84))
@@ -3661,7 +3661,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET60_DSS_TOKENS",
-                () => HasDSS() || core.CheckInventory(20561, 300),
+                () => HasDSS() || core.CheckInventory(20561, 300, toInv: false),
                 () =>
                 {
                     if (HasDSS() || core.CheckInventory(20561, 300))
@@ -3796,7 +3796,7 @@ public class ArmyFarmerJoeDoAll
             if (
                 !RunCooperativeObjective(
                     $"BRACKET60_LACERATE_BS8736_R{currentRound}_HYDRA",
-                    () => HasBlacksmithRank5() || core.CheckInventory("Hydra Scale Piece", 75),
+                    () => HasBlacksmithRank5() || core.CheckInventory("Hydra Scale Piece", 75, toInv: false),
                     () =>
                     {
                         if (HasBlacksmithRank5() || core.CheckInventory("Hydra Scale Piece", 75))
@@ -3830,7 +3830,7 @@ public class ArmyFarmerJoeDoAll
                 !RunSubgroupCooperativeObjective(
                     4,
                     $"BRACKET60_LACERATE_BS8736_R{currentRound}_MAUL",
-                    () => HasBlacksmithRank5() || core.CheckInventory("Creature Shard", 1),
+                    () => HasBlacksmithRank5() || core.CheckInventory("Creature Shard", 1, toInv: false),
                     () =>
                     {
                         if (HasBlacksmithRank5() || core.CheckInventory("Creature Shard", 1))
@@ -3913,7 +3913,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET60_LACERATE_SPEAR",
-                () => IsLacerateDone() || core.CheckInventory("Undead Plague Spear"),
+                () => IsLacerateDone() || core.CheckInventory("Undead Plague Spear", toInv: false),
                 () =>
                 {
                     if (IsLacerateDone() || core.CheckInventory("Undead Plague Spear"))
@@ -3936,7 +3936,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET60_LACERATE_KURO",
-                () => IsLacerateDone() || core.CheckInventory("Kuro's Wrath"),
+                () => IsLacerateDone() || core.CheckInventory("Kuro's Wrath", toInv: false),
                 () =>
                 {
                     if (IsLacerateDone() || core.CheckInventory("Kuro's Wrath"))
@@ -3959,7 +3959,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET60_LACERATE_CLEAVER",
-                () => IsLacerateDone() || core.CheckInventory("Massive Horc Cleaver"),
+                () => IsLacerateDone() || core.CheckInventory("Massive Horc Cleaver", toInv: false),
                 () =>
                 {
                     if (IsLacerateDone() || core.CheckInventory("Massive Horc Cleaver"))
@@ -3985,7 +3985,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET60_LACERATE_SWORD_STONE",
-                () => IsLacerateDone() || core.CheckInventory("Sword in the Stone"),
+                () => IsLacerateDone() || core.CheckInventory("Sword in the Stone", toInv: false),
                 () =>
                 {
                     if (IsLacerateDone() || core.CheckInventory("Sword in the Stone"))
@@ -4012,7 +4012,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "BRACKET60_LACERATE_FOREST_AXE",
-                () => IsLacerateDone() || core.CheckInventory("Forest Axe"),
+                () => IsLacerateDone() || core.CheckInventory("Forest Axe", toInv: false),
                 () =>
                 {
                     if (IsLacerateDone() || core.CheckInventory("Forest Axe"))
@@ -4036,7 +4036,7 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // Item 6: Black Knight Orb (Quest 318 across 4 bosses)
-        bool HasBKO() => IsLacerateDone() || core.CheckInventory("Black Knight Orb");
+        bool HasBKO() => IsLacerateDone() || core.CheckInventory("Black Knight Orb", toInv: false);
 
         if (
             !RunSubgroupCooperativeObjective(
@@ -4709,7 +4709,7 @@ public class ArmyFarmerJoeDoAll
     private bool RunNaturePotionStep(string objectiveName, int quant, Func<bool> skipCheck)
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => skipCheck() || core.CheckInventory("Restoration of Nature Potion", quant);
+        bool IsDone() => skipCheck() || core.CheckInventory("Restoration of Nature Potion", quant, toInv: false);
 
         return RunCooperativeObjective(
             objectiveName,
@@ -4907,7 +4907,7 @@ public class ArmyFarmerJoeDoAll
 
         // 4662: requires Paddylump's Elixir (Quest 820 in /cloister) + Ruin Dweller x12 in /elfhame
         bool Is4662Done() => IsAvenDone() || core.isCompletedBefore(4662, log: false);
-        bool HasElixir() => Is4662Done() || core.CheckInventory("Paddylump's Elixir");
+        bool HasElixir() => Is4662Done() || core.CheckInventory("Paddylump's Elixir", toInv: false);
 
         if (
             !RunCoordinatedHuntStep(
@@ -5166,8 +5166,8 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCoordinatedTurnInStep(
                 "BRACKET70_SC_BO_4799",
-                () => IsRavinos2Done() || core.CheckInventory("Ravinos Token I") || core.isCompletedBefore(4799, log: false),
-                () => IsRavinos2Done() || core.CheckInventory("Ravinos Token I") || core.isCompletedBefore(4799, log: false),
+                () => IsRavinos2Done() || core.CheckInventory("Ravinos Token I", toInv: false) || core.isCompletedBefore(4799, log: false),
+                () => IsRavinos2Done() || core.CheckInventory("Ravinos Token I", toInv: false) || core.isCompletedBefore(4799, log: false),
                 () =>
                 {
                     core.AddDrop("Ravinos Token I");
@@ -5180,7 +5180,7 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        bool HasRavinosII() => IsRavinos2Done() || core.CheckInventory("Ravinos Token II") || core.isCompletedBefore(4800, log: false);
+        bool HasRavinosII() => IsRavinos2Done() || core.CheckInventory("Ravinos Token II", toInv: false) || core.isCompletedBefore(4800, log: false);
         if (
             !RunCooperativeObjective(
                 "BRACKET70_SC_BO_4800",
@@ -5207,7 +5207,7 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        bool HasRavinosIII() => IsRavinos2Done() || core.CheckInventory("Ravinos Token III") || core.isCompletedBefore(4801, log: false);
+        bool HasRavinosIII() => IsRavinos2Done() || core.CheckInventory("Ravinos Token III", toInv: false) || core.isCompletedBefore(4801, log: false);
         if (
             !RunCooperativeObjective(
                 "BRACKET70_SC_BO_4801",
@@ -5234,7 +5234,7 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        bool HasRavinosIV() => IsRavinos2Done() || core.CheckInventory("Ravinos Token IV") || core.isCompletedBefore(4802, log: false);
+        bool HasRavinosIV() => IsRavinos2Done() || core.CheckInventory("Ravinos Token IV", toInv: false) || core.isCompletedBefore(4802, log: false);
         if (
             !RunCooperativeObjective(
                 "BRACKET70_SC_BO_4802",
@@ -5261,7 +5261,7 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        bool HasRavinosV() => IsRavinos2Done() || core.CheckInventory("Ravinos Token V") || core.isCompletedBefore(4803, log: false);
+        bool HasRavinosV() => IsRavinos2Done() || core.CheckInventory("Ravinos Token V", toInv: false) || core.isCompletedBefore(4803, log: false);
         if (
             !RunCoordinatedHuntStep(
                 "BRACKET70_SC_BO_4803_DARKHEART",
@@ -5322,7 +5322,7 @@ public class ArmyFarmerJoeDoAll
 
         // LapisPart2 (4805-4808) + RavinosBrightgladePart3 (4809-4810)
         bool IsLapis2Done() => skipCondition() || core.isCompletedBefore(4808, log: false);
-        bool HasLapisI() => IsLapis2Done() || core.CheckInventory("Lapis Token I") || core.isCompletedBefore(4805, log: false);
+        bool HasLapisI() => IsLapis2Done() || core.CheckInventory("Lapis Token I", toInv: false) || core.isCompletedBefore(4805, log: false);
         if (
             !RunCooperativeObjective(
                 "BRACKET70_SC_BO_4805",
@@ -5349,8 +5349,8 @@ public class ArmyFarmerJoeDoAll
             return false;
 
         // 4806: Outside Assistance requires Sparrow's Blood (Quest 803 in /arcangrove)
-        bool HasLapisII() => IsLapis2Done() || core.CheckInventory("Lapis Token II") || core.isCompletedBefore(4806, log: false);
-        bool HasSparrowsBlood() => HasLapisII() || core.CheckInventory("Sparrow's Blood");
+        bool HasLapisII() => IsLapis2Done() || core.CheckInventory("Lapis Token II", toInv: false) || core.isCompletedBefore(4806, log: false);
+        bool HasSparrowsBlood() => HasLapisII() || core.CheckInventory("Sparrow's Blood", toInv: false);
 
         if (
             !RunCoordinatedHuntStep(
@@ -5416,7 +5416,7 @@ public class ArmyFarmerJoeDoAll
         )
             return false;
 
-        bool HasLapisIII() => IsLapis2Done() || core.CheckInventory("Lapis Token III") || core.isCompletedBefore(4807, log: false);
+        bool HasLapisIII() => IsLapis2Done() || core.CheckInventory("Lapis Token III", toInv: false) || core.isCompletedBefore(4807, log: false);
         if (
             !RunCoordinatedTurnInStep(
                 "BRACKET70_SC_BO_4807_4808",
@@ -5475,7 +5475,7 @@ public class ArmyFarmerJoeDoAll
             if (
                 !RunCooperativeObjective(
                     $"{objectivePrefix}_BS8736_R{currentRound}_HYDRA",
-                    () => HasTargetRank() || core.CheckInventory("Hydra Scale Piece", 75),
+                    () => HasTargetRank() || core.CheckInventory("Hydra Scale Piece", 75, toInv: false),
                     () =>
                     {
                         if (HasTargetRank() || core.CheckInventory("Hydra Scale Piece", 75))
@@ -5508,7 +5508,7 @@ public class ArmyFarmerJoeDoAll
             if (
                 !RunCooperativeObjective(
                     $"{objectivePrefix}_BS8736_R{currentRound}_MAUL",
-                    () => HasTargetRank() || core.CheckInventory("Creature Shard", 1),
+                    () => HasTargetRank() || core.CheckInventory("Creature Shard", 1, toInv: false),
                     () =>
                     {
                         if (HasTargetRank() || core.CheckInventory("Creature Shard", 1))
@@ -5988,8 +5988,8 @@ public class ArmyFarmerJoeDoAll
         CoreBots core = CoreBots.Instance;
         UnbankIfOwned("Scroll of Ethereal Slumber", "Archmage Ink", "Mystic Quills", "Mystic Parchment", "Mystic Shards");
 
-        bool HasSlumber() => skipCondition() || core.CheckInventory("Scroll of Ethereal Slumber");
-        bool HasRank8() => HasSlumber() || core.CheckInventory("Archmage Ink") || Farm.FactionRank("SpellCrafting") >= 8;
+        bool HasSlumber() => skipCondition() || core.CheckInventory("Scroll of Ethereal Slumber", toInv: false);
+        bool HasRank8() => HasSlumber() || core.CheckInventory("Archmage Ink", toInv: false) || Farm.FactionRank("SpellCrafting") >= 8;
         bool HasRank4() => HasRank8() || Farm.FactionRank("SpellCrafting") >= 4;
         bool HasRank1() => HasRank4() || Farm.FactionRank("SpellCrafting") >= 1;
 
@@ -6356,7 +6356,7 @@ public class ArmyFarmerJoeDoAll
 
         // 4d. Quest 5465: Mastering the Arcane
         bool Is5465Done() => HasAP() || core.isCompletedBefore(5465, log: false) || Bot.Quests.IsUnlocked(5467);
-        bool HasPyromancerArtifact() => Is5465Done() || core.CheckInventory("Pyromancer Artifact");
+        bool HasPyromancerArtifact() => Is5465Done() || core.CheckInventory("Pyromancer Artifact", toInv: false);
 
         if (
             !RunCooperativeObjective(
@@ -6468,7 +6468,7 @@ public class ArmyFarmerJoeDoAll
 
         // 4e. Quest 5466: For Those Who Have Fallen
         bool Is5466Done() => HasAP() || core.isCompletedBefore(5466, log: false) || Bot.Quests.IsUnlocked(5467);
-        bool HasHolyHandGrenade() => Is5466Done() || core.CheckInventory("Holy Hand Grenade");
+        bool HasHolyHandGrenade() => Is5466Done() || core.CheckInventory("Holy Hand Grenade", toInv: false);
 
         if (
             !RunCoordinatedTurnInStep(
@@ -6650,7 +6650,7 @@ public class ArmyFarmerJoeDoAll
 
         // 4h. Quest 5469: Righteous Seal (XansLair + Shurpu Ring Guardian + SpellCrafting Rank 8 Scroll of Ethereal Slumber + Golden Caster + Pettivox)
         bool Is5469Done() => HasAP() || core.isCompletedBefore(5469, log: false);
-        bool IsXansLairSkip() => Is5469Done() || core.CheckInventory("Fists of Fire");
+        bool IsXansLairSkip() => Is5469Done() || core.CheckInventory("Fists of Fire", toInv: false);
 
         if (!RunCoordinatedXansLairStory(IsXansLairSkip))
             return false;
@@ -9017,7 +9017,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "STEP3A_FORGE_WEAPON_ESCHERION",
-                () => IsForgeWeaponDone() || core.CheckInventory("1st Lord Of Chaos Helm"),
+                () => IsForgeWeaponDone() || core.CheckInventory("1st Lord Of Chaos Helm", toInv: false),
                 () =>
                 {
                     if (IsForgeWeaponDone() || core.CheckInventory("1st Lord Of Chaos Helm"))
@@ -9034,7 +9034,7 @@ public class ArmyFarmerJoeDoAll
             || !RunSubgroupCooperativeObjective(
                 4,
                 "STEP3A_FORGE_WEAPON_VATH",
-                () => IsForgeWeaponDone() || core.CheckInventory("Chaos Dragonlord Helm"),
+                () => IsForgeWeaponDone() || core.CheckInventory("Chaos Dragonlord Helm", toInv: false),
                 () =>
                 {
                     if (IsForgeWeaponDone() || core.CheckInventory("Chaos Dragonlord Helm"))
@@ -9051,7 +9051,7 @@ public class ArmyFarmerJoeDoAll
             || !RunSubgroupCooperativeObjective(
                 4,
                 "STEP3A_FORGE_WEAPON_KITSUNE",
-                () => IsForgeWeaponDone() || core.CheckInventory("Chaos Shogun Helmet"),
+                () => IsForgeWeaponDone() || core.CheckInventory("Chaos Shogun Helmet", toInv: false),
                 () =>
                 {
                     if (IsForgeWeaponDone() || core.CheckInventory("Chaos Shogun Helmet"))
@@ -9159,7 +9159,7 @@ public class ArmyFarmerJoeDoAll
             !RunCoordinatedGoldStep(
                 "STEP3A_PRAXIS_GOLD",
                 250000,
-                () => HasPraxisShopArmors() && core.CheckInventory(59465)
+                () => HasPraxisShopArmors() && core.CheckInventory(59465, toInv: false)
             )
             || !RunCoordinatedTurnInStep(
                 "STEP3A_PRAXIS_BUY_ARMORS",
@@ -9297,7 +9297,7 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCooperativeObjective(
                 "STEP3A_PRAXIS_YAMI",
-                () => IsPraxisDone() || core.CheckInventory("Yami", 3),
+                () => IsPraxisDone() || core.CheckInventory("Yami", 3, toInv: false),
                 () =>
                 {
                     if (IsPraxisDone() || core.CheckInventory("Yami", 3))
@@ -9629,8 +9629,8 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCoordinatedCombatStep(
                 "STEP3B_AF_BONE_DUST",
-                () => HasArchFiend() || core.CheckInventory("Bone Dust", 50),
-                () => HasArchFiend() || core.CheckInventory("Bone Dust", 50),
+                () => HasArchFiend() || core.CheckInventory("Bone Dust", 50, toInv: false),
+                () => HasArchFiend() || core.CheckInventory("Bone Dust", 50, toInv: false),
                 "*",
                 ClassType.Farm,
                 () =>
@@ -10305,8 +10305,8 @@ public class ArmyFarmerJoeDoAll
         if (
             !RunCoordinatedCombatStep(
                 "STEP4A_RAVENOUS_BONE_DUST",
-                () => IsRavenousDone() || core.CheckInventory("Bone Dust", 50),
-                () => IsRavenousDone() || core.CheckInventory("Bone Dust", 50),
+                () => IsRavenousDone() || core.CheckInventory("Bone Dust", 50, toInv: false),
+                () => IsRavenousDone() || core.CheckInventory("Bone Dust", 50, toInv: false),
                 "*",
                 ClassType.Farm,
                 () =>
@@ -10481,7 +10481,7 @@ public class ArmyFarmerJoeDoAll
                 if (
                     !RunCooperativeObjective(
                         "STEP4A_ELYSIUM_AZALITH",
-                        () => IsElysiumDone() || core.CheckInventory("The Divine Will"),
+                        () => IsElysiumDone() || core.CheckInventory("The Divine Will", toInv: false),
                         () =>
                         {
                             if (IsElysiumDone() || core.CheckInventory("The Divine Will"))
