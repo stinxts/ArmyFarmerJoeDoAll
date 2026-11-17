@@ -35,20 +35,20 @@ A multi-account cooperative progression framework built for synchronized groups 
 ## Complete Progression Stages (Level 1–100, 100% Free-to-Play)
 
 1. **Stage 1 (`RunLevel1To30` — Levels 1–30):**
-   * **Startup Cleanup & Dailies:** Runs `BankAllItems` (`BankAll` for unused AC inventory & house items; needed items are automatically unbanked later), followed by running any already-unlocked Dailies/Weeklies immediately before progression.
+   * **Startup Cleanup & Dailies:** Safely exits combat before running `BankAllItems` (`BankAll` for unused AC inventory & house items; needed items are automatically unbanked later), syncs static boost gear & initial role class, and runs any already-unlocked Dailies/Weeklies once at startup (including per-day `Lord of Order` skip gates so inactive days skip in a single barrier) before progression.
    * Tutorial completion and starter gear setup.
    * Early Support (`ORA`, Level 10, Rank 10), Evasion starter (`ROG`, Rank 10), Level 25 + prerequisite quests + `NIN` (Rank 10), and AoE starter (`MAG`, Rank 10) with initial party role assignment.
 2. **Stage 2 (`RunBracket30` — Level 30):**
-   * Approved Dailies & Weeklies + optional `GetBoosts`.
+   * Approved Dailies & Weeklies + optional `GetBoosts` (gated independently so `GetBoosts` never blocks skipping completed Bracket 30 steps).
    * Level 30 + **Tier-1 Class Lineup** (reputations with 3-player subgroup splitting, prerequisites, and Rank 10): `MR`, `DS`, `IC`, `SHM`, `ES`, and `BRD`.
-   * Base special weapon enhancement + static +25% CP/EXP/Gold/Rep boost gear sync + base special helm enhancement.
+   * Base special weapon enhancement + static +25% CP/EXP/Gold/Rep boost gear sync (`toInv: false` bank-aware skip checks) + base special helm enhancement.
 3. **Stage 3 (`RunBracket50` — Level 50):**
    * Level 50 + mid-game storyline progression.
    * **Tier-2 Upgrades:** `SS` (Rank 10), `DSG` (Rank 10), +15% all-damage weapon, and approved Level 50 Dailies (`SG` daily tokens & class unlock).
 4. **Stage 4 (`RunBracket55`, `RunBracket60`, `RunBracket65` — Levels 55–65):**
-   * **Bracket 55:** Level 55, `PYRO` (1x rank-up) + `BB` (Rank 10), `CRYO` (Rank 10 when unlocked), `ARA` (Rank 10), +25% CP/EXP/Gold/Rep boost cape, and approved Dailies (`BK`).
+   * **Bracket 55:** Level 55, `PYRO` (1x rank-up) + `BB` (Rank 10), `CRYO` (Rank 10 when unlocked), `ARA` (Rank 10), +25% CP/EXP/Gold/Rep boost cape (bank-aware skip check), and approved Dailies (`BK`).
    * **Bracket 60:** Level 60, `DSS` (Rank 10), and first-tier special weapon enhancement.
-   * **Bracket 65:** Level 65, `GB` (Rank 10 when seasonal shop is active), and approved Dailies (including the 10-day `LoO` progression chain & Rank 10).
+   * **Bracket 65:** Level 65, preloaded coordinated Glacera & IceWind storyline (`3941–3954`, `5587–5601`) + Glacera Rank 10, `GB` (Rank 10 when seasonal shop is active), and approved Dailies (including the 10-day `LoO` progression chain & Rank 10).
 5. **Stage 5 (`RunBracket70` — Level 70):**
    * Level 70 + **Endgame Support & Debuff Core:** `SC` (Rank 10) and `AP` (Rank 10).
    * Special physical/evasion and magical/healer helm enhancements.
