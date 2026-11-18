@@ -3656,6 +3656,7 @@ public class ArmyFarmerJoeDoAll
                     && (HasClassInInventory(59476) || HasClassInInventory("DragonSoul Shinobi"))
                     && HasRank10Class("DragonSoul Shinobi")
                     && core.isCompletedBefore(8739, log: false)
+                    && core.isCompletedBefore(8740, log: false)
             )
         )
         {
@@ -4206,6 +4207,38 @@ public class ArmyFarmerJoeDoAll
                     Bot.Sleep(1000);
                 },
                 maxWorkAttempts: 3
+            )
+        )
+            return false;
+
+        // 4. Unlock Forge Weapon Enhancement: Smite (Quest 8740, Level 60)
+        if (
+            !RunSubgroupCooperativeObjective(
+                4,
+                "BRACKET60_FORGE_SMITE",
+                () => core.isCompletedBefore(8740, log: false),
+                () =>
+                {
+                    if (core.isCompletedBefore(8740, log: false))
+                        return;
+
+                    PrepareCombatLoadoutForArmy(ClassType.Solo);
+                    ForgeUnlock.Smite();
+                    if (core.isCompletedBefore(8740, log: false) && !ShouldPreserveEquippedGear() && !IsDisableAutoEnhanceEnabled())
+                    {
+                        string? currentClass = Bot.Player.CurrentClass?.Name;
+                        if (!string.IsNullOrWhiteSpace(currentClass))
+                        {
+                            ApplyAndRecordSmartEnhance(currentClass);
+                            Army.StartClassSkills(currentClass);
+                        }
+                    }
+                },
+                (targetPlayerNumber, targetPlayerName) =>
+                {
+                    Army.CoordinateFollowAndCombat(targetPlayerName, "*", compositionType: ClassType.Solo);
+                },
+                prepareForCombat: () => PrepareCombatLoadoutForArmy(ClassType.Solo)
             )
         )
             return false;
@@ -12716,18 +12749,23 @@ public class ArmyFarmerJoeDoAll
     private static readonly string[] FarmClasses =
     {
         "ArchMage",
-        "Kathool Adept",
+        "King's Echo",
         "Arcana Invoker",
-        "Dragon of Time",
+        "Kathool Adept",
         "Archfiend",
+        "Dragon of Time",
         "Blaze Binder",
+        "Chaos Slayer",
+        "Eternal Inversionist",
         "ShadowScythe General",
         "Scarlet Sorceress",
+        "Darkblood StormKing",
         "Pyromancer",
         "Evolved Shaman",
         "Shaman",
         "Imperial Chunin",
         "Master Ranger",
+        "Royal BattleMage",
         "Mage",
     };
 
