@@ -17,7 +17,7 @@ A multi-account cooperative progression framework built for synchronized groups 
 | **Execution Model** | Single-account solo progression | Synchronized **4–7 account** cooperative progression with per-step barriers |
 | **Party Roles** | One generic Solo/Farm rotation per account | Dedicated **Boss Comp** (`Main DPS`, `Support`, `Debuffer`, `Buff/Amp`, `Flex`) & **Farm Comp** |
 | **Teammate Assistance** | None | Automatic follow & assist, fair first-hit drop credit, and backup Support hand-off during rank-ups |
-| **Room Management** | Standard room joins | Mandatory private room (`00000` guard), automatic **1–4 / 5–7** and **3-player** subgroup splitting, plus sleep mode on level-locked rooms |
+| **Room Management** | Standard room joins | Mandatory private room (`00000` guard), Player 1 checks each map's player limit and splits the group into balanced rooms (e.g. **4 + 3** or **3 + 2 + 2**), an overflow room when a room is full, plus sleep mode on level-locked rooms |
 | **Enhancements & Readiness** | Re-applied repeatedly across steps | **Pre-combat Ready Check** + **on-demand class-kit enhancements** (no wasted loops while skipping completed steps) |
 | **Gear Protection** | Basic best-gear equip | Configurable `BoostGearPolicy`, per-player gear locks, and safe non-combat room swaps |
 
@@ -27,7 +27,8 @@ A multi-account cooperative progression framework built for synchronized groups 
 
 * **Synchronized 4–7 Account Barriers:** No account advances to the next bracket until all teammates finish the current objective.
 * **Ready Check & On-Demand Class Kits:** Before combat begins, every account verifies its role class, applies that class's predetermined enhancement kit when needed, and waits at the barrier so the party enters fights together.
-* **Smart Subgroup Splitting & Level-Lock Sleep:** Automatically splits 5–7 player groups on player-capped maps (**3-player** or **1–4 / 5–7** subgroups) and puts helpers into sleep mode when a teammate is inside a higher-level locked room.
+* **Smart Subgroup Splitting & Level-Lock Sleep:** Player 1 checks each map's player limit (remembered for next time) and splits 5–7 player groups into balanced rooms (e.g. **4 + 3** or **3 + 2 + 2**); if a room is still full, accounts move to an overflow room. Helpers only assist teammates in their own room and go into sleep mode when a teammate is inside a higher-level locked room.
+* **Self-Recovery:** If one account's bot restarts (relogin or manual restart), the whole group rejoins automatically and fast-forwards past finished steps; if an account cannot continue, every account stops with the reason instead of waiting forever.
 * **Safe Equipment Swapping & Inventory/Bank Awareness:** Steps into a safe non-combat room before swapping classes, turning in quests, buying items, or enhancing gear.
 
 ---
