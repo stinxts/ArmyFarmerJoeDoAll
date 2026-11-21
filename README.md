@@ -15,7 +15,7 @@ A multi-account cooperative progression framework built for synchronized groups 
 | Feature | Original FarmerJoe | Army FarmerJoe DoAll |
 | :--- | :--- | :--- |
 | **Execution Model** | Single-account solo progression | Synchronized **4–7 account** cooperative progression with per-step barriers |
-| **Party Roles** | One generic Solo/Farm rotation per account | Dedicated **Boss Comp** (`Main DPS`, `Support`, `Debuffer`, `Buff/Amp`, `Flex`) & **Farm Comp** |
+| **Party Roles** | One generic Solo/Farm rotation per account | Role by **seat in the room** (`Main DPS`, `StoneCrusher`, `ArchPaladin`, `Lord of Order`, ...) so split rooms stay balanced, plus a **Farm Comp** |
 | **Teammate Assistance** | None | Automatic follow & assist, fair first-hit drop credit, and backup Support hand-off during rank-ups |
 | **Room Management** | Standard room joins | Mandatory private room (`00000` guard), Player 1 checks each map's player limit and splits the group into balanced rooms (e.g. **4 + 3** or **3 + 2 + 2**), an overflow room when a room is full, plus sleep mode on level-locked rooms |
 | **Enhancements & Readiness** | Re-applied repeatedly across steps | **Pre-combat Ready Check** + **on-demand class-kit enhancements** (no wasted loops while skipping completed steps) |
@@ -33,7 +33,7 @@ A multi-account cooperative progression framework built for synchronized groups 
 
 ---
 
-## Complete Progression Stages (Level 1–100, 100% Free-to-Play)
+## Complete Progression Stages (Level 1–100)
 
 1. **Stage 1 (`RunLevel1To30` — Levels 1–30):**
    * **Startup Cleanup & Dailies:** Safely exits combat before running `BankAllItems` (`BankAll` for unused AC inventory & house items; needed items are automatically unbanked later), syncs static boost gear & initial role class, and runs any already-unlocked Dailies/Weeklies once at startup (including per-day `Lord of Order` skip gates so inactive days skip in a single barrier) before progression.
@@ -55,7 +55,7 @@ A multi-account cooperative progression framework built for synchronized groups 
    * Special physical/evasion and magical/healer helm enhancements.
 6. **Stage 6 (`RunStep3A` — Level 75):**
    * Level 75 + Endgame reagent daily + `Chaorrupter Unlocked` (+50% Chaos / +120% Drakath) + full 13-chapter main storyline.
-   * Additional classes (`SHM`, `ES`, `CS` / `FSR` Rank 10), mid-tier special weapon enhancements (`Smite`, `Praxis`), and the base special cape enhancement (`Forge (Cape)`).
+   * Additional classes (`SHM`, `ES`, `CS` / `FSR` Rank 10; `FSR` is farmed once the account owns `Cryomancer`), mid-tier special weapon enhancements (`Smite`, `Praxis`), and the base special cape enhancement (`Forge (Cape)`).
 7. **Stage 7 (`RunStep3B` — Level 80):**
    * Level 80 + daily fragment progression (for Level 100 weapon enhancement).
    * +30% all-damage weapon (`BBoA`, solo-only barrier with sleep mode for completed accounts).
@@ -64,44 +64,41 @@ A multi-account cooperative progression framework built for synchronized groups 
    * Level 90 + **Endgame Debuff/DPS & AoE:** `VDK` (Rank 10), `SOF` (Rank 10), `Liberta Aeterna` (+75% Elemental), and `KA` (Rank 10, using `CopyHelpedActions` for special boss mechanics).
    * Base `Forge (Cape)` check + full 5-part special cape enhancement chain (`Absolution`, `Vainglory`, `Avarice`, `Penitence`, `Lament`) with safe armor-swap protection during hazard-suit encounters.
 9. **Stage 9 (`RunStep4A` — Level 100 Endgame Final):**
-   * Level 100 + endgame dailies + **Endgame Classes:** `VHL`, `AM`, and `AI` (Non-Insignia route), ranked to Rank 10 when acquired.
+   * Level 100 + endgame dailies + **Endgame Classes:** `VHL`, `AM`, `AI` (Non-Insignia route), and optional `King's Echo`, ranked to Rank 10 when acquired.
    * **Endgame Weapon Enhancements & Boost Gear:** `Valiance`, `Ravenous`, and `Elysium` unlocks, `IAF` armor (+40% damage to all major races), `HRS` weapon (+40% all damage), and the final `Awe-scention` chain (`AW`), followed by optional `SellStarterClasses` and `OutFit` / `EquipOutfit` / `PetChoice` sync.
 
 ---
 
-## Party Role & Class Compositions (100% Free-to-Play)
+## Party Role & Class Compositions
 
-> **Note:** Paid, promotional, and membership-locked classes are excluded (only free base classes and legacy starter variants are used).
+> **Note:** The Army only farms free classes. Popular paid or member classes are used **only if the account already owns them** (never bought).
 
-### 1. Boss Composition Progression
+### 1. Roles Follow the Room
 
-| Stage | P1 `Main DPS` *(Req.)* | P2 `Support` *(Req.)* | P3 `Debuffer` *(Req.)* | P4 `Buff / Amp` *(Req.)* | P5 `Flex Debuff` *(Opt.)* | P6 `Flex Amp/DPS` *(Opt.)* | P7 `Flex Dodge/DPS` *(Opt.)* |
-| :--- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
-| **Stage 1** *(Lv 1–30)* | `Ninja` | `Oracle` | `Rogue` | `Mage` | `Oracle` / `Healer` | `Oracle` / `Healer` | `Ninja` / `Oracle` |
-| **Stage 2** *(Lv 30)* | `Dragonslayer` | `Bard` | `Imperial Chunin` | `Shaman` | `Evolved Shaman` | `Master Ranger` | `Ninja` |
-| **Stage 3** *(Lv 50)* | `Dragonslayer General` | `Bard` | `Imperial Chunin` | `Shaman` | `ShadowScythe General` / `Evolved Shaman` | `Scarlet Sorceress` | `Ninja` |
-| **Stage 4** *(Lv 55–65)* | `Cryomancer` / `Dragonslayer General` | `Bard` | `Imperial Chunin` | `Lord of Order` / `Arachnomancer` | `Glacial Berserker` / `ShadowScythe General` / `Evolved Shaman` | `Scarlet Sorceress` | `DragonSoul Shinobi` |
-| **Stage 5** *(Lv 70)* | `Cryomancer` / `Dragonslayer General` | `StoneCrusher` | `ArchPaladin` | `Lord of Order` / `Arachnomancer` | `Glacial Berserker` / `ShadowScythe General` / `Evolved Shaman` | `Scarlet Sorceress` | `DragonSoul Shinobi` |
-| **Stage 6** *(Lv 75)* | `Frost SpiritReaver` / `Cryomancer` | `StoneCrusher` | `ArchPaladin` | `Lord of Order` / `Arachnomancer` | `Glacial Berserker` / `ShadowScythe General` / `Evolved Shaman` | `Northlands Monk` / `Scarlet Sorceress` | `DragonSoul Shinobi` |
-| **Stage 7** *(Lv 80)* | `Dragon of Time` / `Frost SpiritReaver` | `StoneCrusher` | `ArchPaladin` | `Lord of Order` | `Glacial Berserker` / `ShadowScythe General` / `Evolved Shaman` | `Archfiend` / `Northlands Monk` / `Scarlet Sorceress` | `Yami No Ronin` / `DragonSoul Shinobi` |
-| **Stage 8** *(Lv 90)* | `Dragon of Time` / `Frost SpiritReaver` | `StoneCrusher` | `ArchPaladin` | `Lord of Order` | `Verus DoomKnight` / `Kathool Adept` / `Glacial Berserker` | `Scion of Flames` / `Archfiend` / `Northlands Monk` | `Yami No Ronin` / `DragonSoul Shinobi` |
-| **Stage 9** *(Lv 100)* | `Arcana Invoker` / `Void Highlord` / `Dragon of Time` | `StoneCrusher` | `ArchPaladin` | `Lord of Order` | `Verus DoomKnight` / `Kathool Adept` / `Glacial Berserker` | `Scion of Flames` / `Archfiend` / `Northlands Monk` | `Yami No Ronin` / `DragonSoul Shinobi` |
+Each account takes the role of its seat **inside its room**, so every room keeps a working team when a map splits the Army.
 
----
+| Room size | Seat 1 | Seat 2 | Seat 3 | Seat 4 | Seats 5–7 |
+| :--- | :---: | :---: | :---: | :---: | :---: |
+| **All 7 together** | `Main DPS` | `StoneCrusher` | `ArchPaladin` | `Lord of Order` | `Verus DoomKnight`, `Bard`, `Shaman` |
+| **4 players** | `Main DPS` | `StoneCrusher` | `ArchPaladin` | `Lord of Order` | |
+| **3 players** | `Main DPS` | `StoneCrusher` | `ArchPaladin` | | |
+| **2 players** | `Main DPS` | `ArchPaladin` | | | |
+
+Examples with 7 accounts: one room = 1 DPS · 2 SC · 3 AP · 4 LoO · 5 VDK · 6 Bard · 7 Shaman; split 4+3 = (DPS, SC, AP, LoO) + (DPS, SC, AP); split 3+2+2 = (DPS, SC, AP) + (DPS, AP) + (DPS, AP).
+
+**Farm:** seat 2 of every room stays on support (plus seat 5 when all 7 share a room); everyone else uses AoE farm classes.
 
 ### 2. Automatic Class Priority Order
 
-Each slot automatically equips the highest-priority Rank 10 class owned in inventory (or highest-priority owned class while leveling):
+Each role equips the highest-priority Rank 10 class owned (or the highest-priority owned class while leveling). Same-skill variants count as the main class.
 
-| Mode | Slot / Role | Priority Order *(Highest $\rightarrow$ Lowest)* |
-| :--- | :--- | :--- |
-| **Boss** | **Player 1** — `Main DPS` *(Req.)* | `King's Echo` $\rightarrow$ `Arcana Invoker` $\rightarrow$ `Chaos Avenger` $\rightarrow$ `Void Highlord` $\rightarrow$ `Verus DoomKnight` $\rightarrow$ `Dragon of Time` $\rightarrow$ `Frost SpiritReaver` $\rightarrow$ `Cryomancer` $\rightarrow$ `Dragonslayer General` $\rightarrow$ `Glacial Berserker` $\rightarrow$ `Dragonslayer` $\rightarrow$ `DragonSoul Shinobi` $\rightarrow$ `Ninja` $\rightarrow$ `Rogue` |
-| **Boss** | **Player 2** — `Support` *(Req.)* | `StoneCrusher` $\rightarrow$ `Bard` $\rightarrow$ `Oracle` $\rightarrow$ `Healer (Rare)` $\rightarrow$ `Healer` |
-| **Boss** | **Player 3** — `Debuffer` *(Req.)* | `ArchPaladin` $\rightarrow$ `Imperial Chunin` $\rightarrow$ `Rogue (Rare)` $\rightarrow$ `Rogue` $\rightarrow$ `Ninja` $\rightarrow$ `Oracle` |
-| **Boss** | **Player 4** — `Buff / Amp` *(Req.)* | `Lord of Order` $\rightarrow$ `Arachnomancer` $\rightarrow$ `Shaman` $\rightarrow$ `Mage (Rare)` $\rightarrow$ `Mage` $\rightarrow$ `Oracle` |
-| **Boss** | **Player 5** — `Flex Debuff` *(Opt.)* | `Verus DoomKnight` $\rightarrow$ `Kathool Adept` $\rightarrow$ `Glacial Berserker` $\rightarrow$ `ShadowScythe General` $\rightarrow$ `Evolved Shaman` $\rightarrow$ `Master Ranger` $\rightarrow$ `Oracle` $\rightarrow$ `Healer (Rare)` $\rightarrow$ `Healer` |
-| **Boss** | **Player 6** — `Flex Amp/DPS` *(Opt.)* | `Scion of Flames` $\rightarrow$ `Archfiend` $\rightarrow$ `Northlands Monk` $\rightarrow$ `Scarlet Sorceress` $\rightarrow$ `Master Ranger` $\rightarrow$ `Oracle` $\rightarrow$ `Healer (Rare)` $\rightarrow$ `Healer` |
-| **Boss** | **Player 7** — `Flex Dodge/DPS` *(Opt.)* | `Yami No Ronin` $\rightarrow$ `DragonSoul Shinobi` $\rightarrow$ `ShadowScythe General` $\rightarrow$ `Ninja` $\rightarrow$ `Rogue` $\rightarrow$ `Oracle` $\rightarrow$ `Healer (Rare)` $\rightarrow$ `Healer` |
-| **Farm** | **Player 2** — `Primary Farm Support` | `StoneCrusher` $\rightarrow$ `Bard` $\rightarrow$ `Oracle` $\rightarrow$ `Healer (Rare)` $\rightarrow$ `Healer` |
-| **Farm** | **Player 5** — `Secondary Farm Support` | `Lord of Order` $\rightarrow$ `StoneCrusher` $\rightarrow$ `ArchPaladin` $\rightarrow$ `Bard` $\rightarrow$ `Oracle` $\rightarrow$ `Evolved Shaman` $\rightarrow$ `Healer (Rare)` $\rightarrow$ `Healer` |
-| **Farm** | **Players 1, 3, 4, 6, 7** — `AoE Farmers` | `ArchMage` $\rightarrow$ `Kathool Adept` $\rightarrow$ `Arcana Invoker` $\rightarrow$ `Dragon of Time` $\rightarrow$ `Archfiend` $\rightarrow$ `Blaze Binder` $\rightarrow$ `ShadowScythe General` $\rightarrow$ `Scarlet Sorceress` $\rightarrow$ `Pyromancer` $\rightarrow$ `Evolved Shaman` $\rightarrow$ `Shaman` $\rightarrow$ `Imperial Chunin` $\rightarrow$ `Master Ranger` $\rightarrow$ `Mage` |
+| Role | Priority Order *(Highest $\rightarrow$ Lowest)* |
+| :--- | :--- |
+| `Main DPS` | `Legion Revenant` $\rightarrow$ `Chaos Avenger` $\rightarrow$ `Arcana Invoker` $\rightarrow$ `King's Echo` $\rightarrow$ `Verus DoomKnight` $\rightarrow$ `Guardian` $\rightarrow$ `Chrono ShadowHunter/Slayer` $\rightarrow$ `Void Highlord` $\rightarrow$ `Kathool Adept` $\rightarrow$ `Dragon of Time` $\rightarrow$ `Martial Artist` $\rightarrow$ `Chaos Slayer` $\rightarrow$ `Scion of Flames` $\rightarrow$ `Frost SpiritReaver` $\rightarrow$ `Cryomancer` $\rightarrow$ `Dragonslayer General` $\rightarrow$ `Glacial Berserker` $\rightarrow$ `Dragonslayer` $\rightarrow$ `Ninja` $\rightarrow$ `Rogue` |
+| `StoneCrusher` | `StoneCrusher` / `Infinity Titan` $\rightarrow$ `Bard` / `Troubador of Love` $\rightarrow$ `Oracle` $\rightarrow$ `Healer (Rare)` $\rightarrow$ `Healer` |
+| `ArchPaladin` | `ArchPaladin` $\rightarrow$ `Paladin Chronomancer` $\rightarrow$ `Healer (Rare)` $\rightarrow$ `Oracle` $\rightarrow$ `Healer` |
+| `Lord of Order` | `Lord of Order` $\rightarrow$ `Archfiend` $\rightarrow$ `Arachnomancer` $\rightarrow$ `Shaman` $\rightarrow$ `Mage` $\rightarrow$ `Oracle` |
+| `Verus DoomKnight` | `Verus DoomKnight` $\rightarrow$ `Kathool Adept` $\rightarrow$ `Glacial Berserker` $\rightarrow$ `ShadowScythe General` $\rightarrow$ `Evolved Shaman` $\rightarrow$ `Master Ranger` $\rightarrow$ `Oracle` $\rightarrow$ `Healer` |
+| `Bard` | `Bard` / `Troubador of Love` $\rightarrow$ `Oracle` $\rightarrow$ `Healer` |
+| `Shaman` | `Shaman` $\rightarrow$ `Evolved Shaman` $\rightarrow$ `Healer` |
+| **Farm (AoE)** | `Legion Revenant` $\rightarrow$ `ArchMage` $\rightarrow$ `King's Echo` $\rightarrow$ `Arcana Invoker` $\rightarrow$ `Dragon of Time` $\rightarrow$ `Kathool Adept` $\rightarrow$ `Archfiend` $\rightarrow$ `Necrotic Chronomancer` $\rightarrow$ `Abyssal Angel` $\rightarrow$ `Daimon` $\rightarrow$ `Blaze Binder` $\rightarrow$ `Eternal Inversionist` $\rightarrow$ `Firelord Summoner` $\rightarrow$ `Scarlet Sorceress` $\rightarrow$ `ShadowScythe General` $\rightarrow$ `Darkblood StormKing` $\rightarrow$ `Chaos Slayer` $\rightarrow$ `Pyromancer` $\rightarrow$ `Shaman` $\rightarrow$ `Imperial Chunin` $\rightarrow$ `Master Ranger` $\rightarrow$ `Royal BattleMage` $\rightarrow$ `Mage` |
