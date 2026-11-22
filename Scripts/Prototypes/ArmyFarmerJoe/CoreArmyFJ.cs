@@ -695,12 +695,14 @@ public class CoreArmyFJ
                         helpTargetFinished = () =>
                             HasArmySignal(doneSignal, helpedPlayerNumber)
                             || HasArmySignal(failSignal, helpedPlayerNumber);
+                        IsHelpingTeammate = true;
                         try
                         {
                             help(targetPlayerNumber, targetPlayerName);
                         }
                         finally
                         {
+                            IsHelpingTeammate = false;
                             helpTargetFinished = null;
                         }
                     }
@@ -751,6 +753,10 @@ public class CoreArmyFJ
         );
 
     private bool actAsSupportHelper;
+
+    // True while this (finished) account runs the help callback (Goto/follow a teammate).
+    // A "room is full" warning then means the teammate's room is full, not ours.
+    public volatile bool IsHelpingTeammate;
 
     // Set by RunCooperativeObjective while a help callback runs, so long Goto/Join waits in
     // CoordinateFollowAndCombat can bail out as soon as the helped teammate finishes.

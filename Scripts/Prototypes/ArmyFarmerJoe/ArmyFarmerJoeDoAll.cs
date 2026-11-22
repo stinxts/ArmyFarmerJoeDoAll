@@ -516,6 +516,21 @@ public class ArmyFarmerJoeDoAll
     // Overflow rooms start far from the planned subgroup rooms (offsets 0..6).
     private const int RoomOverflowBaseOffset = 10;
     private int _roomOverflowStep;
+    private int _roomBeforeOverflow;
+
+    // Overflow is decided per join: every new objective starts again from the planned room,
+    // otherwise one full map strands the account in an empty overflow room for the rest of the run.
+    private void RestorePlannedRoomAfterOverflow()
+    {
+        if (_roomOverflowStep == 0)
+            return;
+
+        CoreBots core = CoreBots.Instance;
+        if (_roomBeforeOverflow > 0)
+            core.PrivateRoomNumber = _roomBeforeOverflow;
+        _roomOverflowStep = 0;
+        _roomBeforeOverflow = 0;
+    }
 
     private int? ComputeArmyRoomNumber(int roomOffset)
     {
@@ -538,6 +553,7 @@ public class ArmyFarmerJoeDoAll
 
         CoreBots core = CoreBots.Instance;
         _roomOverflowStep = 0;
+        _roomBeforeOverflow = 0;
         core.PrivateRooms = true;
         core.PrivateRoomNumber = effectiveRoom.Value;
         core.PublicDifficult = false;
@@ -600,12 +616,19 @@ public class ArmyFarmerJoeDoAll
             if (!core.PrivateRooms || _roomOverflowStep >= 7)
                 return;
 
-            _roomOverflowStep++;
-            int? overflowRoom = ComputeArmyRoomNumber(RoomOverflowBaseOffset + _roomOverflowStep - 1);
+            // A helper's /goto into a teammate's full room also answers "is full". Moving the helper
+            // to an empty overflow room only separates it from the group (Goto then fails 12x -> sleep mode).
+            if (Army.IsHelpingTeammate)
+                return;
+
+            int? overflowRoom = ComputeArmyRoomNumber(RoomOverflowBaseOffset + _roomOverflowStep);
             if (overflowRoom == null)
                 return;
 
             int previousRoom = core.PrivateRoomNumber;
+            if (_roomOverflowStep == 0)
+                _roomBeforeOverflow = previousRoom;
+            _roomOverflowStep++;
             core.PrivateRoomNumber = overflowRoom.Value;
             core.Logger($"Room {previousRoom} is full; retrying in overflow room {overflowRoom.Value}.");
         }
@@ -14127,6 +14150,10 @@ public class ArmyFarmerJoeDoAll
                 if (!Bot.Quests.IsInProgress(2777))
                     core.EnsureAccept(2777);
 
+                // Quest 2777 needs both socks (CoreFarms.BlacksmithingREP / CyseroMerge farm both).
+                core.HuntMonster("greenguardeast", "Wolf", "Furry Lost Sock", 2, isTemp: true, log: false);
+                if (Bot.ShouldExit)
+                    break;
                 core.KillMonster("greenguardwest", "West4", "Right", "Slime", "Slimy Lost Sock", 5, isTemp: true, log: false);
 
                 if (Bot.ShouldExit)
@@ -14143,7 +14170,9 @@ public class ArmyFarmerJoeDoAll
                 if (completed)
                 {
                     Bot.Wait.ForTrue(
-                        () => !Bot.Quests.IsInProgress(2777) && !Bot.TempInv.Contains("Slimy Lost Sock", 5),
+                        () => !Bot.Quests.IsInProgress(2777)
+                            && !Bot.TempInv.Contains("Slimy Lost Sock", 5)
+                            && !Bot.TempInv.Contains("Furry Lost Sock", 2),
                         15
                     );
                     turnIns++;
@@ -17760,13 +17789,13 @@ public class ArmyFarmerJoeDoAll
         int maxPlayersPerSubgroup = 0,
         Action? prepareForCombat = null,
         Func<int>? resolveSubgroupCap = null
-    ) => Army.RunCooperativeObjective(
+    ) => RunCooperativeObjective(
         objectiveName,
         isComplete,
         doWork,
         (targetPlayerNumber, targetPlayerName) => help(),
         maxWorkAttempts,
-        EffectiveHelperSubgroupCap(maxPlayersPerSubgroup),
+        maxPlayersPerSubgroup,
         prepareForCombat,
         resolveSubgroupCap
     );
@@ -17786,16 +17815,20 @@ public class ArmyFarmerJoeDoAll
         int maxPlayersPerSubgroup = 0,
         Action? prepareForCombat = null,
         Func<int>? resolveSubgroupCap = null
-    ) => Army.RunCooperativeObjective(
-        objectiveName,
-        isComplete,
-        doWork,
-        help,
-        maxWorkAttempts,
-        EffectiveHelperSubgroupCap(maxPlayersPerSubgroup),
-        prepareForCombat,
-        resolveSubgroupCap
-    );
+    )
+    {
+        RestorePlannedRoomAfterOverflow();
+        return Army.RunCooperativeObjective(
+            objectiveName,
+            isComplete,
+            doWork,
+            help,
+            maxWorkAttempts,
+            EffectiveHelperSubgroupCap(maxPlayersPerSubgroup),
+            prepareForCombat,
+            resolveSubgroupCap
+        );
+    }
 
     public bool IsPlayer(int playerNumber) => Army.IsArmyPlayer(playerNumber);
 
