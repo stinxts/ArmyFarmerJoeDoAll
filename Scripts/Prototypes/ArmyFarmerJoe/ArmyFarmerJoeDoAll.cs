@@ -4094,7 +4094,8 @@ public class ArmyFarmerJoeDoAll
                             );
                         },
                         prepareForCombat: () => ApplyCurrentArmyRoomSettings(),
-                        resolveSubgroupCap: () => ProbeMapSubgroupCapForArmy("towerofdoom")
+                        resolveSubgroupCap: () => ProbeMapSubgroupCapForArmy("towerofdoom"),
+                        targetMap: "towerofdoom"
                     )
                 )
                     return false;
@@ -6014,7 +6015,8 @@ public class ArmyFarmerJoeDoAll
                             );
                         },
                         prepareForCombat: () => ApplyCurrentArmyRoomSettings(),
-                        resolveSubgroupCap: () => ProbeMapSubgroupCapForArmy("towerofdoom")
+                        resolveSubgroupCap: () => ProbeMapSubgroupCapForArmy("towerofdoom"),
+                        targetMap: "towerofdoom"
                     )
                 )
                     return false;
@@ -15695,7 +15697,8 @@ public class ArmyFarmerJoeDoAll
                         ApplyEffectiveSubgroupRoomSettings(objectiveName, 0);
                     PrepareCombatLoadoutForArmy(role, targetMap);
                 },
-                resolveSubgroupCap: autoDetectCap ? () => ProbeMapSubgroupCapForArmy(targetMap) : null
+                resolveSubgroupCap: autoDetectCap ? () => ProbeMapSubgroupCapForArmy(targetMap) : null,
+                targetMap: targetMap
             );
         }
         finally
@@ -15753,7 +15756,8 @@ public class ArmyFarmerJoeDoAll
                             ApplyEffectiveSubgroupRoomSettings(objectiveName, fallbackCap);
                         prepareForCombat();
                     },
-                resolveSubgroupCap: autoDetectCap ? () => ProbeMapSubgroupCapForArmy(targetMap, probeMapByJoin) : null
+                resolveSubgroupCap: autoDetectCap ? () => ProbeMapSubgroupCapForArmy(targetMap, probeMapByJoin) : null,
+                targetMap: targetMap
             );
         }
         finally
@@ -17892,7 +17896,8 @@ public class ArmyFarmerJoeDoAll
         int maxWorkAttempts = 0,
         int maxPlayersPerSubgroup = 0,
         Action? prepareForCombat = null,
-        Func<int>? resolveSubgroupCap = null
+        Func<int>? resolveSubgroupCap = null,
+        string? targetMap = null
     ) => RunCooperativeObjective(
         objectiveName,
         isComplete,
@@ -17901,7 +17906,8 @@ public class ArmyFarmerJoeDoAll
         maxWorkAttempts,
         maxPlayersPerSubgroup,
         prepareForCombat,
-        resolveSubgroupCap
+        resolveSubgroupCap,
+        targetMap
     );
 
     // Objectives run inside an ApplySubgroupRoomSettings(...) block (e.g. the 1-4 / 5-7 splits)
@@ -17918,7 +17924,8 @@ public class ArmyFarmerJoeDoAll
         int maxWorkAttempts = 0,
         int maxPlayersPerSubgroup = 0,
         Action? prepareForCombat = null,
-        Func<int>? resolveSubgroupCap = null
+        Func<int>? resolveSubgroupCap = null,
+        string? targetMap = null
     )
     {
         RestorePlannedRoomAfterOverflow();
@@ -17930,7 +17937,8 @@ public class ArmyFarmerJoeDoAll
             maxWorkAttempts,
             EffectiveHelperSubgroupCap(maxPlayersPerSubgroup),
             prepareForCombat,
-            resolveSubgroupCap
+            resolveSubgroupCap,
+            targetMap
         );
     }
 
