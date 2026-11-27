@@ -53,6 +53,7 @@ using Skua.Core.Options;
 
 public class ArmyFarmerJoeDoAll
 {
+    #region Dependencies & Options
     private static readonly CoreArmyFJ Army = new();
     private static readonly CoreAdvanced Adv = new();
     private static readonly CoreFarms Farm = new();
@@ -163,7 +164,9 @@ public class ArmyFarmerJoeDoAll
         ),
         CoreBots.Instance.SkipOptions,
     };
+    #endregion Dependencies & Options
 
+    #region Entry point & Startup
     public void ScriptMain(IScriptInterface bot)
     {
         CoreBots core = CoreBots.Instance;
@@ -490,7 +493,9 @@ public class ArmyFarmerJoeDoAll
 
         return Army.SyncArmy("STARTUP_DAILIES_END");
     }
+    #endregion Entry point & Startup
 
+    #region Room & Overflow
     private int _activeSubgroupMaxPlayers;
 
     private int GetLocalPlayerNumber()
@@ -684,7 +689,9 @@ public class ArmyFarmerJoeDoAll
 
     private bool ApplyCurrentArmyRoomSettings() =>
         ApplyRoomSettingsWithOffset(GetSubgroupRoomIndex(_activeSubgroupMaxPlayers));
+    #endregion Room & Overflow
 
+    #region Step 1: Level 1-30
     public bool RunLevel1To30()
     {
         if (!Army.SyncArmy("STEP1_START"))
@@ -1292,6 +1299,7 @@ public class ArmyFarmerJoeDoAll
 
         return !Bot.ShouldExit;
     }
+    #endregion Step 1: Level 1-30
 
     #region Step 2A: Bracket 30
     public bool RunBracket30()
@@ -4762,6 +4770,7 @@ public class ArmyFarmerJoeDoAll
         SetClass(rankUpIfNeeded: true);
         return Army.SyncArmy("STEP2C_COMPLETE") && !Bot.ShouldExit;
     }
+    #endregion Step 2C: Brackets 55, 60, and 65
 
     #region Step 2D: Bracket 70
     /// <summary>
@@ -11513,6 +11522,7 @@ public class ArmyFarmerJoeDoAll
     }
     #endregion Step 4A: Level 100 Endgame Progression
 
+    #region Step 2C helpers: Frozen Tower, Weaver War, Yokai & Glacera
     /// <summary>
     /// Coordinates /frozentower Quests 3907-3937 (Slot 185, Value 1..31) for Cryomancer and Glacera Story.
     /// </summary>
@@ -13575,7 +13585,7 @@ public class ArmyFarmerJoeDoAll
 
         return !Bot.ShouldExit;
     }
-    #endregion Step 2C: Brackets 55, 60, and 65
+    #endregion Step 2C helpers
 
     #region SetClass (Party Role Composition & CBO Resolution)
     // Roles follow the account's POSITION INSIDE ITS ROOM, not its player number, so every room
@@ -13931,7 +13941,9 @@ public class ArmyFarmerJoeDoAll
             Army.StartClassSkills(currentClass);
         }
     }
+    #endregion SetClass
 
+    #region Enhance & Rank-up
     private bool IsDisableAutoEnhanceEnabled() =>
         CoreBots.Instance.CBOBool("DisableAutoEnhance", out bool disabled) && disabled;
 
@@ -14382,7 +14394,9 @@ public class ArmyFarmerJoeDoAll
             Bot.Wait.ForCombatExit(20);
         }
     }
+    #endregion Enhance & Rank-up
 
+    #region Boost gear
     private readonly HashSet<int> _unequippableBoostItemIds = new();
 
     private readonly struct BoostProfile
@@ -15076,7 +15090,9 @@ public class ArmyFarmerJoeDoAll
             return false;
         }
     }
+    #endregion Boost gear
 
+    #region Cape of Awe (Bracket 55)
     private bool RunBracket55CapeOfAwe(string objectivePrefix = "BRACKET55")
     {
         CoreBots core = CoreBots.Instance;
@@ -15261,7 +15277,9 @@ public class ArmyFarmerJoeDoAll
 
         return SyncBoostGearForArmy($"{objectivePrefix}_COA_EQUIP");
     }
+    #endregion Cape of Awe (Bracket 55)
 
+    #region Class & inventory helpers
     private string ResolveClass(string[] pool)
     {
         // Prefer the highest-priority class in the pool that is already Rank 10 in Inventory,
@@ -15293,7 +15311,6 @@ public class ArmyFarmerJoeDoAll
         core.Logger($"{label} resolved -> {className}");
         RankUpClassForArmy(className);
     }
-    #endregion SetClass
 
     private bool HasClassInInventory(string? className) =>
         !string.IsNullOrWhiteSpace(className)
@@ -15326,8 +15343,9 @@ public class ArmyFarmerJoeDoAll
 
         return item != null && item.Quantity >= Rank10ClassPoints;
     }
+    #endregion Class & inventory helpers
 
-    #region Approved Dailies, Weeklies & Future NSoD Daily
+    #region Coordinated step engine
     private sealed class CoordinatedStoryStep
     {
         public CoordinatedStoryStep(
@@ -16067,7 +16085,9 @@ public class ArmyFarmerJoeDoAll
 
         return false;
     }
+    #endregion Coordinated step engine
 
+    #region Approved Dailies, Weeklies & Future NSoD Daily
     private bool RunBracket30ApprovedDailiesAndWeeklies()
     {
         CoreBots core = CoreBots.Instance;
@@ -17970,6 +17990,7 @@ public class ArmyFarmerJoeDoAll
     }
     #endregion Farmer Joe Optional Cosmetics & Cleanup
 
+    #region Army wrappers
     public bool RunCooperativeObjective(
         string objectiveName,
         Func<bool> isComplete,
@@ -18029,4 +18050,5 @@ public class ArmyFarmerJoeDoAll
     public bool StopArmySync(string reason) => Army.StopArmySync(reason);
 
     public bool WaitForArmyStop() => Army.SyncArmy("STOP_CHECK");
+    #endregion Army wrappers
 }
