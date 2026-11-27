@@ -2230,6 +2230,19 @@ public class CoreArmyFJ
     #endregion Map access & real quest slots
 
     #region Helper follow & combat
+    // The teammate's cell needs a higher level than this account has: stop helping that teammate
+    // (sleep mode) and log it once.
+    private void MarkHelperTargetBelowLevel(string normalizedTarget, string? currentMap, string targetCell, int requiredLevel)
+    {
+        if (unreachableHelperTargets.Add(normalizedTarget))
+        {
+            Core.Logger(
+                $"Map '{currentMap}' cell '{targetCell}' requires Lv {requiredLevel} (local Lv {Bot.Player.Level}); putting helper in sleep mode for '{normalizedTarget}'.",
+                "CoordinateFollowAndCombat"
+            );
+        }
+    }
+
     private bool JumpToPlayerInSameMap(
         string normalizedTarget,
         string targetCell,
@@ -2246,13 +2259,7 @@ public class CoreArmyFJ
         int requiredLevel = GetRequiredLevelForMapCell(currentMap, targetCell);
         if (requiredLevel > 0 && Bot.Player.Level < requiredLevel)
         {
-            if (unreachableHelperTargets.Add(normalizedTarget))
-            {
-                Core.Logger(
-                    $"Map '{currentMap}' cell '{targetCell}' requires Lv {requiredLevel} (local Lv {Bot.Player.Level}); putting helper in sleep mode for '{normalizedTarget}'.",
-                    "CoordinateFollowAndCombat"
-                );
-            }
+            MarkHelperTargetBelowLevel(normalizedTarget, currentMap, targetCell, requiredLevel);
             return false;
         }
 
@@ -2275,13 +2282,7 @@ public class CoreArmyFJ
             requiredLevel = GetRequiredLevelForMapCell(currentMap, targetCell);
             if (requiredLevel > 0 && Bot.Player.Level < requiredLevel)
             {
-                if (unreachableHelperTargets.Add(normalizedTarget))
-                {
-                    Core.Logger(
-                        $"Map '{currentMap}' cell '{targetCell}' requires Lv {requiredLevel} (local Lv {Bot.Player.Level}); putting helper in sleep mode for '{normalizedTarget}'.",
-                        "CoordinateFollowAndCombat"
-                    );
-                }
+                MarkHelperTargetBelowLevel(normalizedTarget, currentMap, targetCell, requiredLevel);
                 return false;
             }
             if (Bot.Player.Cell == targetCell)
@@ -2299,13 +2300,7 @@ public class CoreArmyFJ
         {
             if (requiredLevel > 0 && Bot.Player.Level < requiredLevel)
             {
-                if (unreachableHelperTargets.Add(normalizedTarget))
-                {
-                    Core.Logger(
-                        $"Map '{currentMap}' cell '{targetCell}' requires Lv {requiredLevel} (local Lv {Bot.Player.Level}); putting helper in sleep mode for '{normalizedTarget}'.",
-                        "CoordinateFollowAndCombat"
-                    );
-                }
+                MarkHelperTargetBelowLevel(normalizedTarget, currentMap, targetCell, requiredLevel);
             }
             else
             {

@@ -269,7 +269,6 @@ public class ArmyFarmerJoeDoAll
         _startupBracket30DailiesDone = false;
         _startupBracket50DailiesDone = false;
         _startupBracket55DailiesDone = false;
-        _startupDagesScrollDone = false;
         _loOCheckedDayKey = string.Empty;
         _activeSubgroupMaxPlayers = 0;
         _syncedClassType = ClassType.None;
@@ -355,7 +354,6 @@ public class ArmyFarmerJoeDoAll
     private bool _startupBracket30DailiesDone;
     private bool _startupBracket50DailiesDone;
     private bool _startupBracket55DailiesDone;
-    private bool _startupDagesScrollDone;
 
     private bool RunStartupUnlockedDailies()
     {
@@ -454,7 +452,6 @@ public class ArmyFarmerJoeDoAll
         {
             if (!RunDagesScrollFragmentDaily())
                 return false;
-            _startupDagesScrollDone = true;
         }
 
         return Army.SyncArmy("STARTUP_DAILIES_END");
@@ -2282,25 +2279,19 @@ public class ArmyFarmerJoeDoAll
                     if (!HasRank10Class("Blood Sorceress"))
                         RankUpClassForArmy("Blood Sorceress");
 
-                    // Ensure Blood Sorceress is UNEQUIPPED before turning in Quest 6236
-                    if (
+                    bool WearingBloodSorceress() =>
                         Bot.Inventory.IsEquipped("Blood Sorceress")
                         || string.Equals(
                             Bot.Player.CurrentClass?.Name,
                             "Blood Sorceress",
                             StringComparison.OrdinalIgnoreCase
-                        )
-                    )
+                        );
+
+                    // Ensure Blood Sorceress is UNEQUIPPED before turning in Quest 6236
+                    if (WearingBloodSorceress())
                     {
                         SetClass();
-                        if (
-                            Bot.Inventory.IsEquipped("Blood Sorceress")
-                            || string.Equals(
-                                Bot.Player.CurrentClass?.Name,
-                                "Blood Sorceress",
-                                StringComparison.OrdinalIgnoreCase
-                            )
-                        )
+                        if (WearingBloodSorceress())
                         {
                             string fallbackClass =
                                 new[] { "Master Ranger", "Mage (Rare)", "Mage", "Oracle", "Rogue", "Healer", "Warrior" }
@@ -14095,25 +14086,6 @@ public class ArmyFarmerJoeDoAll
     #region Enhance & Rank-up
     private bool IsDisableAutoEnhanceEnabled() =>
         CoreBots.Instance.CBOBool("DisableAutoEnhance", out bool disabled) && disabled;
-
-    private bool HasEquippedItemBelowCurrentCap()
-    {
-        if (ShouldPreserveEquippedGear() || IsDisableAutoEnhanceEnabled() || Bot.Inventory?.Items == null)
-            return false;
-
-        int cap = Math.Min(Bot.Player.Level, 100);
-        return Bot.Inventory.Items.Any(x =>
-            x != null
-            && x.Equipped
-            && (
-                x.Category == ItemCategory.Class
-                || string.Equals(x.ItemGroup, "Weapon", StringComparison.OrdinalIgnoreCase)
-                || x.Category == ItemCategory.Helm
-                || x.Category == ItemCategory.Cape
-            )
-            && x.EnhancementLevel < cap
-        );
-    }
 
     private readonly HashSet<string> _enhancedAtCapCache = new(StringComparer.OrdinalIgnoreCase);
     private string? _lastSmartEnhancedClass;
