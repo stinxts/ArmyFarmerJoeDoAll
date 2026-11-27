@@ -26,6 +26,7 @@ using Skua.Core.Options;
 public class CoreArmyFJ
 {
 
+    #region State & Options
     private IScriptInterface Bot => IScriptInterface.Instance;
     private CoreBots Core => CoreBots.Instance;
     private static CoreAdvanced Adv
@@ -127,7 +128,9 @@ public class CoreArmyFJ
         "Optional; maximum group size is 7.",
         string.Empty
     );
+    #endregion State & Options
 
+    #region Entry point & Session start
     public void ScriptMain(IScriptInterface Bot)
     {
         Core.RunCore();
@@ -280,7 +283,9 @@ public class CoreArmyFJ
 
         AppendArmyRecord(new[] { "FAIL", ArmyProtocolVersion, armySessionId, armyUsername, safeReason });
     }
+    #endregion Entry point & Session start
 
+    #region Heartbeat
     private string HeartbeatPath(string username) => $"{armySyncPath}.HB.{username}";
 
     private void StartArmyHeartbeat()
@@ -363,7 +368,9 @@ public class CoreArmyFJ
             );
         }
     }
+    #endregion Heartbeat
 
+    #region Cooperative objective
     public bool SyncArmy(string step)
     {
         if (!RequireArmySession())
@@ -745,7 +752,9 @@ public class CoreArmyFJ
 
         return false;
     }
+    #endregion Cooperative objective
 
+    #region StallGuard
     // StallGuard. doWork usually ends in official farm loops (Story.KillQuest,
     // HuntMonster, ...) that have no timeout: one account looping silently held the whole
     // Army for 45 min (quest 5330). While doWork runs, a background monitor watches a
@@ -1102,7 +1111,9 @@ public class CoreArmyFJ
             return $"unavailable ({ex.Message})";
         }
     }
+    #endregion StallGuard
 
+    #region Helper join & reachability
     private static readonly string[] SupportHelperPriority =
     {
         "Lord of Order",
@@ -1307,7 +1318,9 @@ public class CoreArmyFJ
             "CoreArmyFJ"
         );
     }
+    #endregion Helper join & reachability
 
+    #region Map access & real quest slots
     private static readonly HashSet<string> LevelBracketedMaps = new(StringComparer.OrdinalIgnoreCase)
     {
         "icestormarena",
@@ -1963,7 +1976,9 @@ public class CoreArmyFJ
             // Ignore transient packet errors while map is still initializing.
         }
     }
+    #endregion Map access & real quest slots
 
+    #region Helper follow & combat
     private bool JumpToPlayerInSameMap(
         string normalizedTarget,
         string targetCell,
@@ -2639,7 +2654,9 @@ public class CoreArmyFJ
             || className.Equals("Troubador of Love", StringComparison.OrdinalIgnoreCase)
             || className.Equals("Shaman", StringComparison.OrdinalIgnoreCase);
     }
+    #endregion Helper follow & combat
 
+    #region Class skills
     public void StartClassSkills(string? className = null)
     {
         string resolvedClass = string.IsNullOrWhiteSpace(className)
@@ -2734,7 +2751,9 @@ public class CoreArmyFJ
             // Ignore if skill timer is not ready
         }
     }
+    #endregion Class skills
 
+    #region Signals
     public bool SendArmySignal(string signal)
     {
         if (!RequireArmySession())
@@ -2835,7 +2854,9 @@ public class CoreArmyFJ
 
         return false;
     }
+    #endregion Signals
 
+    #region Subgroups & room layout
     // ---------------------------------------------------------------------------------------
     // Room subgroups. A map cap smaller than the Army splits players into the fewest rooms
     // possible with balanced sizes (7 @ cap 6 -> 4+3, 7 @ cap 3 -> 3+2+2) instead of leaving
@@ -3179,7 +3200,9 @@ public class CoreArmyFJ
 
         Bot.Sleep(1000);
     }
+    #endregion Subgroups & room layout
 
+    #region Combat exit & whitemap
     // ---------------------------------------------------------------------------------------
     // Leaving a combat room. In /xantown the Enter cell has Fire Imps/Lava Golems, every other
     // cell is r* (JumpWait blacklists them) and Core.Join("whitemap") kept failing while the
@@ -3293,7 +3316,9 @@ public class CoreArmyFJ
         );
         return false;
     }
+    #endregion Combat exit & whitemap
 
+    #region Room full & map caps
     /// <summary>"map-room" of the loaded instance (just the map when the room is unknown).</summary>
     private string DescribeCurrentRoom()
     {
@@ -3479,7 +3504,9 @@ public class CoreArmyFJ
         }
         catch { }
     }
+    #endregion Room full & map caps
 
+    #region Army sync session (files)
     public int ArmyPlayerNumber =>
         armyInitialized && armyPlayerIndex >= 0 ? armyPlayerIndex + 1 : 0;
 
@@ -4347,7 +4374,9 @@ public class CoreArmyFJ
 
         return allTrue;
     }
+    #endregion Army sync session (files)
 
+    #region Shared caps, room-full reports & overflow (files)
     public int ArmyPlayerCount => armyPlayers.Length;
 
     public int DetectCurrentMapMaxPlayers(string? expectedMap = null)
@@ -4597,5 +4626,6 @@ public class CoreArmyFJ
             return false;
         }
     }
+    #endregion Shared caps, room-full reports & overflow (files)
 }
 
