@@ -259,6 +259,277 @@ public class CoreArmyFJ
         return started;
     }
 
+    private void ResetArmyState()
+    {
+        armyPlayers = Array.Empty<string>();
+        armyUsername = string.Empty;
+        armySyncPath = string.Empty;
+        armyLaunchToken = string.Empty;
+        armySessionId = string.Empty;
+        armyPlayerIndex = -1;
+        nextArmyStepId = 1;
+        lastArmyStepId = 0;
+        armyInitialized = false;
+        armySessionStarted = false;
+        armySessionFailureLogged = false;
+        armyStopLogged = false;
+        armyTransportFailed = false;
+        armyTransportFailureLogged = false;
+        armyRestartRequested = false;
+        armyFailureLogged = false;
+        armyIgnoredSessionId = string.Empty;
+        armyStaleWarnedAt.Clear();
+        lastRecordedCapMap = string.Empty;
+    }
+
+    private bool ArmyInitializationFailure(string message)
+    {
+        Core.Logger(
+            message,
+            "CoreArmyFJ",
+            messageBox: true,
+            stopBot: true
+        );
+        return false;
+    }
+
+    private bool StartLeaderArmySession()
+    {
+        if (!ClearArmyFile())
+            return false;
+
+        DeleteOldArmySideFiles();
+
+        if (
+            !AppendArmyRecord(new[] { "RESET", ArmyProtocolVersion, armySessionId })
+            || !WriteArmyReady(armySessionId)
+        )
+            return false;
+
+        Dictionary<string, string>? launchTokens = WaitForArmyReady(armySessionId);
+        if (launchTokens == null)
+            return false;
+
+        List<string> start = new() { "START", ArmyProtocolVersion, armySessionId };
+        start.AddRange(armyPlayers.Select(player => launchTokens[player]));
+        return AppendArmyRecord(start);
+    }
+
+    private bool ClearArmyFile()
+    {
+        while (!Bot.ShouldExit && !armyTransportFailed)
+        {
+            try
+            {
+                using FileStream stream = new(
+                    armySyncPath,
+                    FileMode.Create,
+                    FileAccess.Write,
+                    FileShare.Read
+                );
+                return true;
+            }
+            catch (IOException)
+            {
+                Bot.Sleep(ArmyFileRetryDelay);
+            }
+            catch (Exception ex)
+            {
+                SetArmyTransportFailure(ex);
+            }
+        }
+
+        return false;
+    }
+
+    // MAPCAP / UNSAFESPAWN / AllPlayersSatisfy flag files are per session; drop the old ones
+    // (heartbeat files are kept, live teammates keep rewriting them).
+    private void DeleteOldArmySideFiles()
+    {
+        try
+        {
+            string? dir = Path.GetDirectoryName(armySyncPath);
+            string prefix = Path.GetFileName(armySyncPath) + ".";
+            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
+                return;
+
+            foreach (string file in Directory.GetFiles(dir, prefix + "*"))
+            {
+                string name = Path.GetFileName(file);
+                if (
+                    !name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+                    || name.Contains(".HB.", StringComparison.Ordinal)
+                )
+                    continue;
+                try
+                {
+                    File.Delete(file);
+                }
+                catch { }
+            }
+        }
+        catch { }
+    }
+
+    private bool WriteArmyReady(string sessionId) =>
+        AppendArmyRecord(
+            new[] { "READY", ArmyProtocolVersion, sessionId, armyUsername, armyLaunchToken }
+        );
+
+    private Dictionary<string, string>? WaitForArmyReady(string sessionId)
+    {
+        string previousMissing = string.Empty;
+        DateTime lastStaleCheck = DateTime.UtcNow;
+        while (!Bot.ShouldExit && !armyTransportFailed)
+        {
+            Dictionary<string, string> tokens = new(StringComparer.OrdinalIgnoreCase);
+            foreach (string line in ReadArmyLines())
+            {
+                string[] parts = line.Split('|');
+                if (
+                    parts.Length != 5
+                    || parts[0] != "READY"
+                    || parts[1] != ArmyProtocolVersion
+                    || !string.Equals(parts[2], sessionId, StringComparison.Ordinal)
+                )
+                    continue;
+
+                string username = NormalizeArmyUsername(parts[3]);
+                if (
+                    armyPlayers.Contains(username, StringComparer.OrdinalIgnoreCase)
+                    && Guid.TryParseExact(parts[4], "N", out _)
+                )
+                    tokens[username] = parts[4];
+            }
+
+            if (armyPlayers.All(tokens.ContainsKey))
+                return tokens;
+
+            string missing = LogArmyNames(
+                armyPlayers.Where(player => !tokens.ContainsKey(player))
+            );
+            if (!string.Equals(missing, previousMissing, StringComparison.Ordinal))
+            {
+                Core.Logger($"Waiting for Army players: {missing}.", "CoreArmyFJ");
+                previousMissing = missing;
+            }
+
+            if ((DateTime.UtcNow - lastStaleCheck).TotalSeconds >= 15)
+            {
+                lastStaleCheck = DateTime.UtcNow;
+                WarnAboutStaleArmyPlayers(armyPlayers.Where(player => !tokens.ContainsKey(player)));
+            }
+
+            Bot.Sleep(ArmyPollDelay);
+        }
+
+        return null;
+    }
+
+    private bool JoinFollowerArmySession()
+    {
+        Core.Logger("Waiting for playerOne to start Army sync.", "CoreArmyFJ");
+        string readySession = string.Empty;
+        DateTime lastLeaderCheck = DateTime.UtcNow;
+
+        while (!Bot.ShouldExit && !armyTransportFailed)
+        {
+            string[] lines = ReadArmyLines();
+            string? sessionId = FindLatestArmyReset(lines);
+            if (
+                sessionId == null
+                || string.Equals(sessionId, armyIgnoredSessionId, StringComparison.Ordinal)
+            )
+            {
+                Bot.Sleep(ArmyPollDelay);
+                continue;
+            }
+
+            if (HasAnyArmyStart(lines, sessionId))
+            {
+                if (HasMatchingArmyStart(lines, sessionId))
+                {
+                    if (HasArmyStop(lines, sessionId))
+                        return false;
+
+                    armySessionId = sessionId;
+                    return true;
+                }
+
+                // This session started without us (our bot was restarted mid-run). If it is still
+                // live, ask playerOne to re-create it; then wait for the next RESET.
+                if (!HasArmyStop(lines, sessionId))
+                {
+                    Core.Logger("Army is already running without this account; asking playerOne to restart the session.", "CoreArmyFJ");
+                    AppendArmyRecord(new[] { "REJOIN", ArmyProtocolVersion, sessionId, armyUsername });
+                }
+
+                armyIgnoredSessionId = sessionId;
+                continue;
+            }
+
+            if (!string.Equals(readySession, sessionId, StringComparison.Ordinal))
+            {
+                if (!WriteArmyReady(sessionId))
+                    return false;
+
+                readySession = sessionId;
+            }
+
+            if ((DateTime.UtcNow - lastLeaderCheck).TotalSeconds >= 15 && armyPlayers.Length > 0)
+            {
+                lastLeaderCheck = DateTime.UtcNow;
+                WarnAboutStaleArmyPlayers(new[] { armyPlayers[0] });
+            }
+
+            Bot.Sleep(ArmyPollDelay);
+        }
+
+        return false;
+    }
+
+    private bool HasAnyArmyStart(string[] lines, string sessionId)
+    {
+        foreach (string line in lines)
+        {
+            string[] parts = line.Split('|');
+            if (
+                parts.Length >= 3
+                && parts[0] == "START"
+                && parts[1] == ArmyProtocolVersion
+                && string.Equals(parts[2], sessionId, StringComparison.Ordinal)
+            )
+                return true;
+        }
+
+        return false;
+    }
+
+    private bool HasMatchingArmyStart(string[] lines, string sessionId)
+    {
+        for (int index = lines.Length - 1; index >= 0; index--)
+        {
+            string[] parts = lines[index].Split('|');
+            if (
+                parts.Length != 3 + armyPlayers.Length
+                || parts[0] != "START"
+                || parts[1] != ArmyProtocolVersion
+                || !string.Equals(parts[2], sessionId, StringComparison.Ordinal)
+            )
+                continue;
+
+            string[] tokens = parts.Skip(3).ToArray();
+            return tokens.All(token => Guid.TryParseExact(token, "N", out _))
+                && string.Equals(
+                    tokens[armyPlayerIndex],
+                    armyLaunchToken,
+                    StringComparison.Ordinal
+                );
+        }
+
+        return false;
+    }
+
     /// <summary>Stops background work owned by the Army session. Call from the script's finally block.</summary>
     public void EndArmySession() => StopArmyHeartbeat();
 
@@ -371,26 +642,6 @@ public class CoreArmyFJ
     #endregion Heartbeat
 
     #region Cooperative objective
-    public bool SyncArmy(string step)
-    {
-        if (!RequireArmySession())
-            return false;
-
-        if (!CanContinueArmySync(ReadArmyLines()))
-            return false;
-
-        string stepName = NormalizeArmyRecordName(step);
-        if (string.IsNullOrEmpty(stepName))
-        {
-            Core.Logger("Army sync step name is invalid.", "CoreArmyFJ");
-            return false;
-        }
-
-        return armyPlayerIndex == 0
-            ? RunLeaderArmySync(stepName)
-            : RunFollowerArmySync(stepName);
-    }
-
     // Work and help callbacks should perform one bounded action so each account can recheck progress.
     public bool RunCooperativeObjective(
         string objectiveName,
@@ -3318,7 +3569,7 @@ public class CoreArmyFJ
     }
     #endregion Combat exit & whitemap
 
-    #region Room full & map caps
+    #region Room full, map caps & overflow
     /// <summary>"map-room" of the loaded instance (just the map when the room is unknown).</summary>
     private string DescribeCurrentRoom()
     {
@@ -3504,11 +3755,263 @@ public class CoreArmyFJ
         }
         catch { }
     }
-    #endregion Room full & map caps
+
+    public int DetectCurrentMapMaxPlayers(string? expectedMap = null)
+    {
+        try
+        {
+            if (
+                !string.IsNullOrWhiteSpace(expectedMap)
+                && !string.Equals(Bot.Map?.Name, expectedMap, StringComparison.OrdinalIgnoreCase)
+            )
+                return 0;
+
+            int maxPlayers = Bot.Flash.GetGameObject<int>("world.areaData.intMaxPlayers");
+            return maxPlayers > 0 ? maxPlayers : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    public void PublishMapSubgroupCap(string objectiveName, int cap)
+    {
+        if (!armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath))
+            return;
+
+        string safeName = NormalizeArmyRecordName(objectiveName);
+        if (string.IsNullOrEmpty(safeName))
+            safeName = "MAP";
+
+        string capPath = $"{armySyncPath}.MAPCAP.{safeName}.{armySessionId}";
+        // Raw cap (0 = unknown); a cap >= Army size means one shared room.
+        int normalizedCap = cap > 0 ? cap : 0;
+        try
+        {
+            File.WriteAllText(capPath, normalizedCap.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch { }
+    }
+
+    public int ReadMapSubgroupCap(string objectiveName)
+    {
+        if (!armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath))
+            return 0;
+
+        string safeName = NormalizeArmyRecordName(objectiveName);
+        if (string.IsNullOrEmpty(safeName))
+            safeName = "MAP";
+
+        string capPath = $"{armySyncPath}.MAPCAP.{safeName}.{armySessionId}";
+        try
+        {
+            if (!File.Exists(capPath))
+                return 0;
+
+            string raw = File.ReadAllText(capPath).Trim();
+            if (int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int cap))
+                return cap > 0 ? cap : 0;
+        }
+        catch { }
+
+        return 0;
+    }
+
+    public void PublishMapUnsafeSpawn(string mapName)
+    {
+        if (!armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath))
+            return;
+
+        string safeName = NormalizeArmyRecordName(mapName);
+        if (string.IsNullOrEmpty(safeName))
+            return;
+
+        string path = $"{armySyncPath}.UNSAFESPAWN.{safeName}.{armySessionId}";
+        try
+        {
+            File.WriteAllText(path, "1");
+        }
+        catch { }
+    }
+
+    public bool IsMapUnsafeSpawn(string mapName)
+    {
+        if (!armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath))
+            return false;
+
+        string safeName = NormalizeArmyRecordName(mapName);
+        if (string.IsNullOrEmpty(safeName))
+            return false;
+
+        string path = $"{armySyncPath}.UNSAFESPAWN.{safeName}.{armySessionId}";
+        try
+        {
+            return File.Exists(path);
+        }
+        catch
+        {
+            return false;
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Learned room caps. world.areaData.intMaxPlayers reads 0 on every map, so the cap is
+    // learned from the server instead: an account whose join is answered "destination room is
+    // full" reports objective map + room; an account inside that room records its player count
+    // (teammates + outsiders) as the map cap in ArmyMapCaps.txt. Later objectives on that map
+    // (and later runs) then split the Army into rooms up front.
+    // ---------------------------------------------------------------------------------------
+    private string? currentObjectiveMap;
+
+    private readonly HashSet<string> processedRoomFullReports = new(StringComparer.OrdinalIgnoreCase);
+
+    private const int RoomFullReportFreshSeconds = 30;
+
+    private string? RoomFullReportPath(string map, int room) =>
+        !armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath) || room <= 0
+            ? null
+            : $"{armySyncPath}.ROOMFULL.{map}.{room}.{armySessionId}";
+
+    /// <summary>This account's join into <paramref name="room"/> of the current objective map was rejected as full.</summary>
+    public void ReportRoomFull(int room)
+    {
+        string? map = currentObjectiveMap;
+        if (string.IsNullOrEmpty(map))
+            return;
+
+        string? path = RoomFullReportPath(map, room);
+        if (path == null)
+            return;
+
+        try
+        {
+            File.WriteAllText(path, DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch { }
+    }
+
+    /// <summary>Inside a room a teammate was just rejected from: record its player count as the map cap.</summary>
+    public void LearnMapCapFromRoomFullReports()
+    {
+        try
+        {
+            string? map = ReadCurrentMapKey();
+            int room = GetCurrentRoomNumber();
+            if (string.IsNullOrEmpty(map) || room <= 0 || !Bot.Map.Loaded)
+                return;
+
+            // A learned cap is only a lower bound: someone may have left before it was read.
+            // More players seen in one room than the cap -> raise it.
+            int knownCap = GetKnownMapMaxPlayers(map);
+            int seenHere = Bot.Map.PlayerNames?.Count() ?? 0;
+            if (knownCap > 0 && seenHere > knownCap)
+            {
+                RecordMapMaxPlayers(map, seenHere);
+                Core.Logger($"Raised room cap for '/{map}': {seenHere} players seen in room {room} (was {knownCap}).", "CoreArmyFJ");
+            }
+
+            string? path = RoomFullReportPath(map, room);
+            if (path == null || !File.Exists(path))
+                return;
+
+            string raw = File.ReadAllText(path).Trim();
+            if (!long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long ticks))
+                return;
+
+            // Called from the objective loop and the StallGuard thread.
+            lock (processedRoomFullReports)
+            {
+                if (!processedRoomFullReports.Add($"{path}|{ticks}"))
+                    return;
+            }
+
+            if (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc) > TimeSpan.FromSeconds(RoomFullReportFreshSeconds))
+                return;
+
+            int playersHere = Bot.Map.PlayerNames?.Count() ?? 0;
+            if (playersHere < 2)
+                return;
+
+            int known = GetKnownMapMaxPlayers(map);
+            if (known > 0 && known <= playersHere)
+                return;
+
+            RecordMapMaxPlayers(map, playersHere);
+            Core.Logger(
+                $"Learned room cap for '/{map}': {playersHere} players/room (a teammate was rejected from room {room}; previous cap {(known > 0 ? known.ToString() : "unknown")}).",
+                "CoreArmyFJ"
+            );
+        }
+        catch { }
+    }
+
+    // Overflow room of each account. A pending account bumped out of a full room by the server
+    // lands in an overflow room only it knows; /goto across private rooms is unreliable, so helpers
+    // read this side file and join "{map}-{room}" directly. 0 / missing = planned room.
+    private string? OverflowRoomPath(int playerNumber) =>
+        !armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath) || playerNumber < 1
+            ? null
+            : $"{armySyncPath}.OVERFLOW.P{playerNumber}.{armySessionId}";
+
+    public void PublishOverflowRoom(int room)
+    {
+        string? path = OverflowRoomPath(armyPlayerIndex + 1);
+        if (path == null)
+            return;
+
+        try
+        {
+            if (room > 0)
+                File.WriteAllText(path, room.ToString(System.Globalization.CultureInfo.InvariantCulture));
+            else if (File.Exists(path))
+                File.Delete(path);
+        }
+        catch { }
+    }
+
+    public int ReadOverflowRoom(int playerNumber)
+    {
+        string? path = OverflowRoomPath(playerNumber);
+        if (path == null)
+            return 0;
+
+        try
+        {
+            if (!File.Exists(path))
+                return 0;
+
+            string raw = File.ReadAllText(path).Trim();
+            return int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int room) && room > 0
+                ? room
+                : 0;
+        }
+        catch
+        {
+            return 0;
+        }
+    }
+
+    public int FindArmyPlayerNumber(string? username)
+    {
+        if (string.IsNullOrWhiteSpace(username))
+            return 0;
+
+        string normalized = NormalizeArmyUsername(username);
+        for (int i = 0; i < armyPlayers.Length; i++)
+        {
+            if (string.Equals(NormalizeArmyUsername(armyPlayers[i]), normalized, StringComparison.OrdinalIgnoreCase))
+                return i + 1;
+        }
+        return 0;
+    }
+    #endregion Room full, map caps & overflow
 
     #region Army sync session (files)
     public int ArmyPlayerNumber =>
         armyInitialized && armyPlayerIndex >= 0 ? armyPlayerIndex + 1 : 0;
+
+    public int ArmyPlayerCount => armyPlayers.Length;
 
     public bool IsArmyPlayer(int playerNumber) =>
         armyInitialized
@@ -3541,214 +4044,24 @@ public class CoreArmyFJ
         );
     }
 
-    private bool StartLeaderArmySession()
+    public bool SyncArmy(string step)
     {
-        if (!ClearArmyFile())
+        if (!RequireArmySession())
             return false;
 
-        DeleteOldArmySideFiles();
-
-        if (
-            !AppendArmyRecord(new[] { "RESET", ArmyProtocolVersion, armySessionId })
-            || !WriteArmyReady(armySessionId)
-        )
+        if (!CanContinueArmySync(ReadArmyLines()))
             return false;
 
-        Dictionary<string, string>? launchTokens = WaitForArmyReady(armySessionId);
-        if (launchTokens == null)
+        string stepName = NormalizeArmyRecordName(step);
+        if (string.IsNullOrEmpty(stepName))
+        {
+            Core.Logger("Army sync step name is invalid.", "CoreArmyFJ");
             return false;
-
-        List<string> start = new() { "START", ArmyProtocolVersion, armySessionId };
-        start.AddRange(armyPlayers.Select(player => launchTokens[player]));
-        return AppendArmyRecord(start);
-    }
-
-    private bool JoinFollowerArmySession()
-    {
-        Core.Logger("Waiting for playerOne to start Army sync.", "CoreArmyFJ");
-        string readySession = string.Empty;
-        DateTime lastLeaderCheck = DateTime.UtcNow;
-
-        while (!Bot.ShouldExit && !armyTransportFailed)
-        {
-            string[] lines = ReadArmyLines();
-            string? sessionId = FindLatestArmyReset(lines);
-            if (
-                sessionId == null
-                || string.Equals(sessionId, armyIgnoredSessionId, StringComparison.Ordinal)
-            )
-            {
-                Bot.Sleep(ArmyPollDelay);
-                continue;
-            }
-
-            if (HasAnyArmyStart(lines, sessionId))
-            {
-                if (HasMatchingArmyStart(lines, sessionId))
-                {
-                    if (HasArmyStop(lines, sessionId))
-                        return false;
-
-                    armySessionId = sessionId;
-                    return true;
-                }
-
-                // This session started without us (our bot was restarted mid-run). If it is still
-                // live, ask playerOne to re-create it; then wait for the next RESET.
-                if (!HasArmyStop(lines, sessionId))
-                {
-                    Core.Logger("Army is already running without this account; asking playerOne to restart the session.", "CoreArmyFJ");
-                    AppendArmyRecord(new[] { "REJOIN", ArmyProtocolVersion, sessionId, armyUsername });
-                }
-
-                armyIgnoredSessionId = sessionId;
-                continue;
-            }
-
-            if (!string.Equals(readySession, sessionId, StringComparison.Ordinal))
-            {
-                if (!WriteArmyReady(sessionId))
-                    return false;
-
-                readySession = sessionId;
-            }
-
-            if ((DateTime.UtcNow - lastLeaderCheck).TotalSeconds >= 15 && armyPlayers.Length > 0)
-            {
-                lastLeaderCheck = DateTime.UtcNow;
-                WarnAboutStaleArmyPlayers(new[] { armyPlayers[0] });
-            }
-
-            Bot.Sleep(ArmyPollDelay);
         }
 
-        return false;
-    }
-
-    private bool HasAnyArmyStart(string[] lines, string sessionId)
-    {
-        foreach (string line in lines)
-        {
-            string[] parts = line.Split('|');
-            if (
-                parts.Length >= 3
-                && parts[0] == "START"
-                && parts[1] == ArmyProtocolVersion
-                && string.Equals(parts[2], sessionId, StringComparison.Ordinal)
-            )
-                return true;
-        }
-
-        return false;
-    }
-
-    // MAPCAP / UNSAFESPAWN / AllPlayersSatisfy flag files are per session; drop the old ones
-    // (heartbeat files are kept, live teammates keep rewriting them).
-    private void DeleteOldArmySideFiles()
-    {
-        try
-        {
-            string? dir = Path.GetDirectoryName(armySyncPath);
-            string prefix = Path.GetFileName(armySyncPath) + ".";
-            if (string.IsNullOrEmpty(dir) || !Directory.Exists(dir))
-                return;
-
-            foreach (string file in Directory.GetFiles(dir, prefix + "*"))
-            {
-                string name = Path.GetFileName(file);
-                if (
-                    !name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
-                    || name.Contains(".HB.", StringComparison.Ordinal)
-                )
-                    continue;
-                try
-                {
-                    File.Delete(file);
-                }
-                catch { }
-            }
-        }
-        catch { }
-    }
-
-    private bool WriteArmyReady(string sessionId) =>
-        AppendArmyRecord(
-            new[] { "READY", ArmyProtocolVersion, sessionId, armyUsername, armyLaunchToken }
-        );
-
-    private Dictionary<string, string>? WaitForArmyReady(string sessionId)
-    {
-        string previousMissing = string.Empty;
-        DateTime lastStaleCheck = DateTime.UtcNow;
-        while (!Bot.ShouldExit && !armyTransportFailed)
-        {
-            Dictionary<string, string> tokens = new(StringComparer.OrdinalIgnoreCase);
-            foreach (string line in ReadArmyLines())
-            {
-                string[] parts = line.Split('|');
-                if (
-                    parts.Length != 5
-                    || parts[0] != "READY"
-                    || parts[1] != ArmyProtocolVersion
-                    || !string.Equals(parts[2], sessionId, StringComparison.Ordinal)
-                )
-                    continue;
-
-                string username = NormalizeArmyUsername(parts[3]);
-                if (
-                    armyPlayers.Contains(username, StringComparer.OrdinalIgnoreCase)
-                    && Guid.TryParseExact(parts[4], "N", out _)
-                )
-                    tokens[username] = parts[4];
-            }
-
-            if (armyPlayers.All(tokens.ContainsKey))
-                return tokens;
-
-            string missing = LogArmyNames(
-                armyPlayers.Where(player => !tokens.ContainsKey(player))
-            );
-            if (!string.Equals(missing, previousMissing, StringComparison.Ordinal))
-            {
-                Core.Logger($"Waiting for Army players: {missing}.", "CoreArmyFJ");
-                previousMissing = missing;
-            }
-
-            if ((DateTime.UtcNow - lastStaleCheck).TotalSeconds >= 15)
-            {
-                lastStaleCheck = DateTime.UtcNow;
-                WarnAboutStaleArmyPlayers(armyPlayers.Where(player => !tokens.ContainsKey(player)));
-            }
-
-            Bot.Sleep(ArmyPollDelay);
-        }
-
-        return null;
-    }
-
-    private bool HasMatchingArmyStart(string[] lines, string sessionId)
-    {
-        for (int index = lines.Length - 1; index >= 0; index--)
-        {
-            string[] parts = lines[index].Split('|');
-            if (
-                parts.Length != 3 + armyPlayers.Length
-                || parts[0] != "START"
-                || parts[1] != ArmyProtocolVersion
-                || !string.Equals(parts[2], sessionId, StringComparison.Ordinal)
-            )
-                continue;
-
-            string[] tokens = parts.Skip(3).ToArray();
-            return tokens.All(token => Guid.TryParseExact(token, "N", out _))
-                && string.Equals(
-                    tokens[armyPlayerIndex],
-                    armyLaunchToken,
-                    StringComparison.Ordinal
-                );
-        }
-
-        return false;
+        return armyPlayerIndex == 0
+            ? RunLeaderArmySync(stepName)
+            : RunFollowerArmySync(stepName);
     }
 
     private bool RunLeaderArmySync(string stepName)
@@ -4155,33 +4468,6 @@ public class CoreArmyFJ
         return Array.Empty<string>();
     }
 
-    private bool ClearArmyFile()
-    {
-        while (!Bot.ShouldExit && !armyTransportFailed)
-        {
-            try
-            {
-                using FileStream stream = new(
-                    armySyncPath,
-                    FileMode.Create,
-                    FileAccess.Write,
-                    FileShare.Read
-                );
-                return true;
-            }
-            catch (IOException)
-            {
-                Bot.Sleep(ArmyFileRetryDelay);
-            }
-            catch (Exception ex)
-            {
-                SetArmyTransportFailure(ex);
-            }
-        }
-
-        return false;
-    }
-
     private void LogArmyRecord(IReadOnlyList<string> fields)
     {
         switch (fields[0])
@@ -4251,17 +4537,6 @@ public class CoreArmyFJ
         return false;
     }
 
-    private bool ArmyInitializationFailure(string message)
-    {
-        Core.Logger(
-            message,
-            "CoreArmyFJ",
-            messageBox: true,
-            stopBot: true
-        );
-        return false;
-    }
-
     private string LogArmyNames(IEnumerable<string> usernames) =>
         string.Join(", ", usernames.Select(LogArmyName));
 
@@ -4273,29 +4548,6 @@ public class CoreArmyFJ
             player => string.Equals(player, normalized, StringComparison.OrdinalIgnoreCase)
         );
         return index >= 0 && index < ArmyAliases.Length ? ArmyAliases[index] : "unknownPlayer";
-    }
-
-    private void ResetArmyState()
-    {
-        armyPlayers = Array.Empty<string>();
-        armyUsername = string.Empty;
-        armySyncPath = string.Empty;
-        armyLaunchToken = string.Empty;
-        armySessionId = string.Empty;
-        armyPlayerIndex = -1;
-        nextArmyStepId = 1;
-        lastArmyStepId = 0;
-        armyInitialized = false;
-        armySessionStarted = false;
-        armySessionFailureLogged = false;
-        armyStopLogged = false;
-        armyTransportFailed = false;
-        armyTransportFailureLogged = false;
-        armyRestartRequested = false;
-        armyFailureLogged = false;
-        armyIgnoredSessionId = string.Empty;
-        armyStaleWarnedAt.Clear();
-        lastRecordedCapMap = string.Empty;
     }
 
     private static string NormalizeArmyUsername(string? username) =>
@@ -4375,257 +4627,5 @@ public class CoreArmyFJ
         return allTrue;
     }
     #endregion Army sync session (files)
-
-    #region Shared caps, room-full reports & overflow (files)
-    public int ArmyPlayerCount => armyPlayers.Length;
-
-    public int DetectCurrentMapMaxPlayers(string? expectedMap = null)
-    {
-        try
-        {
-            if (
-                !string.IsNullOrWhiteSpace(expectedMap)
-                && !string.Equals(Bot.Map?.Name, expectedMap, StringComparison.OrdinalIgnoreCase)
-            )
-                return 0;
-
-            int maxPlayers = Bot.Flash.GetGameObject<int>("world.areaData.intMaxPlayers");
-            return maxPlayers > 0 ? maxPlayers : 0;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    public void PublishMapSubgroupCap(string objectiveName, int cap)
-    {
-        if (!armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath))
-            return;
-
-        string safeName = NormalizeArmyRecordName(objectiveName);
-        if (string.IsNullOrEmpty(safeName))
-            safeName = "MAP";
-
-        string capPath = $"{armySyncPath}.MAPCAP.{safeName}.{armySessionId}";
-        // Raw cap (0 = unknown); a cap >= Army size means one shared room.
-        int normalizedCap = cap > 0 ? cap : 0;
-        try
-        {
-            File.WriteAllText(capPath, normalizedCap.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
-        catch { }
-    }
-
-    public int ReadMapSubgroupCap(string objectiveName)
-    {
-        if (!armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath))
-            return 0;
-
-        string safeName = NormalizeArmyRecordName(objectiveName);
-        if (string.IsNullOrEmpty(safeName))
-            safeName = "MAP";
-
-        string capPath = $"{armySyncPath}.MAPCAP.{safeName}.{armySessionId}";
-        try
-        {
-            if (!File.Exists(capPath))
-                return 0;
-
-            string raw = File.ReadAllText(capPath).Trim();
-            if (int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int cap))
-                return cap > 0 ? cap : 0;
-        }
-        catch { }
-
-        return 0;
-    }
-
-    public void PublishMapUnsafeSpawn(string mapName)
-    {
-        if (!armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath))
-            return;
-
-        string safeName = NormalizeArmyRecordName(mapName);
-        if (string.IsNullOrEmpty(safeName))
-            return;
-
-        string path = $"{armySyncPath}.UNSAFESPAWN.{safeName}.{armySessionId}";
-        try
-        {
-            File.WriteAllText(path, "1");
-        }
-        catch { }
-    }
-
-    // Overflow room of each account. A pending account bumped out of a full room by the server
-    // lands in an overflow room only it knows; /goto across private rooms is unreliable, so helpers
-    // read this side file and join "{map}-{room}" directly. 0 / missing = planned room.
-    private string? OverflowRoomPath(int playerNumber) =>
-        !armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath) || playerNumber < 1
-            ? null
-            : $"{armySyncPath}.OVERFLOW.P{playerNumber}.{armySessionId}";
-
-    // ---------------------------------------------------------------------------------------
-    // Learned room caps. world.areaData.intMaxPlayers reads 0 on every map, so the cap is
-    // learned from the server instead: an account whose join is answered "destination room is
-    // full" reports objective map + room; an account inside that room records its player count
-    // (teammates + outsiders) as the map cap in ArmyMapCaps.txt. Later objectives on that map
-    // (and later runs) then split the Army into rooms up front.
-    // ---------------------------------------------------------------------------------------
-    private string? currentObjectiveMap;
-    private readonly HashSet<string> processedRoomFullReports = new(StringComparer.OrdinalIgnoreCase);
-    private const int RoomFullReportFreshSeconds = 30;
-
-    private string? RoomFullReportPath(string map, int room) =>
-        !armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath) || room <= 0
-            ? null
-            : $"{armySyncPath}.ROOMFULL.{map}.{room}.{armySessionId}";
-
-    /// <summary>This account's join into <paramref name="room"/> of the current objective map was rejected as full.</summary>
-    public void ReportRoomFull(int room)
-    {
-        string? map = currentObjectiveMap;
-        if (string.IsNullOrEmpty(map))
-            return;
-
-        string? path = RoomFullReportPath(map, room);
-        if (path == null)
-            return;
-
-        try
-        {
-            File.WriteAllText(path, DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
-        }
-        catch { }
-    }
-
-    /// <summary>Inside a room a teammate was just rejected from: record its player count as the map cap.</summary>
-    public void LearnMapCapFromRoomFullReports()
-    {
-        try
-        {
-            string? map = ReadCurrentMapKey();
-            int room = GetCurrentRoomNumber();
-            if (string.IsNullOrEmpty(map) || room <= 0 || !Bot.Map.Loaded)
-                return;
-
-            // A learned cap is only a lower bound: someone may have left before it was read.
-            // More players seen in one room than the cap -> raise it.
-            int knownCap = GetKnownMapMaxPlayers(map);
-            int seenHere = Bot.Map.PlayerNames?.Count() ?? 0;
-            if (knownCap > 0 && seenHere > knownCap)
-            {
-                RecordMapMaxPlayers(map, seenHere);
-                Core.Logger($"Raised room cap for '/{map}': {seenHere} players seen in room {room} (was {knownCap}).", "CoreArmyFJ");
-            }
-
-            string? path = RoomFullReportPath(map, room);
-            if (path == null || !File.Exists(path))
-                return;
-
-            string raw = File.ReadAllText(path).Trim();
-            if (!long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long ticks))
-                return;
-
-            // Called from the objective loop and the StallGuard thread.
-            lock (processedRoomFullReports)
-            {
-                if (!processedRoomFullReports.Add($"{path}|{ticks}"))
-                    return;
-            }
-
-            if (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc) > TimeSpan.FromSeconds(RoomFullReportFreshSeconds))
-                return;
-
-            int playersHere = Bot.Map.PlayerNames?.Count() ?? 0;
-            if (playersHere < 2)
-                return;
-
-            int known = GetKnownMapMaxPlayers(map);
-            if (known > 0 && known <= playersHere)
-                return;
-
-            RecordMapMaxPlayers(map, playersHere);
-            Core.Logger(
-                $"Learned room cap for '/{map}': {playersHere} players/room (a teammate was rejected from room {room}; previous cap {(known > 0 ? known.ToString() : "unknown")}).",
-                "CoreArmyFJ"
-            );
-        }
-        catch { }
-    }
-
-    public void PublishOverflowRoom(int room)
-    {
-        string? path = OverflowRoomPath(armyPlayerIndex + 1);
-        if (path == null)
-            return;
-
-        try
-        {
-            if (room > 0)
-                File.WriteAllText(path, room.ToString(System.Globalization.CultureInfo.InvariantCulture));
-            else if (File.Exists(path))
-                File.Delete(path);
-        }
-        catch { }
-    }
-
-    public int ReadOverflowRoom(int playerNumber)
-    {
-        string? path = OverflowRoomPath(playerNumber);
-        if (path == null)
-            return 0;
-
-        try
-        {
-            if (!File.Exists(path))
-                return 0;
-
-            string raw = File.ReadAllText(path).Trim();
-            return int.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int room) && room > 0
-                ? room
-                : 0;
-        }
-        catch
-        {
-            return 0;
-        }
-    }
-
-    public int FindArmyPlayerNumber(string? username)
-    {
-        if (string.IsNullOrWhiteSpace(username))
-            return 0;
-
-        string normalized = NormalizeArmyUsername(username);
-        for (int i = 0; i < armyPlayers.Length; i++)
-        {
-            if (string.Equals(NormalizeArmyUsername(armyPlayers[i]), normalized, StringComparison.OrdinalIgnoreCase))
-                return i + 1;
-        }
-        return 0;
-    }
-
-    public bool IsMapUnsafeSpawn(string mapName)
-    {
-        if (!armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath))
-            return false;
-
-        string safeName = NormalizeArmyRecordName(mapName);
-        if (string.IsNullOrEmpty(safeName))
-            return false;
-
-        string path = $"{armySyncPath}.UNSAFESPAWN.{safeName}.{armySessionId}";
-        try
-        {
-            return File.Exists(path);
-        }
-        catch
-        {
-            return false;
-        }
-    }
-    #endregion Shared caps, room-full reports & overflow (files)
 }
 
