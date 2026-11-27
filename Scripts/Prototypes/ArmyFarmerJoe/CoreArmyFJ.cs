@@ -423,6 +423,9 @@ public class CoreArmyFJ
     )
     {
         int[]? outerRoomLayout = activeRoomLayout;
+        string? outerObjectiveMap = currentObjectiveMap;
+        if (!string.IsNullOrWhiteSpace(targetMap) && targetMap != "*")
+            currentObjectiveMap = NormalizeMapKey(targetMap);
         try
         {
             return RunCooperativeObjectiveInner(
@@ -441,6 +444,7 @@ public class CoreArmyFJ
         {
             // Nested objectives restore the layout of the objective that called them.
             activeRoomLayout = outerRoomLayout;
+            currentObjectiveMap = outerObjectiveMap;
             loggedRoomWaitMode = false;
         }
     }
@@ -591,6 +595,7 @@ public class CoreArmyFJ
                 return false;
 
             RecordCurrentMapCap();
+            LearnMapCapFromRoomFullReports();
 
             // Abort the whole Army if any account gave up on this objective.
             for (int playerNumber = 1; playerNumber <= armyPlayers.Length; playerNumber++)
@@ -852,6 +857,9 @@ public class CoreArmyFJ
             }
 
             string? currentMap = ReadCurrentMapKey();
+
+            // Working accounts never reach the objective loop, so they learn caps here.
+            LearnMapCapFromRoomFullReports();
 
             // Fast path: stranded in a /house without progress (needs a known objective map;
             // otherwise the regular nudges below handle it).
@@ -1436,12 +1444,356 @@ public class CoreArmyFJ
     {
         try
         {
+            RefreshRealQuestSlot(slot);
             if (Bot.Flash.CallGameFunction<int>("world.getQuestValue", slot) < value)
                 Bot.Quests.UpdateQuest(value, slot);
         }
         catch
         {
             // Ignore transient Flash read errors while map transitions settle.
+        }
+    }
+
+    // ---------------------------------------------------------------------------------------
+    // Real quest-slot values. Map bypasses (ours and CoreBots.Join's SimpleQuestBypass) and the
+    // explicit Bot.Quests.UpdateQuest calls in some story steps raise a story slot CLIENT-side
+    // only, until a relog (e.g. /timespace sets slot 100 = 14 = "2518 done"). isCompletedBefore
+    // then reports unfinished story quests as done: 2518 was skipped and the server refused 2519;
+    // 565-567 were skipped and 597 was refused ("Missing Quest Progress").
+    //
+    // A client value is only trusted when no bypass could have produced it: below the slot's
+    // lowest bypass value, above its highest one, or right after a fresh login. Everything else
+    // comes from the per-account record (ArmyRealQuestSlots.<user>.txt), which is kept across
+    // script restarts and raised on real turn-ins (QuestTurnedIn). An account that starts with an
+    // unexplained value in the bypass range and no record relogs once to read the server values.
+    // ---------------------------------------------------------------------------------------
+    private readonly Dictionary<int, int> realQuestSlots = new();
+    private string realQuestSlotsLogin = string.Empty;
+    private bool realQuestSlotsLoaded;
+    private bool questTurnInHooked;
+    private Dictionary<int, (int Min, int Max)>? questSlotBypassBounds;
+
+    // Client-side fakes outside the map table: explicit Bot.Quests.UpdateQuest(questId) calls in
+    // ArmyFarmerJoeDoAll (354 dwarfprison access, 567/597 Wolfwing, 847 Ledgermayne, 4614 sandport,
+    // 2814 Lionfang raindrops, 4361 treetitanbattle). Keep in sync when adding such a call.
+    private static readonly (int Slot, int Value)[] ExplicitQuestSlotFakes =
+    {
+        (22, 31),
+        (26, 22),
+        (26, 23),
+        (32, 35),
+        (97, 15),
+        (117, 17),
+        (196, 14),
+    };
+
+    private Dictionary<int, (int Min, int Max)> QuestSlotBypassBounds =>
+        questSlotBypassBounds ??= MapQuestSlotBypasses.Values
+            .SelectMany(v => v)
+            .Concat(ExplicitQuestSlotFakes)
+            .GroupBy(v => v.Slot)
+            .ToDictionary(g => g.Key, g => (g.Min(v => v.Value), g.Max(v => v.Value)));
+
+    /// <summary>True when no map bypass can have produced this client value (so it is the server's).</summary>
+    private bool IsCertainlyRealSlotValue(int slot, int client) =>
+        !QuestSlotBypassBounds.TryGetValue(slot, out var bounds) || client < bounds.Min || client > bounds.Max;
+
+    private string RealQuestSlotsPath
+    {
+        get
+        {
+            string user = new string((Core.Username() ?? "unknown").ToLowerInvariant().Where(char.IsLetterOrDigit).ToArray());
+            return Path.Combine(ClientFileSources.SkuaOptionsDIR, $"ArmyRealQuestSlots.{(user.Length > 0 ? user : "unknown")}.txt");
+        }
+    }
+
+    // Per-connection player id: a new value means a new login (client slots = server values).
+    private string CurrentLoginMarker()
+    {
+        try
+        {
+            int id = Bot.Player.ID;
+            return id > 0 ? id.ToString(System.Globalization.CultureInfo.InvariantCulture) : string.Empty;
+        }
+        catch
+        {
+            return string.Empty;
+        }
+    }
+
+    private int ReadClientQuestSlot(int slot)
+    {
+        try
+        {
+            return Bot.Flash.CallGameFunction<int>("world.getQuestValue", slot);
+        }
+        catch
+        {
+            return -1;
+        }
+    }
+
+    private void EnsureRealQuestSlotsLoaded()
+    {
+        if (realQuestSlotsLoaded)
+            return;
+
+        realQuestSlotsLoaded = true;
+        try
+        {
+            if (!File.Exists(RealQuestSlotsPath))
+                return;
+
+            foreach (string line in File.ReadAllLines(RealQuestSlotsPath))
+            {
+                string[] parts = line.Split('=');
+                if (parts.Length != 2)
+                    continue;
+
+                if (parts[0].Trim() == "login")
+                {
+                    realQuestSlotsLogin = parts[1].Trim();
+                    continue;
+                }
+
+                if (
+                    int.TryParse(parts[0].Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int slot)
+                    && int.TryParse(parts[1].Trim(), System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out int value)
+                    && slot > 0
+                    && value >= 0
+                )
+                    realQuestSlots[slot] = value;
+            }
+        }
+        catch { }
+    }
+
+    private void SaveRealQuestSlots()
+    {
+        try
+        {
+            File.WriteAllLines(
+                RealQuestSlotsPath,
+                new[] { $"login={realQuestSlotsLogin}" }
+                    .Concat(realQuestSlots.OrderBy(kv => kv.Key).Select(kv => $"{kv.Key}={kv.Value}"))
+            );
+        }
+        catch { }
+    }
+
+    // Caller holds the lock. Returns true when the record changed.
+    private bool SetRealQuestSlot(int slot, int value)
+    {
+        if (realQuestSlots.TryGetValue(slot, out int known) && known == value)
+            return false;
+
+        realQuestSlots[slot] = value;
+        return true;
+    }
+
+    /// <summary>Updates the record from the client when the client value is certainly the server's.</summary>
+    private void RefreshRealQuestSlot(int slot)
+    {
+        int client = ReadClientQuestSlot(slot);
+        if (client < 0 || !IsCertainlyRealSlotValue(slot, client))
+            return;
+
+        lock (realQuestSlots)
+        {
+            EnsureRealQuestSlotsLoaded();
+            if (SetRealQuestSlot(slot, client))
+                SaveRealQuestSlots();
+        }
+    }
+
+    // Records every bypass slot from the client. With trustClient (fresh login) every value is
+    // taken as is; otherwise only certain values. Returns the ambiguous slots without a record.
+    private List<string> RecordBypassSlotsFromClient(bool trustClient)
+    {
+        List<string> ambiguous = new();
+        lock (realQuestSlots)
+        {
+            EnsureRealQuestSlotsLoaded();
+            bool changed = false;
+            foreach (int slot in QuestSlotBypassBounds.Keys)
+            {
+                int client = ReadClientQuestSlot(slot);
+                if (client < 0)
+                    continue;
+
+                if (trustClient || IsCertainlyRealSlotValue(slot, client))
+                    changed |= SetRealQuestSlot(slot, client);
+                else if (!realQuestSlots.ContainsKey(slot))
+                    ambiguous.Add($"{slot}={client}");
+            }
+
+            string login = CurrentLoginMarker();
+            if (trustClient && login.Length > 0 && login != realQuestSlotsLogin)
+            {
+                realQuestSlotsLogin = login;
+                changed = true;
+            }
+
+            if (changed)
+                SaveRealQuestSlots();
+        }
+        return ambiguous;
+    }
+
+    /// <summary>
+    /// Startup (before the Army session): records the real value of every bypass slot. A new
+    /// login is trusted as is; an unexplained bypass-range value without a record costs one relog.
+    /// </summary>
+    public void InitRealQuestSlotTracking()
+    {
+        if (!questTurnInHooked)
+        {
+            try
+            {
+                Bot.Events.QuestTurnedIn += OnQuestTurnedInTrackRealSlot;
+                questTurnInHooked = true;
+            }
+            catch { }
+        }
+
+        bool newLogin;
+        lock (realQuestSlots)
+        {
+            EnsureRealQuestSlotsLoaded();
+            string login = CurrentLoginMarker();
+            newLogin = login.Length > 0 && login != realQuestSlotsLogin;
+        }
+
+        List<string> ambiguous = RecordBypassSlotsFromClient(trustClient: newLogin);
+        if (ambiguous.Count == 0)
+            return;
+
+        Core.Logger(
+            $"Story slots {string.Join(", ", ambiguous)} may be faked by a map bypass from an earlier run (no real value on record); "
+                + "relogging once to read the server values.",
+            "CoreArmyFJ"
+        );
+        try
+        {
+            Core.Relogin("reading real story progress");
+        }
+        catch (Exception ex)
+        {
+            Core.Logger($"Relog for story progress failed: {ex.Message}", "CoreArmyFJ");
+        }
+
+        if (!Bot.Player.LoggedIn)
+        {
+            Core.Logger("Still logged out after the relog; story checks keep using the client values.", "CoreArmyFJ");
+            return;
+        }
+
+        RecordBypassSlotsFromClient(trustClient: true);
+    }
+
+    public void StopRealQuestSlotTracking()
+    {
+        if (!questTurnInHooked)
+            return;
+
+        try
+        {
+            Bot.Events.QuestTurnedIn -= OnQuestTurnedInTrackRealSlot;
+        }
+        catch { }
+        questTurnInHooked = false;
+    }
+
+    private void OnQuestTurnedInTrackRealSlot(int questId)
+    {
+        try
+        {
+            Quest? quest = Bot.Quests.Tree?.FirstOrDefault(q => q.ID == questId);
+            if (quest == null || quest.Slot <= 0)
+                return;
+
+            lock (realQuestSlots)
+            {
+                EnsureRealQuestSlotsLoaded();
+                if (!realQuestSlots.TryGetValue(quest.Slot, out int known) || quest.Value <= known)
+                    return;
+
+                realQuestSlots[quest.Slot] = quest.Value;
+                SaveRealQuestSlots();
+            }
+        }
+        catch { }
+    }
+
+    /// <summary>
+    /// Story completion against the real slot value when the client value may be faked.
+    /// Null = the client value can be trusted (use isCompletedBefore).
+    /// </summary>
+    public bool? IsQuestDoneByRealSlot(int questId)
+    {
+        try
+        {
+            Quest? quest = Bot.Quests.Tree?.FirstOrDefault(q => q.ID == questId);
+            if (quest == null || quest.Slot <= 0 || !QuestSlotBypassBounds.ContainsKey(quest.Slot))
+                return null;
+
+            int client = ReadClientQuestSlot(quest.Slot);
+            if (client < 0)
+                return null;
+
+            if (IsCertainlyRealSlotValue(quest.Slot, client))
+            {
+                RefreshRealQuestSlot(quest.Slot);
+                return null;
+            }
+
+            lock (realQuestSlots)
+            {
+                EnsureRealQuestSlotsLoaded();
+                return realQuestSlots.TryGetValue(quest.Slot, out int real) ? real >= quest.Value : null;
+            }
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    /// <summary>
+    /// Puts the real value back into the client before story work, so official helpers
+    /// (Story.KillQuest, QuestProgression...) do not skip quests a bypass faked as done.
+    /// Joining a bypass map raises it again; a map already joined keeps working.
+    /// </summary>
+    public void RestoreRealQuestSlots()
+    {
+        List<(int Slot, int Value)> records;
+        lock (realQuestSlots)
+        {
+            EnsureRealQuestSlotsLoaded();
+            records = realQuestSlots.Select(kv => (kv.Key, kv.Value)).ToList();
+        }
+
+        foreach (var (slot, value) in records)
+        {
+            int client = ReadClientQuestSlot(slot);
+            if (client < 0 || client == value)
+                continue;
+
+            if (IsCertainlyRealSlotValue(slot, client))
+            {
+                RefreshRealQuestSlot(slot);
+                continue;
+            }
+
+            try
+            {
+                Bot.Quests.UpdateQuest(value, slot);
+                Core.Logger(
+                    $"Quest slot {slot}: client showed {client} (map bypass), restored real value {value}.",
+                    "CoreArmyFJ"
+                );
+            }
+            catch { }
         }
     }
 
@@ -1835,6 +2187,7 @@ public class CoreArmyFJ
                 {
                     if (!JoinMapForHelp(overflowTarget) && lastHelperJoinHitFullRoom)
                     {
+                        ReportRoomFull(targetOverflowRoom);
                         MarkTeammateRoomFull(normalizedTarget, $"/{overflowTarget}");
                         return;
                     }
@@ -1873,6 +2226,7 @@ public class CoreArmyFJ
             {
                 if (!JoinMapForHelp(targetMap!) && lastHelperJoinHitFullRoom)
                 {
+                    ReportRoomFull(Core.PrivateRoomNumber);
                     MarkTeammateRoomFull(normalizedTarget, $"/{targetMap}");
                     return;
                 }
@@ -2884,7 +3238,9 @@ public class CoreArmyFJ
             if (cmd != "warning")
                 return null;
 
-            string text = Convert.ToString(packet) ?? string.Empty;
+            // Only the warning's own fields ("warning", "-1", message). The full packet also carries
+            // the socket data (ip, ports 5592/8080...), which looked like room numbers.
+            string text = Convert.ToString(dataObj) ?? string.Empty;
             if (
                 !text.Contains("is full", StringComparison.OrdinalIgnoreCase)
                 || text.Contains("inventory", StringComparison.OrdinalIgnoreCase)
@@ -3989,6 +4345,95 @@ public class CoreArmyFJ
         !armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath) || playerNumber < 1
             ? null
             : $"{armySyncPath}.OVERFLOW.P{playerNumber}.{armySessionId}";
+
+    // ---------------------------------------------------------------------------------------
+    // Learned room caps. world.areaData.intMaxPlayers reads 0 on every map, so the cap is
+    // learned from the server instead: an account whose join is answered "destination room is
+    // full" reports objective map + room; an account inside that room records its player count
+    // (teammates + outsiders) as the map cap in ArmyMapCaps.txt. Later objectives on that map
+    // (and later runs) then split the Army into rooms up front.
+    // ---------------------------------------------------------------------------------------
+    private string? currentObjectiveMap;
+    private readonly HashSet<string> processedRoomFullReports = new(StringComparer.OrdinalIgnoreCase);
+    private const int RoomFullReportFreshSeconds = 30;
+
+    private string? RoomFullReportPath(string map, int room) =>
+        !armySessionStarted || string.IsNullOrWhiteSpace(armySyncPath) || room <= 0
+            ? null
+            : $"{armySyncPath}.ROOMFULL.{map}.{room}.{armySessionId}";
+
+    /// <summary>This account's join into <paramref name="room"/> of the current objective map was rejected as full.</summary>
+    public void ReportRoomFull(int room)
+    {
+        string? map = currentObjectiveMap;
+        if (string.IsNullOrEmpty(map))
+            return;
+
+        string? path = RoomFullReportPath(map, room);
+        if (path == null)
+            return;
+
+        try
+        {
+            File.WriteAllText(path, DateTime.UtcNow.Ticks.ToString(System.Globalization.CultureInfo.InvariantCulture));
+        }
+        catch { }
+    }
+
+    /// <summary>Inside a room a teammate was just rejected from: record its player count as the map cap.</summary>
+    public void LearnMapCapFromRoomFullReports()
+    {
+        try
+        {
+            string? map = ReadCurrentMapKey();
+            int room = GetCurrentRoomNumber();
+            if (string.IsNullOrEmpty(map) || room <= 0 || !Bot.Map.Loaded)
+                return;
+
+            // A learned cap is only a lower bound: someone may have left before it was read.
+            // More players seen in one room than the cap -> raise it.
+            int knownCap = GetKnownMapMaxPlayers(map);
+            int seenHere = Bot.Map.PlayerNames?.Count() ?? 0;
+            if (knownCap > 0 && seenHere > knownCap)
+            {
+                RecordMapMaxPlayers(map, seenHere);
+                Core.Logger($"Raised room cap for '/{map}': {seenHere} players seen in room {room} (was {knownCap}).", "CoreArmyFJ");
+            }
+
+            string? path = RoomFullReportPath(map, room);
+            if (path == null || !File.Exists(path))
+                return;
+
+            string raw = File.ReadAllText(path).Trim();
+            if (!long.TryParse(raw, System.Globalization.NumberStyles.Integer, System.Globalization.CultureInfo.InvariantCulture, out long ticks))
+                return;
+
+            // Called from the objective loop and the StallGuard thread.
+            lock (processedRoomFullReports)
+            {
+                if (!processedRoomFullReports.Add($"{path}|{ticks}"))
+                    return;
+            }
+
+            if (DateTime.UtcNow - new DateTime(ticks, DateTimeKind.Utc) > TimeSpan.FromSeconds(RoomFullReportFreshSeconds))
+                return;
+
+            int playersHere = Bot.Map.PlayerNames?.Count() ?? 0;
+            if (playersHere < 2)
+                return;
+
+            int known = GetKnownMapMaxPlayers(map);
+            if (known > 0 && known <= playersHere)
+                return;
+
+            RecordMapMaxPlayers(map, playersHere);
+            Core.Logger(
+                $"Learned room cap for '/{map}': {playersHere} players/room (a teammate was rejected from room {room}; previous cap {(known > 0 ? known.ToString() : "unknown")}).",
+                "CoreArmyFJ"
+            );
+        }
+        catch { }
+    }
 
     public void PublishOverflowRoom(int room)
     {

@@ -172,6 +172,8 @@ public class ArmyFarmerJoeDoAll
         // StallGuard sends an account that sits alone in an overflow room back to its planned room.
         Army.PlannedRoomBeforeOverflow = () => _roomOverflowStep > 0 ? _roomBeforeOverflow : 0;
         Army.RestorePlannedRoom = RestorePlannedRoomAfterOverflow;
+        // Map bypasses fake story slots client-side; record the real values before any join.
+        Army.InitRealQuestSlotTracking();
         try
         {
             // A teammate that restarts its bot (relogin / manual restart) makes playerOne re-create
@@ -212,6 +214,7 @@ public class ArmyFarmerJoeDoAll
         finally
         {
             DetachRoomFullListener();
+            Army.StopRealQuestSlotTracking();
             Army.EndArmySession();
             core.SetOptions(false);
         }
@@ -629,17 +632,6 @@ public class ArmyFarmerJoeDoAll
             if (_lastRejectedRoom > 0 && text.Contains(_lastRejectedRoom.ToString(), StringComparison.Ordinal))
                 return;
 
-            // The warning names another room (not the one this account is joining): it is not
-            // about our join, so it must not move us away from the group.
-            HashSet<int> roomsInText = ExtractRoomNumbers(text);
-            if (roomsInText.Count > 0 && !roomsInText.Contains(previousRoom))
-            {
-                core.Logger(
-                    $"Ignoring 'is full' warning for room(s) {string.Join(", ", roomsInText)} (current room {previousRoom}). Raw: {ShortenWarning(text)}"
-                );
-                return;
-            }
-
             // Warning without the current room's number arriving right after a move is most likely
             // the late answer to the previous join; a really full overflow room warns again later.
             if (
@@ -652,6 +644,9 @@ public class ArmyFarmerJoeDoAll
             int? overflowRoom = ComputeArmyRoomNumber(RoomOverflowBaseOffset + _roomOverflowStep);
             if (overflowRoom == null)
                 return;
+
+            // Teammates inside the full room learn the map cap from this report.
+            Army.ReportRoomFull(previousRoom);
 
             if (_roomOverflowStep == 0)
                 _roomBeforeOverflow = previousRoom;
@@ -667,30 +662,6 @@ public class ArmyFarmerJoeDoAll
             );
         }
         catch { }
-    }
-
-    // 4-6 digit numbers in the warning (private room numbers); "-1" and short ids are ignored.
-    private static HashSet<int> ExtractRoomNumbers(string text)
-    {
-        HashSet<int> rooms = new();
-        int i = 0;
-        while (i < text.Length)
-        {
-            if (!char.IsDigit(text[i]))
-            {
-                i++;
-                continue;
-            }
-
-            int start = i;
-            while (i < text.Length && char.IsDigit(text[i]))
-                i++;
-
-            int length = i - start;
-            if (length >= 4 && length <= 6 && int.TryParse(text.AsSpan(start, length), NumberStyles.Integer, CultureInfo.InvariantCulture, out int room))
-                rooms.Add(room);
-        }
-        return rooms;
     }
 
     private static string ShortenWarning(string text)
@@ -7561,7 +7532,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCPrologue()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(6219, log: false);
+        bool IsDone() => IsStoryQuestDone(6219);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -7640,7 +7611,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCEscherion()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(272, log: false);
+        bool IsDone() => IsStoryQuestDone(272);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -7699,7 +7670,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCVath()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(363, log: false);
+        bool IsDone() => IsStoryQuestDone(363);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -7821,7 +7792,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCKitsune()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(488, log: false);
+        bool IsDone() => IsStoryQuestDone(488);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -7981,7 +7952,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCWolfwing()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(597, log: false) || core.isCompletedBefore(598, log: false);
+        bool IsDone() => IsStoryQuestDone(597) || IsStoryQuestDone(598);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -8117,7 +8088,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCLedgermayne()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(847, log: false);
+        bool IsDone() => IsStoryQuestDone(847);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -8317,7 +8288,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCTibicenas()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(1005, log: false);
+        bool IsDone() => IsStoryQuestDone(1005);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -8430,7 +8401,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCKhasaanda()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(1473, log: false) || core.isCompletedBefore(1468, log: false);
+        bool IsDone() => IsStoryQuestDone(1473) || IsStoryQuestDone(1468);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -8656,7 +8627,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCIadoa()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(2519, log: false);
+        bool IsDone() => IsStoryQuestDone(2519);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -8951,7 +8922,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCLionfang()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(2814, log: false);
+        bool IsDone() => IsStoryQuestDone(2814);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -9116,7 +9087,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCXiang()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(3189, log: false);
+        bool IsDone() => IsStoryQuestDone(3189);
 
         var pre3184Steps = new CoordinatedStoryStep[]
         {
@@ -9377,7 +9348,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCAlteon()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(3160, log: false);
+        bool IsDone() => IsStoryQuestDone(3160);
 
         var steps = new CoordinatedStoryStep[]
         {
@@ -9497,7 +9468,7 @@ public class ArmyFarmerJoeDoAll
     private bool Run13LoCHero()
     {
         CoreBots core = CoreBots.Instance;
-        bool IsDone() => core.isCompletedBefore(3799, log: false) && core.isCompletedBefore(3881, log: false);
+        bool IsDone() => IsStoryQuestDone(3799) && IsStoryQuestDone(3881);
 
         void ResetShadowAttack()
         {
@@ -15626,10 +15597,16 @@ public class ArmyFarmerJoeDoAll
             return 0;
 
         string normalized = targetMap.Trim().ToLowerInvariant();
-        if (_detectedMapCaps.TryGetValue(normalized, out int cachedCap))
+        // A cached 0 ("unknown") is not final: a teammate may have learned the cap from a
+        // "room is full" answer since (ArmyMapCaps.txt), so the file is checked again.
+        bool cachedUnknown = _detectedMapCaps.TryGetValue(normalized, out int cachedCap) && cachedCap <= 0;
+        if (cachedCap > 0)
             return cachedCap;
 
         int maxPlayers = Army.GetKnownMapMaxPlayers(normalized);
+        if (maxPlayers <= 0 && cachedUnknown)
+            return 0;
+
         if (maxPlayers <= 0)
         {
             if (!allowJoin)
@@ -15922,6 +15899,17 @@ public class ArmyFarmerJoeDoAll
         );
     }
 
+    // isCompletedBefore reads the client slot, which map bypasses raise client-side
+    // (e.g. /timespace fakes 2518 as done). A "done" answer is double-checked against the
+    // real slot value recorded by CoreArmyFJ; "not done" is always true (bypasses only raise).
+    private bool IsStoryQuestDone(int questId)
+    {
+        if (!CoreBots.Instance.isCompletedBefore(questId, log: false))
+            return false;
+
+        return Army.IsQuestDoneByRealSlot(questId) ?? true;
+    }
+
     private bool RunCoordinatedStoryChain(
         string objectivePrefix,
         CoordinatedStoryStep[] steps,
@@ -15951,7 +15939,7 @@ public class ArmyFarmerJoeDoAll
         if (
             Army.AllPlayersSatisfy(
                 $"{objectivePrefix}_CHAIN_DONE",
-                () => IsDisabled() || steps.All(s => core.isCompletedBefore(s.QuestId, log: false))
+                () => IsDisabled() || steps.All(s => IsStoryQuestDone(s.QuestId))
             )
         )
             return !Bot.ShouldExit;
@@ -15972,11 +15960,13 @@ public class ArmyFarmerJoeDoAll
                     !RunSubgroupCooperativeObjective(
                         1,
                         objName,
-                        () => IsDisabled() || core.isCompletedBefore(step.QuestId, log: false),
+                        () => IsDisabled() || IsStoryQuestDone(step.QuestId),
                         () =>
                         {
-                            if (IsDisabled() || core.isCompletedBefore(step.QuestId, log: false))
+                            if (IsDisabled() || IsStoryQuestDone(step.QuestId))
                                 return;
+
+                            Army.RestoreRealQuestSlots();
 
                             if (!IsStoryStepUnlocked(step.UnlockQuestId, objName))
                                 return;
@@ -15997,11 +15987,13 @@ public class ArmyFarmerJoeDoAll
                 !RunSubgroupCooperativeObjective(
                     0,
                     objName,
-                    () => IsDisabled() || core.isCompletedBefore(step.QuestId, log: false),
+                    () => IsDisabled() || IsStoryQuestDone(step.QuestId),
                     () =>
                     {
-                        if (IsDisabled() || core.isCompletedBefore(step.QuestId, log: false))
+                        if (IsDisabled() || IsStoryQuestDone(step.QuestId))
                             return;
+
+                        Army.RestoreRealQuestSlots();
 
                         if (!IsStoryStepUnlocked(step.UnlockQuestId, objName))
                             return;
