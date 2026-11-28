@@ -1020,7 +1020,9 @@ public class CoreArmyFJ
     // Fast path: the usual manual unstick is "/join house". The farm loops join their map only
     // once, so the account then idled in the house forever; now, after OffMapRecoverySeconds
     // in a /house without progress, it is sent back to the objective map.
-    public int WorkStallMinutes { get; set; } = 5;
+    // 3 min, not 5: a frozen client sat ~3 min farming in /shadowrise while the rest of the
+    // Army had finished and waited on it (quest 3620, 2026-11-27).
+    public int WorkStallMinutes { get; set; } = 3;
     public int OffMapRecoverySeconds { get; set; } = 20;
 
     // Lonely overflow: a "room is full" answer moved this account into an overflow room that no
